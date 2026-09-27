@@ -1,10 +1,11 @@
 <script setup>
-import { Link, router } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import AvitoWaitingList from '@/Components/Avito/AvitoWaitingList.vue'
+import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -21,15 +22,25 @@ const props = defineProps({
     },
     ordersByStatus: {
         type: Object,
-        default: () => ({
-            open: [],
-            deferred: [],
-        }),
+        default: () => ({}),
+    },
+    orderStatuses: {
+        type: Array,
+        default: () => [],
     },
 })
 
-const orderTab = ref('open')
+const orderTab = ref(null)
+const orderDetailsOpen = ref(false)
+const selectedOrderId = ref(null)
+const activeOrderStatuses = computed(() => props.orderStatuses.filter(status => !status.is_closed))
 const visibleOrders = computed(() => props.ordersByStatus?.[orderTab.value] || [])
+
+watch(() => activeOrderStatuses.value.map(status => status.code), codes => {
+    if (!codes.includes(orderTab.value)) {
+        orderTab.value = codes[0] ?? null
+    }
+}, { immediate: true })
 
 function formatDateTime(value) {
     if (!value) {
@@ -98,7 +109,8 @@ function goodUrl(good) {
 }
 
 function openOrder(order) {
-    router.visit(orderUrl(order.id))
+    selectedOrderId.value = order.id
+    orderDetailsOpen.value = true
 }
 
 function formatMoney(value, currencyCode = 'RUB') {
@@ -208,26 +220,20 @@ useHead({
                 </span>
             </header>
 
-            <div class="order-summary__tabs" role="tablist" aria-label="Статусы заказов">
+            <div v-if="activeOrderStatuses.length" class="order-summary__tabs" role="tablist" aria-label="Статусы заказов">
                 <button
+                    v-for="status in activeOrderStatuses"
+                    :key="status.id"
                     type="button"
                     role="tab"
-                    :aria-selected="orderTab === 'open'"
-                    :class="{ 'is-active': orderTab === 'open' }"
-                    @click="orderTab = 'open'"
+                    :aria-selected="orderTab === status.code"
+                    :class="{ 'is-active': orderTab === status.code }"
+                    :style="{ '--status-color': status.color || '#64748b' }"
+                    @click="orderTab = status.code"
                 >
-                    Открытые
-                    <span>{{ ordersByStatus.open?.length || 0 }}</span>
-                </button>
-                <button
-                    type="button"
-                    role="tab"
-                    :aria-selected="orderTab === 'deferred'"
-                    :class="{ 'is-active': orderTab === 'deferred' }"
-                    @click="orderTab = 'deferred'"
-                >
-                    Отложенные
-                    <span>{{ ordersByStatus.deferred?.length || 0 }}</span>
+                    <i class="order-summary__status-dot" />
+                    {{ status.name }}
+                    <span>{{ ordersByStatus[status.code]?.length || 0 }}</span>
                 </button>
             </div>
 
@@ -238,21 +244,26 @@ useHead({
                             <th scope="col">Entity / Заказ</th>
                             <th scope="col">Товары</th>
                             <th scope="col">Сумма</th>
+                            <th scope="col" class="order-ledger__action"><span class="sr-only">Страница заказа</span></th>
                         </tr>
                     </thead>
                     <tbody v-if="visibleOrders.length">
                         <tr
                             v-for="order in visibleOrders"
                             :key="order.id"
-                            tabindex="0"
                             @click="openOrder(order)"
-                            @keydown.enter="openOrder(order)"
                         >
                             <td>
                                 <strong class="order-ledger__entity">
                                     {{ order.entity?.name || 'Без Entity' }}
                                 </strong>
-                                <small class="order-ledger__number">{{ order.number }}</small>
+                                <button
+                                    type="button"
+                                    class="order-ledger__number"
+                                    aria-haspopup="dialog"
+                                    :aria-label="`Детали заказа ${order.number || `#${order.id}`}`"
+                                    @click.stop="openOrder(order)"
+                                >{{ order.number || `#${order.id}` }}</button>
                             </td>
                             <td>
                                 <div class="order-ledger__goods">
@@ -272,12 +283,21 @@ useHead({
                             <td class="order-ledger__amount">
                                 {{ formatMoney(order.total_amount, order.currency_code) }}
                             </td>
+                            <td class="order-ledger__action">
+                                <Link
+                                    :href="orderUrl(order.id)"
+                                    class="order-ledger__page-link"
+                                    :aria-label="`Открыть страницу заказа ${order.number || `#${order.id}`}`"
+                                    title="Открыть страницу заказа"
+                                    @click.stop
+                                ><v-icon icon="mdi-open-in-new" size="14" /></Link>
+                            </td>
                         </tr>
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="3" class="order-ledger__empty">
-                                {{ orderTab === 'open' ? 'Открытых заказов нет' : 'Отложенных заказов нет' }}
+                            <td colspan="4" class="order-ledger__empty">
+                                {{ activeOrderStatuses.length ? 'В этом статусе заказов нет' : 'Активных статусов заказов нет' }}
                             </td>
                         </tr>
                     </tbody>
@@ -286,6 +306,7 @@ useHead({
         </section>
 
         <AvitoWaitingList class="avito-waiting-summary" />
+        <OrderDetailsDialog v-if="canViewOrders" v-model="orderDetailsOpen" :order-id="selectedOrderId" />
     </main>
 </template>
 
@@ -507,22 +528,26 @@ useHead({
 }
 
 .order-summary__tabs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-shrink: 0;
     min-height: 36px;
+    overflow-x: auto;
     border-bottom: 1px solid #d7dce2;
 }
 
 .order-summary__tabs button {
     display: inline-flex;
+    flex: 1 0 auto;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    padding: 8px 12px;
     border-right: 1px solid #d7dce2;
     background: #f5f6f7;
     color: #69727c;
     font-size: 10px;
     font-weight: 850;
+    white-space: nowrap;
 }
 
 .order-summary__tabs button:last-child {
@@ -530,9 +555,17 @@ useHead({
 }
 
 .order-summary__tabs button.is-active {
-    box-shadow: inset 0 -2px #7f1d1d;
+    box-shadow: inset 0 -2px var(--status-color);
     background: #fff;
-    color: #7f1d1d;
+    color: #252b33;
+}
+
+.order-summary__status-dot {
+    flex: 0 0 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--status-color);
 }
 
 .order-summary__tabs span {
@@ -589,8 +622,14 @@ useHead({
     width: 40%;
 }
 
-.order-ledger th:last-child {
+.order-ledger th:nth-child(3) {
     width: 82px;
+}
+
+.order-ledger .order-ledger__action {
+    width: 30px;
+    padding: 3px;
+    text-align: center;
 }
 
 .order-ledger tbody tr {
@@ -598,7 +637,7 @@ useHead({
 }
 
 .order-ledger tbody tr:hover,
-.order-ledger tbody tr:focus {
+.order-ledger tbody tr:focus-within {
     outline: none;
     background: #faf4ee;
 }
@@ -621,9 +660,44 @@ useHead({
 }
 
 .order-ledger__number {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    margin-top: 2px;
+    color: #68727d;
     font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
     font-weight: 650;
     letter-spacing: 0.015em;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.order-ledger__number:hover {
+    color: #7f1d1d;
+    text-decoration: underline;
+}
+
+.order-ledger__page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 26px;
+    border-radius: 4px;
+    color: #68727d;
+}
+
+.order-ledger__page-link:hover {
+    background: #e7ebef;
+    color: #7f1d1d;
+}
+
+.order-ledger__number:focus-visible,
+.order-ledger__page-link:focus-visible {
+    outline: 2px solid #7f1d1d;
+    outline-offset: 2px;
 }
 
 .order-ledger td > small,

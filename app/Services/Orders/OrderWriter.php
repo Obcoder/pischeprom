@@ -32,7 +32,7 @@ class OrderWriter
                     'preparation_invalidated_at' => now(),
                 ]);
             }
-            $status = OrderStatus::query()->findOrFail($data['order_status_id']);
+            $status = OrderStatus::query()->sharedLock()->findOrFail($data['order_status_id']);
             $goods = $this->goodsFor($data['items']);
             $lines = collect($data['items'])
                 ->map(fn (array $item) => $this->makeLine($goods[(int) $item['good_id']], $item, $data['currency_code']))

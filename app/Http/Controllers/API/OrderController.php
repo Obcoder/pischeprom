@@ -116,7 +116,7 @@ class OrderController extends Controller
         return response()->json([
             'statuses' => OrderStatus::query()
                 ->ordered()
-                ->get(['id', 'code', 'name', 'color', 'is_closed']),
+                ->get(['id', 'code', 'name', 'color', 'sort_order', 'is_closed']),
             'entities' => Entity::query()
                 ->withoutEagerLoads()
                 ->orderBy('name')

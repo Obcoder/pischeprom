@@ -20,14 +20,17 @@ class Verwalter extends Controller
             ->orderByDesc('last_activity_at')
             ->orderByDesc('id')
             ->get();
+        $orderStatuses = OrderStatus::query()
+            ->where('is_closed', false)
+            ->ordered()
+            ->get(['id', 'code', 'name', 'color', 'is_closed']);
 
         return Inertia::render('Ameise/Verwalter', [
             'activeLeads' => LeadResource::collection($activeLeads)->resolve(),
             'canViewOrders' => true,
-            'ordersByStatus' => [
-                OrderStatus::OPEN => $this->ordersForStatus(OrderStatus::OPEN),
-                OrderStatus::DEFERRED => $this->ordersForStatus(OrderStatus::DEFERRED),
-            ],
+            'orderStatuses' => $orderStatuses,
+            'ordersByStatus' => $orderStatuses
+                ->mapWithKeys(fn (OrderStatus $status) => [$status->code => $this->ordersForStatus($status->code)]),
         ]);
     }
 

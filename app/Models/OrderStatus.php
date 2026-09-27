@@ -32,6 +32,11 @@ class OrderStatus extends Model
         return $this->hasMany(Order::class);
     }
 
+    public function isSystem(): bool
+    {
+        return in_array($this->code, [self::OPEN, self::DEFERRED, self::CLOSED], true);
+    }
+
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('sort_order')->orderBy('id');

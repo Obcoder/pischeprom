@@ -3,877 +3,412 @@ import axios from 'axios'
 import { Link, router } from '@inertiajs/vue3'
 import { useDebounceFn } from '@vueuse/core'
 import { useHead } from '@unhead/vue'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
-
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import OrderStatusesDialog from '@/Components/Orders/OrderStatusesDialog.vue'
 
-defineOptions({
-    layout: VerwalterLayout,
-})
-
+defineOptions({ layout: VerwalterLayout })
 defineProps({
     permissions: {
         type: Object,
-        default: () => ({
-            view: false,
-            create: false,
-            edit: false,
-            delete: false,
-        }),
+        default: () => ({ view: false, create: false, edit: false, delete: false }),
     },
 })
 
 const orders = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
-const options = reactive({
-    statuses: [],
-    entities: [],
-    buildings: [],
-    goods: [],
-})
-const meta = reactive({
-    current_page: 1,
-    last_page: 1,
-    per_page: 25,
-    total: 0,
+const optionsError = ref('')
+const filterMenuOpen = ref(false)
+const statusesOpen = ref(false)
+const options = reactive({ statuses: [], entities: [], buildings: [], goods: [] })
+const meta = reactive({ current_page: 1, last_page: 1, per_page: 25, total: 0 })
+const emptyFilters = () => ({
+    status_id: null, entity_id: null, building_id: null, good_id: null,
+    date_from: '', date_to: '', delivery_date: '', delivery_unscheduled: false,
+    total_from: '', total_to: '',
 })
 const filters = reactive({
-    search: '',
-    status_id: null,
-    entity_id: null,
-    building_id: null,
-    good_id: null,
-    date_from: '',
-    date_to: '',
-    delivery_date: '',
-    delivery_unscheduled: false,
-    total_from: '',
-    total_to: '',
-    sort_by: 'submitted_at',
-    sort_direction: 'desc',
-    page: 1,
-    per_page: 25,
+    search: '', ...emptyFilters(), sort_by: 'submitted_at', sort_direction: 'desc', page: 1, per_page: 25,
 })
+const draftFilters = reactive(emptyFilters())
+let requestController = null
+let disposed = false
 
 const headers = [
     { title: 'Заказ', key: 'number' },
     { title: 'Статус', key: 'status' },
-    { title: 'Entity', key: 'entity' },
-    { title: 'Товары', key: 'items_count' },
-    { title: 'Логистика', key: null },
-    { title: 'Сумма', key: 'total_amount' },
+    { title: 'Контрагент', key: 'entity' },
+    { title: 'Состав заказа', key: 'items_count' },
+    { title: 'Сумма / вес', key: 'total_amount' },
     { title: 'Создан', key: 'submitted_at' },
     { title: 'Доставка', key: 'delivery_date' },
 ]
-
-const hasActiveFilters = computed(() => [
-    filters.search,
-    filters.status_id,
-    filters.entity_id,
-    filters.building_id,
-    filters.good_id,
-    filters.date_from,
-    filters.date_to,
-    filters.delivery_date,
-    filters.delivery_unscheduled ? 'unscheduled' : '',
-    filters.total_from,
-    filters.total_to,
-].some((value) => value !== null && value !== ''))
-
-const sortIcon = computed(() => filters.sort_direction === 'asc'
-    ? 'mdi-chevron-up'
-    : 'mdi-chevron-down')
-
-useHead({
-    title: 'Ameise — заказы',
+const activeFilters = computed(() => {
+    const selected = (items, id, field = 'name') => items.find(item => String(item.id) === String(id))?.[field] || `#${id}`
+    const labels = {
+        status_id: () => selected(options.statuses, filters.status_id),
+        entity_id: () => selected(options.entities, filters.entity_id),
+        building_id: () => selected(options.buildings, filters.building_id, 'address'),
+        good_id: () => selected(options.goods, filters.good_id),
+        date_from: () => `Создан с ${formatDeliveryDate(filters.date_from)}`,
+        date_to: () => `Создан по ${formatDeliveryDate(filters.date_to)}`,
+        delivery_date: () => `Доставка ${formatDeliveryDate(filters.delivery_date)}`,
+        delivery_unscheduled: () => 'Без даты доставки',
+        total_from: () => `Сумма от ${filters.total_from}`,
+        total_to: () => `Сумма до ${filters.total_to}`,
+    }
+    return Object.entries(labels)
+        .filter(([key]) => filters[key] !== '' && filters[key] !== null && filters[key] !== false)
+        .map(([key, label]) => ({ key, label: label() }))
 })
+const hasActiveFilters = computed(() => Boolean(filters.search || activeFilters.value.length))
+const pageTotals = computed(() => {
+    const totals = new Map()
+    for (const order of orders.value) {
+        const code = order.currency_code || 'RUB'
+        totals.set(code, (totals.get(code) || 0) + (Number(order.total_amount) || 0))
+    }
+    return [...totals].map(([code, total]) => formatMoney(total, code)).join(' · ')
+})
+const pageRange = computed(() => {
+    if (!meta.total) return '0 заказов'
+    const start = (meta.current_page - 1) * meta.per_page + 1
+    return `${start}–${Math.min(start + orders.value.length - 1, meta.total)} из ${meta.total}`
+})
+const sortIcon = computed(() => filters.sort_direction === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down')
+useHead({ title: 'Ameise — заказы' })
 
 async function fetchOptions() {
+    optionsError.value = ''
     try {
         const { data } = await axios.get('/api/orders/options')
-        options.statuses = data.statuses || []
-        options.entities = data.entities || []
-        options.buildings = data.buildings || []
-        options.goods = data.goods || []
-    } catch (error) {
-        console.error(error)
-        errorMessage.value = 'Не удалось загрузить справочники заказов.'
+        if (disposed) return
+        for (const key of Object.keys(options)) options[key] = data[key] || []
+    } catch {
+        if (!disposed) optionsError.value = 'Не удалось загрузить справочники заказов.'
     }
 }
 
 async function fetchOrders() {
+    if (disposed) return
+    requestController?.abort()
+    const controller = new AbortController()
+    requestController = controller
     loading.value = true
     errorMessage.value = ''
-
     try {
         const { data } = await axios.get('/api/orders', {
-            params: cleanParams(filters),
+            params: cleanParams(filters), signal: controller.signal,
         })
-
+        if (disposed || controller.signal.aborted) return
         orders.value = data.data || []
         Object.assign(meta, data.meta || {})
     } catch (error) {
-        console.error(error)
-        errorMessage.value = 'Не удалось загрузить заказы.'
+        if (!disposed && !controller.signal.aborted && !axios.isCancel(error)) {
+            errorMessage.value = 'Не удалось загрузить заказы.'
+        }
     } finally {
-        loading.value = false
+        if (!disposed && !controller.signal.aborted) loading.value = false
     }
 }
 
 function cleanParams(source) {
-    return Object.fromEntries(
-        Object.entries(source)
-            .filter(([, value]) => value !== '' && value !== null && value !== false)
-            .map(([key, value]) => [key, value === true ? 1 : value]),
-    )
+    return Object.fromEntries(Object.entries(source)
+        .filter(([, value]) => value !== '' && value !== null && value !== false)
+        .map(([key, value]) => [key, value === true ? 1 : value]))
 }
-
 function applyFilters() {
-    filters.page = 1
+    Object.assign(filters, draftFilters, { page: 1 })
+    filterMenuOpen.value = false
     fetchOrders()
 }
-
 function resetFilters() {
-    Object.assign(filters, {
-        search: '',
-        status_id: null,
-        entity_id: null,
-        building_id: null,
-        good_id: null,
-        date_from: '',
-        date_to: '',
-        delivery_date: '',
-        delivery_unscheduled: false,
-        total_from: '',
-        total_to: '',
-        sort_by: 'submitted_at',
-        sort_direction: 'desc',
-        page: 1,
-        per_page: 25,
-    })
+    Object.assign(filters, emptyFilters(), { search: '', page: 1 })
+    Object.assign(draftFilters, emptyFilters())
+    filterMenuOpen.value = false
     fetchOrders()
 }
-
-function toggleSort(key) {
-    if (!key) {
-        return
-    }
-
-    if (filters.sort_by === key) {
-        filters.sort_direction = filters.sort_direction === 'asc' ? 'desc' : 'asc'
-    } else {
-        filters.sort_by = key
-        filters.sort_direction = key === 'number' || key === 'entity' || key === 'status'
-            ? 'asc'
-            : 'desc'
-    }
-
+function removeFilter(key) {
+    filters[key] = emptyFilters()[key]
     filters.page = 1
     fetchOrders()
 }
-
+function toggleSort(key) {
+    if (filters.sort_by === key) filters.sort_direction = filters.sort_direction === 'asc' ? 'desc' : 'asc'
+    else {
+        filters.sort_by = key
+        filters.sort_direction = ['number', 'entity', 'status'].includes(key) ? 'asc' : 'desc'
+    }
+    filters.page = 1
+    fetchOrders()
+}
 function goToPage(page) {
     const target = Math.min(Math.max(page, 1), meta.last_page || 1)
-
-    if (target === meta.current_page) {
-        return
-    }
-
+    if (target === meta.current_page) return
     filters.page = target
     fetchOrders()
 }
-
 function orderUrl(order) {
-    try {
-        return route('Ameise.orders.show', order.id)
-    } catch (error) {
-        return `/Ameise/orders/${order.id}`
-    }
+    try { return route('Ameise.orders.show', order.id) }
+    catch { return `/Ameise/orders/${order.id}` }
 }
-
 function goodUrl(good) {
-    if (!good?.id) {
-        return '#'
-    }
-
-    try {
-        return route('Ameise.good.show', good.id)
-    } catch (error) {
-        return `/Ameise/goods/${good.id}`
-    }
+    if (!good?.id) return '#'
+    try { return route('Ameise.good.show', good.id) }
+    catch { return `/Ameise/goods/${good.id}` }
 }
-
-function openOrder(order) {
-    router.visit(orderUrl(order))
-}
-
+function openOrder(order) { router.visit(orderUrl(order)) }
 function formatDate(value) {
-    if (!value) {
-        return '—'
-    }
-
+    if (!value) return '—'
     const date = new Date(value)
-
-    return Number.isNaN(date.getTime())
-        ? '—'
-        : new Intl.DateTimeFormat('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-        }).format(date)
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
-
+function formatTime(value) {
+    if (!value) return ''
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
 function formatMoney(value, currency = 'RUB') {
-    const amount = Number(value)
-
-    if (!Number.isFinite(amount)) {
-        return '—'
-    }
-
-    return `${amount.toLocaleString('ru-RU', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-    })} ${currency === 'RUB' ? '₽' : currency}`
+    if (value == null || !Number.isFinite(Number(value))) return '—'
+    return `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currency === 'RUB' ? '₽' : currency}`
 }
-
+function formatWeight(value) {
+    if (value == null || !Number.isFinite(Number(value))) return ''
+    return `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 3 })} кг`
+}
 function formatDeliveryDate(value) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
     return match ? `${match[3]}.${match[2]}.${match[1]}` : 'Не назначена'
 }
-
 function chooseDeliveryDate(value) {
-    filters.delivery_date = value
-    filters.delivery_unscheduled = false
-    applyFilters()
+    draftFilters.delivery_date = value
+    if (value) draftFilters.delivery_unscheduled = false
 }
-
 function toggleUnscheduled(checked) {
-    filters.delivery_unscheduled = checked
-    if (checked) filters.delivery_date = ''
-    applyFilters()
+    draftFilters.delivery_unscheduled = checked
+    if (checked) draftFilters.delivery_date = ''
 }
-
-function statusStyle(order) {
-    return {
-        '--status-color': order.status?.color || '#64748b',
-    }
-}
-
 function buildingsLabel(order) {
-    const buildings = order.buildings || []
-
-    if (!buildings.length) {
-        return 'Не задано'
-    }
-
-    return buildings.map((building) => building.address).join(' · ')
+    return (order.buildings || []).map(building => [building.city?.name, building.address].filter(Boolean).join(', ')).join(' · ')
 }
-
+function statusesChanged(statuses) {
+    options.statuses = statuses
+    if (filters.status_id && !statuses.some(status => String(status.id) === String(filters.status_id))) {
+        filters.status_id = null
+        filters.page = 1
+    }
+    fetchOrders()
+}
 const debouncedSearch = useDebounceFn(() => {
     filters.page = 1
     fetchOrders()
 }, 350)
-
 watch(() => filters.search, debouncedSearch)
-watch(() => filters.per_page, applyFilters)
-
-onMounted(async () => {
-    await Promise.all([
-        fetchOptions(),
-        fetchOrders(),
-    ])
+watch(() => filters.per_page, () => { filters.page = 1; fetchOrders() })
+watch(filterMenuOpen, open => {
+    if (open) for (const key of Object.keys(draftFilters)) draftFilters[key] = filters[key]
 })
+onMounted(() => Promise.all([fetchOptions(), fetchOrders()]))
+onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 </script>
 
 <template>
     <main class="orders-page">
-        <header class="orders-page__header">
-            <div>
-                <div class="orders-page__eyebrow">Control panel</div>
+        <header class="orders-header">
+            <div class="orders-header__title">
+                <span class="orders-header__mark"><v-icon icon="mdi-package-variant-closed" size="21" /></span>
                 <h1>Заказы</h1>
-                <p>{{ meta.total }} записей · состав, статусы и логистика</p>
+                <span class="orders-header__count" aria-label="Всего заказов">{{ meta.total }}</span>
             </div>
-
-            <Link
-                v-if="permissions.create"
-                :href="route('Ameise.orders.create')"
-                class="orders-page__create"
-            >
-                <v-icon icon="mdi-plus" size="17" />
-                Новый заказ
-            </Link>
+            <label class="orders-search">
+                <v-icon icon="mdi-magnify" size="18" />
+                <input v-model="filters.search" type="search" aria-label="Поиск заказов" placeholder="Номер, контрагент, товар…">
+            </label>
+            <div class="orders-header__actions">
+                <v-menu v-model="filterMenuOpen" :close-on-content-click="false" location="bottom end" :max-width="560" :offset="8">
+                    <template #activator="{ props: menuProps }">
+                        <button v-bind="menuProps" type="button" class="orders-action" :class="{ 'is-active': activeFilters.length }">
+                            <v-icon icon="mdi-filter-variant" size="18" />
+                            <span>Фильтры</span>
+                            <b v-if="activeFilters.length" class="orders-action__badge">{{ activeFilters.length }}</b>
+                            <v-icon icon="mdi-chevron-down" size="14" />
+                        </button>
+                    </template>
+                    <form class="orders-filters" role="dialog" aria-label="Фильтры заказов" @submit.prevent="applyFilters">
+                        <div class="orders-filters__heading">
+                            <strong>Фильтры заказов</strong>
+                            <button type="button" aria-label="Закрыть фильтры" @click="filterMenuOpen = false"><v-icon icon="mdi-close" size="18" /></button>
+                        </div>
+                        <div class="orders-filters__grid">
+                            <label class="orders-filter">
+                                <span>Статус</span>
+                                <select v-model="draftFilters.status_id" aria-label="Статус"><option :value="null">Все статусы</option><option v-for="status in options.statuses" :key="status.id" :value="status.id">{{ status.name }}</option></select>
+                            </label>
+                            <label class="orders-filter">
+                                <span>Контрагент</span>
+                                <select v-model="draftFilters.entity_id" aria-label="Контрагент"><option :value="null">Все контрагенты</option><option v-for="entity in options.entities" :key="entity.id" :value="entity.id">{{ entity.name }}</option></select>
+                            </label>
+                            <label class="orders-filter">
+                                <span>Адрес</span>
+                                <select v-model="draftFilters.building_id" aria-label="Адрес"><option :value="null">Все адреса</option><option v-for="building in options.buildings" :key="building.id" :value="building.id">{{ building.address }}</option></select>
+                            </label>
+                            <label class="orders-filter">
+                                <span>Товар</span>
+                                <select v-model="draftFilters.good_id" aria-label="Товар"><option :value="null">Все товары</option><option v-for="good in options.goods" :key="good.id" :value="good.id">{{ good.name }}</option></select>
+                            </label>
+                            <label class="orders-filter"><span>Создан с</span><input v-model="draftFilters.date_from" type="date" :max="draftFilters.date_to || undefined"></label>
+                            <label class="orders-filter"><span>Создан по</span><input v-model="draftFilters.date_to" type="date" :min="draftFilters.date_from || undefined"></label>
+                            <label class="orders-filter"><span>Сумма от</span><input v-model="draftFilters.total_from" type="number" min="0" step="0.01" :max="draftFilters.total_to || undefined" placeholder="0"></label>
+                            <label class="orders-filter"><span>Сумма до</span><input v-model="draftFilters.total_to" type="number" :min="draftFilters.total_from || 0" step="0.01" placeholder="Без ограничения"></label>
+                            <label class="orders-filter"><span>День доставки</span><input :value="draftFilters.delivery_date" type="date" @input="chooseDeliveryDate($event.target.value)"></label>
+                            <label class="orders-filter orders-filter--checkbox"><input :checked="draftFilters.delivery_unscheduled" type="checkbox" @change="toggleUnscheduled($event.target.checked)"><span>Без даты доставки</span></label>
+                        </div>
+                        <div class="orders-filters__actions">
+                            <button type="button" class="orders-action" @click="resetFilters">Сбросить</button>
+                            <button type="submit" class="orders-action orders-action--primary"><v-icon icon="mdi-check" size="16" />Применить</button>
+                        </div>
+                    </form>
+                </v-menu>
+                <button type="button" class="orders-action" title="Управление статусами заказов" @click="statusesOpen = true"><v-icon icon="mdi-tag-outline" size="17" /><span>Статусы</span></button>
+                <Link v-if="permissions.create" :href="route('Ameise.orders.create')" class="orders-action orders-action--primary"><v-icon icon="mdi-plus" size="18" /><span>Новый заказ</span></Link>
+            </div>
         </header>
 
-        <section class="orders-filters" aria-label="Фильтры заказов">
-            <label class="orders-filter orders-filter--search">
-                <span>Поиск</span>
-                <input
-                    v-model="filters.search"
-                    type="search"
-                    placeholder="Номер, Entity, товар, адрес"
-                >
-            </label>
+        <div v-if="activeFilters.length" class="orders-active-filters" aria-label="Применённые фильтры">
+            <button v-for="filter in activeFilters" :key="filter.key" type="button" :title="`Убрать фильтр: ${filter.label}`" @click="removeFilter(filter.key)"><span>{{ filter.label }}</span><v-icon icon="mdi-close" size="12" /></button>
+            <button type="button" class="orders-active-filters__reset" @click="resetFilters">Сбросить все</button>
+        </div>
+        <v-alert v-if="optionsError" type="error" density="compact" variant="tonal" class="mb-2">{{ optionsError }} <button type="button" class="orders-retry" @click="fetchOptions">Повторить</button></v-alert>
+        <v-alert v-if="errorMessage" type="error" density="compact" variant="tonal" class="mb-2">{{ errorMessage }} <button type="button" class="orders-retry" @click="fetchOrders">Повторить</button></v-alert>
 
-            <label class="orders-filter">
-                <span>Статус</span>
-                <select v-model="filters.status_id">
-                    <option :value="null">Все</option>
-                    <option v-for="status in options.statuses" :key="status.id" :value="status.id">
-                        {{ status.name }}
-                    </option>
-                </select>
-            </label>
-
-            <label class="orders-filter">
-                <span>Entity</span>
-                <select v-model="filters.entity_id">
-                    <option :value="null">Все</option>
-                    <option v-for="entity in options.entities" :key="entity.id" :value="entity.id">
-                        {{ entity.name }}
-                    </option>
-                </select>
-            </label>
-
-            <label class="orders-filter">
-                <span>Building</span>
-                <select v-model="filters.building_id">
-                    <option :value="null">Все</option>
-                    <option v-for="building in options.buildings" :key="building.id" :value="building.id">
-                        {{ building.address }}
-                    </option>
-                </select>
-            </label>
-
-            <label class="orders-filter">
-                <span>Good</span>
-                <select v-model="filters.good_id">
-                    <option :value="null">Все</option>
-                    <option v-for="good in options.goods" :key="good.id" :value="good.id">
-                        {{ good.name }}
-                    </option>
-                </select>
-            </label>
-
-            <label class="orders-filter">
-                <span>Создан с</span>
-                <input v-model="filters.date_from" type="date">
-            </label>
-
-            <label class="orders-filter">
-                <span>Создан по</span>
-                <input v-model="filters.date_to" type="date">
-            </label>
-
-            <label class="orders-filter">
-                <span>День доставки</span>
-                <input :value="filters.delivery_date" type="date" @change="chooseDeliveryDate($event.target.value)">
-            </label>
-
-            <label class="orders-filter orders-filter--checkbox">
-                <input :checked="filters.delivery_unscheduled" type="checkbox" @change="toggleUnscheduled($event.target.checked)">
-                <span>Без даты доставки</span>
-            </label>
-
-            <label class="orders-filter">
-                <span>Сумма от</span>
-                <input v-model="filters.total_from" type="number" min="0" step="0.01">
-            </label>
-
-            <label class="orders-filter">
-                <span>Сумма до</span>
-                <input v-model="filters.total_to" type="number" min="0" step="0.01">
-            </label>
-
-            <div class="orders-filters__actions">
-                <button type="button" class="is-primary" @click="applyFilters">
-                    Применить
-                </button>
-                <button v-if="hasActiveFilters" type="button" @click="resetFilters">
-                    Сбросить
-                </button>
+        <section class="orders-ledger" :aria-busy="loading">
+            <div class="orders-ledger__summary">
+                <span><v-icon icon="mdi-format-list-bulleted" size="15" />{{ loading ? 'Загрузка…' : pageRange }}</span>
+                <span v-if="orders.length && !loading" class="orders-ledger__totals">На странице <strong>{{ pageTotals }}</strong></span>
+                <button type="button" :disabled="loading" title="Обновить заказы" aria-label="Обновить заказы" @click="fetchOrders"><v-icon icon="mdi-refresh" size="17" /></button>
             </div>
-        </section>
-
-        <v-alert
-            v-if="errorMessage"
-            type="error"
-            density="compact"
-            variant="tonal"
-            class="mb-3"
-        >
-            {{ errorMessage }}
-        </v-alert>
-
-        <section class="orders-ledger" :class="{ 'is-loading': loading }">
-            <v-progress-linear v-if="loading" indeterminate color="#7f1d1d" height="2" />
-
+            <div class="orders-ledger__progress"><v-progress-linear v-if="loading" indeterminate color="#7f1d1d" height="2" /></div>
             <div class="orders-ledger__scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th v-for="header in headers" :key="header.title">
-                                <button
-                                    v-if="header.key"
-                                    type="button"
-                                    @click="toggleSort(header.key)"
-                                >
-                                    {{ header.title }}
-                                    <v-icon
-                                        v-if="filters.sort_by === header.key"
-                                        :icon="sortIcon"
-                                        size="14"
-                                    />
-                                </button>
-                                <span v-else>{{ header.title }}</span>
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody v-if="orders.length">
-                        <tr
-                            v-for="order in orders"
-                            :key="order.id"
-                            tabindex="0"
-                            @click="openOrder(order)"
-                            @keydown.enter="openOrder(order)"
-                        >
-                            <td>
-                                <strong class="orders-ledger__number">{{ order.number }}</strong>
-                                <small>#{{ order.id }}</small>
-                            </td>
-                            <td>
-                                <span class="orders-ledger__status" :style="statusStyle(order)">
-                                    {{ order.status?.name || '—' }}
-                                </span>
-                            </td>
-                            <td>
-                                <strong>{{ order.entity?.name || 'Без Entity' }}</strong>
-                                <small v-if="order.entity?.INN">ИНН {{ order.entity.INN }}</small>
-                            </td>
-                            <td>
-                                <div class="orders-ledger__goods">
-                                    <Link
-                                        v-for="item in (order.items || []).slice(0, 2)"
-                                        :key="item.id"
-                                        :href="goodUrl(item.good)"
-                                        @click.stop
-                                    >
-                                        {{ item.good_name }} × {{ item.quantity }}
-                                    </Link>
-                                    <small v-if="(order.items || []).length > 2">
-                                        + ещё {{ order.items.length - 2 }}
-                                    </small>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="orders-ledger__building" :title="buildingsLabel(order)">
-                                    {{ buildingsLabel(order) }}
-                                </span>
-                            </td>
-                            <td class="orders-ledger__money">
-                                {{ formatMoney(order.total_amount, order.currency_code) }}
-                            </td>
-                            <td class="orders-ledger__date">
-                                {{ formatDate(order.submitted_at) }}
-                            </td>
-                            <td class="orders-ledger__date">
-                                {{ formatDeliveryDate(order.delivery_date) }}
-                            </td>
+                <table aria-label="Заказы">
+                    <colgroup><col class="col-number"><col class="col-status"><col class="col-entity"><col class="col-items"><col class="col-amount"><col class="col-date"><col class="col-delivery"></colgroup>
+                    <thead><tr>
+                        <th v-for="header in headers" :key="header.key" scope="col" :aria-sort="filters.sort_by === header.key ? (filters.sort_direction === 'asc' ? 'ascending' : 'descending') : 'none'">
+                            <button type="button" @click="toggleSort(header.key)">{{ header.title }}<v-icon v-if="filters.sort_by === header.key" :icon="sortIcon" size="12" /></button>
+                        </th>
+                    </tr></thead>
+                    <tbody v-if="orders.length" :class="{ 'is-loading': loading }">
+                        <tr v-for="order in orders" :key="order.id" tabindex="0" @click="openOrder(order)" @keydown.enter.self.prevent="openOrder(order)">
+                            <td><Link :href="orderUrl(order)" class="orders-ledger__number" @click.stop>{{ order.number || `#${order.id}` }}</Link><small v-if="order.internal_comment" class="orders-ledger__comment" :title="order.internal_comment"><v-icon icon="mdi-text-box-outline" size="12" />{{ order.internal_comment }}</small></td>
+                            <td><span class="orders-ledger__status" :style="{ '--status-color': order.status?.color || '#64748b' }">{{ order.status?.name || '—' }}</span></td>
+                            <td><strong class="orders-ledger__entity" :title="order.entity?.name">{{ order.entity?.name || 'Без контрагента' }}</strong><small v-if="order.entity?.INN">ИНН {{ order.entity.INN }}</small></td>
+                            <td><div class="orders-ledger__goods">
+                                <template v-for="item in (order.items || []).slice(0, 2)" :key="item.id">
+                                    <Link v-if="item.good?.id" :href="goodUrl(item.good)" :title="`${item.good_name} × ${item.quantity}`" @click.stop>{{ item.good_name }} <span>× {{ item.quantity }}</span></Link>
+                                    <span v-else>{{ item.good_name }} × {{ item.quantity }}</span>
+                                </template>
+                                <small v-if="(order.items || []).length > 2">ещё {{ order.items.length - 2 }} поз.</small>
+                            </div></td>
+                            <td class="orders-ledger__money"><strong>{{ formatMoney(order.total_amount, order.currency_code) }}</strong><small>{{ formatWeight(order.total_weight) }}</small></td>
+                            <td class="orders-ledger__date">{{ formatDate(order.submitted_at || order.created_at) }}<small>{{ formatTime(order.submitted_at || order.created_at) }}</small></td>
+                            <td><span class="orders-ledger__delivery" :class="{ 'is-unscheduled': !order.delivery_date }"><v-icon icon="mdi-truck-outline" size="13" />{{ formatDeliveryDate(order.delivery_date) }}</span><small v-if="buildingsLabel(order)" class="orders-ledger__building" :title="buildingsLabel(order)">{{ buildingsLabel(order) }}</small></td>
                         </tr>
                     </tbody>
-
-                    <tbody v-else-if="!loading">
-                        <tr>
-                            <td :colspan="headers.length" class="orders-ledger__empty">
-                                Заказы по выбранным условиям не найдены.
-                            </td>
-                        </tr>
-                    </tbody>
+                    <tbody v-else><tr><td :colspan="headers.length" class="orders-ledger__empty">
+                        <v-icon :icon="loading ? 'mdi-dots-horizontal' : 'mdi-package-variant'" size="28" />
+                        <span>{{ loading ? 'Загружаем заказы…' : errorMessage ? 'Список заказов недоступен' : 'Заказы не найдены' }}</span>
+                        <button v-if="hasActiveFilters && !loading" type="button" class="orders-retry" @click="resetFilters">Сбросить фильтры</button>
+                    </td></tr></tbody>
                 </table>
             </div>
-
             <footer class="orders-pagination">
-                <label>
-                    <span>Строк</span>
-                    <select v-model="filters.per_page">
-                        <option :value="10">10</option>
-                        <option :value="25">25</option>
-                        <option :value="50">50</option>
-                        <option :value="100">100</option>
-                    </select>
-                </label>
-
-                <div>
-                    <button
-                        type="button"
-                        :disabled="meta.current_page <= 1"
-                        @click="goToPage(meta.current_page - 1)"
-                    >
-                        <v-icon icon="mdi-chevron-left" size="17" />
-                    </button>
-                    <span>{{ meta.current_page }} / {{ meta.last_page }}</span>
-                    <button
-                        type="button"
-                        :disabled="meta.current_page >= meta.last_page"
-                        @click="goToPage(meta.current_page + 1)"
-                    >
-                        <v-icon icon="mdi-chevron-right" size="17" />
-                    </button>
-                </div>
+                <label><span>Строк</span><select v-model="filters.per_page" aria-label="Строк на странице"><option :value="10">10</option><option :value="25">25</option><option :value="50">50</option><option :value="100">100</option></select></label>
+                <div><button type="button" :disabled="loading || meta.current_page <= 1" aria-label="Предыдущая страница" @click="goToPage(meta.current_page - 1)"><v-icon icon="mdi-chevron-left" size="17" /></button><span>{{ meta.current_page }} / {{ meta.last_page }}</span><button type="button" :disabled="loading || meta.current_page >= meta.last_page" aria-label="Следующая страница" @click="goToPage(meta.current_page + 1)"><v-icon icon="mdi-chevron-right" size="17" /></button></div>
             </footer>
         </section>
+        <OrderStatusesDialog v-model="statusesOpen" :permissions="permissions" @changed="statusesChanged" />
     </main>
 </template>
 
 <style scoped>
-.orders-page {
-    width: 100%;
-    min-height: calc(100vh - 48px);
-    padding: 18px;
-    background: #f4f5f7;
-    color: #252a31;
-}
-
-.orders-page__header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 18px;
-    margin-bottom: 14px;
-}
-
-.orders-page__eyebrow {
-    color: #8f1111;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-}
-
-.orders-page h1 {
-    margin: 2px 0 0;
-    font-size: 25px;
-    font-weight: 950;
-    letter-spacing: -0.04em;
-}
-
-.orders-page__header p {
-    margin: 3px 0 0;
-    color: #747d87;
-    font-size: 12px;
-}
-
-.orders-page__create {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 9px 13px;
-    border-radius: 7px;
-    background: #7f1d1d;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 900;
-    text-decoration: none;
-}
-
-.orders-filters {
-    display: grid;
-    grid-template-columns: minmax(220px, 1.6fr) repeat(4, minmax(130px, 1fr));
-    gap: 8px;
-    margin-bottom: 12px;
-    padding: 12px;
-    border: 1px solid #d9dde2;
-    border-radius: 8px;
-    background: #fff;
-}
-
-.orders-filter {
-    display: grid;
-    gap: 4px;
-}
-
-.orders-filter--checkbox {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-top: 16px;
-}
-
-.orders-filter--checkbox input {
-    height: 18px;
-    width: 18px;
-}
-
-.orders-filter span,
-.orders-pagination label span {
-    color: #747d87;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.orders-filter input,
-.orders-filter select,
-.orders-pagination select {
-    min-width: 0;
-    height: 32px;
-    padding: 0 8px;
-    border: 1px solid #cfd4da;
-    border-radius: 5px;
-    background: #fff;
-    color: #2c3239;
-    font-size: 11px;
-}
-
-.orders-filters__actions {
-    display: flex;
-    align-items: end;
-    gap: 6px;
-}
-
-.orders-filters__actions button {
-    height: 32px;
-    padding: 0 10px;
-    border: 1px solid #cfd4da;
-    border-radius: 5px;
-    background: #fff;
-    color: #434a52;
-    font-size: 10px;
-    font-weight: 900;
-}
-
-.orders-filters__actions .is-primary {
-    border-color: #7f1d1d;
-    background: #7f1d1d;
-    color: #fff;
-}
-
-.orders-ledger {
-    overflow: hidden;
-    border: 1px solid #d3d8de;
-    border-radius: 8px;
-    background: #fff;
-}
-
-.orders-ledger__scroll {
-    overflow: auto;
-}
-
-.orders-ledger table {
-    width: 100%;
-    min-width: 1080px;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
-
-.orders-ledger th,
-.orders-ledger td {
-    padding: 8px 10px;
-    border-right: 1px solid #e2e5e9;
-    border-bottom: 1px solid #dfe3e7;
-    text-align: left;
-    vertical-align: middle;
-}
-
-.orders-ledger th:last-child,
-.orders-ledger td:last-child {
-    border-right: 0;
-}
-
-.orders-ledger th {
-    height: 34px;
-    background: #eef0f2;
-    color: #626b76;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-
-.orders-ledger th button {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    color: inherit;
-    font: inherit;
-    letter-spacing: inherit;
-    text-transform: inherit;
-}
-
-.orders-ledger tbody tr {
-    cursor: pointer;
-}
-
-.orders-ledger tbody tr:hover,
-.orders-ledger tbody tr:focus {
-    outline: none;
-    background: #fff8f2;
-}
-
-.orders-ledger td {
-    height: 54px;
-    font-size: 11px;
-}
-
-.orders-ledger td:nth-child(1) { width: 145px; }
-.orders-ledger td:nth-child(2) { width: 125px; }
-.orders-ledger td:nth-child(3) { width: 190px; }
-.orders-ledger td:nth-child(4) { width: 260px; }
-.orders-ledger td:nth-child(5) { width: 230px; }
-.orders-ledger td:nth-child(6) { width: 125px; }
-.orders-ledger td:nth-child(7) { width: 120px; }
-.orders-ledger td:nth-child(8) { width: 120px; }
-
-.orders-ledger td > strong,
-.orders-ledger td > small {
-    display: block;
-}
-
-.orders-ledger td > small,
-.orders-ledger__goods small {
-    margin-top: 2px;
-    color: #8a929c;
-    font-size: 9px;
-}
-
-.orders-ledger__number,
-.orders-ledger__money,
-.orders-ledger__date {
-    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
-}
-
-.orders-ledger__status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 850;
-}
-
-.orders-ledger__status::before {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--status-color);
-    content: "";
-}
-
-.orders-ledger__goods {
-    display: grid;
-    gap: 2px;
-}
-
-.orders-ledger__goods a {
-    overflow: hidden;
-    color: #7f1d1d;
-    font-weight: 800;
-    text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.orders-ledger__goods a:hover {
-    text-decoration: underline;
-}
-
-.orders-ledger__building {
-    display: -webkit-box;
-    overflow: hidden;
-    color: #5e6771;
-    line-height: 1.35;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-}
-
-.orders-ledger__money {
-    color: #185c4b;
-    font-weight: 900;
-}
-
-.orders-ledger__date {
-    color: #68717b;
-    font-size: 10px;
-}
-
-.orders-ledger__empty {
-    height: 120px !important;
-    color: #7a838d;
-    text-align: center !important;
-}
-
-.orders-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 48px;
-    padding: 7px 10px;
-}
-
-.orders-pagination label,
-.orders-pagination div {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-}
-
-.orders-pagination select {
-    width: 70px;
-}
-
-.orders-pagination button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border: 1px solid #ccd2d8;
-    border-radius: 5px;
-    color: #38414a;
-}
-
-.orders-pagination button:disabled {
-    opacity: 0.35;
-}
-
-.orders-pagination div span {
-    min-width: 64px;
-    color: #626b76;
-    font-family: "JetBrains Mono", monospace;
-    font-size: 10px;
-    text-align: center;
-}
-
-@media (max-width: 1100px) {
-    .orders-filters {
-        grid-template-columns: repeat(3, minmax(140px, 1fr));
-    }
-
-    .orders-filter--search {
-        grid-column: span 2;
-    }
-}
-
-@media (max-width: 700px) {
-    .orders-page {
-        padding: 10px;
-    }
-
-    .orders-page__header {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .orders-filters {
-        grid-template-columns: 1fr;
-    }
-
-    .orders-filter--search {
-        grid-column: auto;
-    }
-}
+.orders-page { width: 100%; min-height: calc(100vh - 48px); padding: 12px; background: #f4f5f7; color: #252a31; }
+.orders-header { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
+.orders-header__title, .orders-header__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.orders-header__title { gap: 9px; }
+.orders-header__mark { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #e3cdcd; border-radius: 8px; background: #f4e9e9; color: #7f1d1d; }
+.orders-header h1 { font-size: 18px; font-weight: 800; letter-spacing: -.04em; }
+.orders-header__count { border-radius: 5px; padding: 2px 6px; background: #e5e8ed; color: #66707c; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.orders-search { display: flex; align-items: center; gap: 6px; width: min(340px, 100%); min-width: 140px; height: 32px; margin-left: auto; padding: 0 8px; border: 1px solid #d7dce2; border-radius: 6px; background: #fff; color: #8b929b; }
+.orders-search input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; outline: none; box-shadow: none; background: transparent; color: #252a31; font-size: 11px; }
+.orders-search:focus-within { outline: 2px solid #a66a6a; outline-offset: 1px; }
+.orders-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 32px; padding: 0 10px; border: 1px solid #d2d7de; border-radius: 6px; background: #fff; color: #4b5563; font-size: 11px; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.orders-action:hover { background: #f0f2f5; }
+.orders-action.is-active { border-color: #b88e8e; color: #7f1d1d; }
+.orders-action--primary, .orders-action--primary:hover { border-color: #7f1d1d; background: #7f1d1d; color: #fff; }
+.orders-action__badge { display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 4px; background: #7f1d1d; color: white; font-size: 9px; }
+.orders-filters { width: 520px; max-width: calc(100vw - 24px); overflow: auto; max-height: min(640px, calc(100dvh - 100px)); border: 1px solid #d7dce2; border-radius: 9px; background: #fff; color: #252a31; box-shadow: 0 12px 40px #202b4026; }
+.orders-filters__heading { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #e7e9ed; font-size: 12px; }
+.orders-filters__heading button { display: grid; place-items: center; width: 26px; height: 26px; color: #68717b; }
+.orders-filters__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
+.orders-filter { display: grid; min-width: 0; gap: 5px; }
+.orders-filter > span { color: #68717b; font-size: 11px; }
+.orders-filter input, .orders-filter select, .orders-pagination select { width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #cfd4da; border-radius: 5px; background-color: #fff; color: #2c3239; font-size: 11px; }
+.orders-filter select { padding-right: 28px; text-overflow: ellipsis; }
+.orders-filter--checkbox { display: flex; align-items: center; gap: 7px; padding-top: 18px; }
+.orders-filter--checkbox input { width: 15px; height: 15px; padding: 0; accent-color: #7f1d1d; }
+.orders-filters__actions { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid #e7e9ed; background: #f8f9fb; }
+.orders-active-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.orders-active-filters button { display: inline-flex; align-items: center; gap: 5px; max-width: 250px; padding: 3px 7px; border: 1px solid #ded4d4; border-radius: 5px; background: #fcf7f7; color: #7f1d1d; font-size: 10px; }
+.orders-active-filters button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.orders-active-filters .orders-active-filters__reset { border-color: transparent; background: transparent; color: #747d87; }
+.orders-ledger { overflow: hidden; border: 1px solid #d3d8de; border-radius: 8px; background: #fff; }
+.orders-ledger__summary { display: flex; align-items: center; gap: 12px; min-height: 31px; padding: 4px 9px; color: #747d87; font-size: 10px; }
+.orders-ledger__summary > span { display: inline-flex; align-items: center; gap: 6px; }
+.orders-ledger__summary .orders-ledger__totals { margin-left: auto; flex-wrap: wrap; }
+.orders-ledger__totals strong { color: #434d59; font-weight: 650; }
+.orders-ledger__summary button { display: grid; place-items: center; margin-left: auto; width: 24px; height: 24px; }
+.orders-ledger__totals + button { margin-left: 0; }
+.orders-ledger__progress { height: 2px; }
+.orders-ledger__scroll { overflow: auto; }
+.orders-ledger table { width: 100%; min-width: 930px; border-collapse: collapse; table-layout: fixed; }
+.col-number { width: 13%; } .col-status { width: 11%; } .col-entity { width: 18%; } .col-items { width: 23%; } .col-amount { width: 12%; } .col-date { width: 8%; } .col-delivery { width: 15%; }
+.orders-ledger th, .orders-ledger td { padding: 6px 9px; border-bottom: 1px solid #e6e9ed; text-align: left; vertical-align: middle; }
+.orders-ledger th { height: 29px; background: #eef0f3; color: #6c7682; font-size: 9px; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
+.orders-ledger th button { display: inline-flex; align-items: center; gap: 3px; color: inherit; font: inherit; text-transform: inherit; }
+.orders-ledger tbody tr { cursor: pointer; }
+.orders-ledger tbody tr:hover { background: #faf6f3; }
+.orders-ledger tbody tr:focus-visible { outline: 2px solid #9e6868; outline-offset: -2px; background: #faf6f3; }
+.orders-ledger tbody.is-loading { opacity: .5; }
+.orders-ledger td { height: 47px; font-size: 11px; overflow-wrap: anywhere; }
+.orders-ledger td > strong, .orders-ledger td > small { display: block; }
+.orders-ledger td > small, .orders-ledger__goods small { margin-top: 2px; color: #87909b; font-size: 9px; }
+.orders-ledger__number { color: #384556; font-size: 10px; font-weight: 750; text-decoration: none; }
+.orders-ledger__number:hover { text-decoration: underline; }
+.orders-ledger__number, .orders-ledger__money, .orders-ledger__date { font-variant-numeric: tabular-nums; }
+.orders-ledger__entity, .orders-ledger__comment, .orders-ledger__building { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orders-ledger__comment .v-icon { margin-right: 3px; }
+.orders-ledger__status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; }
+.orders-ledger__status::before { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--status-color); content: ''; }
+.orders-ledger__goods { display: grid; gap: 2px; font-size: 10px; }
+.orders-ledger__goods a, .orders-ledger__goods > span { overflow: hidden; color: #7f1d1d; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.orders-ledger__goods a span { color: #7b838d; }
+.orders-ledger__goods a:hover { text-decoration: underline; }
+.orders-ledger__money { text-align: right !important; white-space: nowrap; }
+.orders-ledger__money strong { color: #285a4b; font-size: 11px; font-weight: 750; }
+.orders-ledger__date { color: #5d6875; white-space: nowrap; font-size: 10px !important; }
+.orders-ledger__delivery { display: inline-flex; align-items: center; gap: 4px; color: #4b5c6e; font-size: 10px; white-space: nowrap; }
+.orders-ledger__delivery.is-unscheduled { color: #9b865f; }
+.orders-ledger__empty { height: 150px !important; color: #929aa4; text-align: center !important; cursor: default; }
+.orders-ledger__empty > span { display: block; margin: 6px 0; }
+.orders-retry { margin-left: 5px; font-size: 11px; text-decoration: underline; }
+.orders-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 4px 9px; color: #747d87; font-size: 10px; }
+.orders-pagination label, .orders-pagination div { display: flex; align-items: center; gap: 7px; }
+.orders-pagination select { width: 60px; height: 27px; padding-right: 20px; }
+.orders-pagination button { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border: 1px solid #d8dde3; border-radius: 5px; color: #526070; }
+.orders-pagination button:disabled, .orders-ledger__summary button:disabled { opacity: .35; }
+.orders-pagination div span { min-width: 45px; font-variant-numeric: tabular-nums; text-align: center; }
+@media (max-width: 1050px) { .orders-header { flex-wrap: wrap; gap: 8px; } .orders-search { flex: 1; width: auto; } .orders-header__actions { margin-left: auto; } }
+@media (max-width: 600px) { .orders-page { padding: 8px; } .orders-header__title { gap: 6px; } .orders-header h1 { font-size: 17px; } .orders-header__actions { width: 100%; } .orders-header__actions > .orders-action--primary { margin-left: auto; } .orders-header__mark { width: 30px; height: 30px; } .orders-search { min-width: 125px; } .orders-ledger__summary { gap: 6px; } .orders-ledger__summary .orders-ledger__totals { font-size: 9px; } }
+@media (max-width: 380px) { .orders-header__actions { gap: 4px; } .orders-header__actions .orders-action { gap: 4px; padding: 0 6px; font-size: 10px; } .orders-filters__grid { grid-template-columns: 1fr; } .orders-filter--checkbox { padding-top: 0; } .orders-action { padding: 0 7px; } }
 </style>

@@ -101,6 +101,7 @@ use App\Http\Controllers\API\MeasureController;
 use App\Http\Controllers\API\MessageController;
 use App\Http\Controllers\API\NoteController;
 use App\Http\Controllers\API\OrderController;
+use App\Http\Controllers\API\OrderStatusController;
 use App\Http\Controllers\API\PhoneCallController;
 use App\Http\Controllers\API\PlantController;
 use App\Http\Controllers\API\PriceTypeController;
@@ -823,6 +824,9 @@ Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);
 Route::apiResource('messages', MessageController::class);
 Route::apiResource('notes', NoteController::class);
+Route::apiResource('order-statuses', OrderStatusController::class)
+    ->except('show')
+    ->parameters(['order-statuses' => 'orderStatus']);
 Route::prefix('orders')
     ->name('orders.')
     ->group(function (): void {

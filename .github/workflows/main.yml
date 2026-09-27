@@ -90,6 +90,7 @@ jobs:
           vendor/bin/pint --test \
             app/Actions/Fortify/CreateNewUser.php \
             app/Http/Controllers/API/OrderController.php \
+            app/Http/Controllers/API/OrderStatusController.php \
             app/Http/Controllers/API/UnitController.php \
             app/Http/Controllers/Verwalter.php \
             app/Http/Controllers/Web/CustomerDashboardController.php \
@@ -119,6 +120,7 @@ jobs:
             database/migrations/2026_07_05_000010_create_stock_movements_table.php \
             database/migrations/2026_07_25_130000_normalize_orders_architecture.php \
             tests/Feature/OrderManagementTest.php \
+            tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/TestCase.php
 
@@ -480,6 +482,7 @@ jobs:
             tests/Feature/WarehouseMutationAuthorizationTest.php \
             tests/Feature/CommerceRealtimeTest.php \
             tests/Feature/OrderManagementTest.php \
+            tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/Mobile \
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
