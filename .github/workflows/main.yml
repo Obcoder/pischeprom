@@ -412,11 +412,13 @@ jobs:
             app/Services/Mail/AuthorizedMailDispatchService.php \
             app/Services/Mail/SentMailArchive.php \
             app/Services/Mail/LegacySentReconstruction.php \
+            app/Services/Mail/LegacySentIdentity.php \
             app/Jobs/ArchiveSentMailJob.php \
             app/Console/Commands/ReconcileSentMailCommand.php \
             app/Console/Commands/ReconstructLegacySentCommand.php \
             database/migrations/2026_09_27_140000_add_sent_copy_state_to_mail_messages.php \
             database/migrations/2026_09_27_150000_record_customer_entity_creator.php \
+            database/migrations/2026_09_27_160000_backfill_legacy_local_sent_status.php \
             scripts/update-production-mail-safety-env.php \
             scripts/provision-production-telegram.php \
             tests/Feature/StaffAuthenticationBoundaryTest.php \

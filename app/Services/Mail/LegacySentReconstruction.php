@@ -24,8 +24,11 @@ class LegacySentReconstruction
         try {
             $this->archive->assertReconstructionDestination($mailbox);
             $messages = MailMessage::query()->where('mailbox', $address)->where('direction', 'outgoing')->whereNull('imap_uid')
-                ->where(fn ($q) => $q->where('message_id', 'like', '%@local.pischeprom>')->orWhere('is_reconstructed', true))
-                ->withCount('attachments')->orderBy('id')->get();
+                ->where('delivery_status', 'sent')
+                ->where(fn ($q) => $q->where('is_reconstructed', true)
+                    ->orWhere(fn ($legacy) => $legacy->whereNull('sent_mime_path')->whereNull('smtp_accepted_at')))
+                ->withCount('attachments')->orderBy('id')->get()
+                ->filter(fn (MailMessage $message) => $message->is_reconstructed || LegacySentIdentity::matches($message->message_id));
             $result = [];
             foreach ($messages as $message) {
                 if ($message->has_attachments || $message->attachments_count) {

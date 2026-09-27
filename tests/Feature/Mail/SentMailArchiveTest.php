@@ -6,6 +6,7 @@ use App\Domain\AiPriceLists\Services\EmailPriceListIngestionDispatcher;
 use App\Models\MailMessage;
 use App\Models\MailMessageAttachment;
 use App\Services\Mail\IncomingMailMaxNotificationDispatcher;
+use App\Services\Mail\LegacySentIdentity;
 use App\Services\Mail\LegacySentReconstruction;
 use App\Services\Mail\MailboxRegistry;
 use App\Services\Mail\SentCopyPendingException;
@@ -13,6 +14,7 @@ use App\Services\Mail\SentMailArchive;
 use App\Services\Mail\YandexMailboxService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Mockery;
 use RuntimeException;
 use Symfony\Component\Mime\Email;
@@ -41,8 +43,11 @@ class SentMailArchiveTest extends TestCase
         $archive->archive($message);
         $this->assertSame(71, (int) $message->fresh()->imap_uid);
         $this->assertSame('linked', $message->fresh()->sent_copy_status);
+        $this->assertSame('Sent', $message->fresh()->folder);
         // A completed retry exits before connecting or appending again.
         $archive->archive($message);
+        // Sync uses the configured alias too, while IMAP opens canonical INBOX.Sent.
+        $this->syncService()->storeForTest(71, '<stable@example.test>');
         $this->assertDatabaseCount('mail_messages', 1);
     }
 
@@ -170,8 +175,8 @@ class SentMailArchiveTest extends TestCase
 
     public function test_legacy_dry_run_has_no_mutations_and_refuses_unproven_attachments(): void
     {
-        $eligible = $this->message(['message_id' => '<legacy@local.pischeprom>', 'sent_mime_path' => null, 'sent_copy_status' => 'legacy']);
-        $skipped = $this->message(['message_id' => '<attachments@local.pischeprom>', 'sent_mime_path' => null, 'has_attachments' => true]);
+        $eligible = $this->legacyMessage(['sent_copy_status' => 'legacy']);
+        $skipped = $this->legacyMessage(['has_attachments' => true]);
         $archive = Mockery::mock(SentMailArchive::class);
         $archive->shouldReceive('assertReconstructionDestination')->once();
         $archive->shouldNotReceive('prepare');
@@ -180,14 +185,14 @@ class SentMailArchiveTest extends TestCase
         $rows = $service->run('office@example.test');
         $this->assertSame('eligible', $rows[0]['status']);
         $this->assertSame('attachment_completeness_unproven', $rows[1]['reason']);
-        $this->assertSame('<legacy@local.pischeprom>', $eligible->fresh()->message_id);
+        $this->assertSame($eligible->message_id, $eligible->fresh()->message_id);
         $this->assertFalse($eligible->fresh()->is_reconstructed);
         $this->assertNull($skipped->fresh()->imap_uid);
     }
 
     public function test_legacy_apply_marks_reconstruction_and_keeps_local_row_without_smtp(): void
     {
-        $legacy = $this->message(['message_id' => '<legacy@local.pischeprom>', 'sent_mime_path' => null, 'sent_copy_status' => 'legacy']);
+        $legacy = $this->legacyMessage(['sent_copy_status' => 'legacy']);
         $archive = Mockery::mock(SentMailArchive::class)->makePartial();
         $archive->shouldReceive('assertReconstructionDestination')->twice();
         $archive->shouldReceive('archive')->once()->with(Mockery::on(fn ($m) => $m->id === $legacy->id && $m->is_reconstructed));
@@ -197,6 +202,72 @@ class SentMailArchiveTest extends TestCase
         $this->assertTrue($fresh->is_reconstructed);
         $this->assertStringContainsString('X-Pischeprom-Archive-Type: reconstructed', Storage::disk('local')->get($fresh->sent_mime_path));
         $this->assertDatabaseCount('mail_messages', 1);
+    }
+
+    public function test_legacy_dry_run_recognizes_the_two_actual_production_id_formats(): void
+    {
+        $host = 'xn----dtbhbbn3apgclecj7i.xn--p1ai';
+        config(['app.url' => 'https://'.$host]);
+        for ($index = 0; $index < 16; $index++) {
+            $this->legacyMessage([
+                'message_id' => $index < 12 ? Str::uuid().'@'.$host : '<'.Str::uuid().'@local.pischeprom>',
+                'has_attachments' => in_array($index, [7, 11], true),
+            ]);
+        }
+        $archive = Mockery::mock(SentMailArchive::class);
+        $archive->shouldReceive('assertReconstructionDestination')->once();
+        $archive->shouldNotReceive('prepare');
+        $archive->shouldNotReceive('archive');
+        $rows = (new LegacySentReconstruction(app(MailboxRegistry::class), $archive))->run('office@example.test');
+        $this->assertCount(16, $rows);
+        $this->assertCount(14, array_filter($rows, fn ($row) => $row['status'] === 'eligible'));
+        $this->assertCount(2, array_filter($rows, fn ($row) => $row['reason'] === 'attachment_completeness_unproven'));
+        $this->assertSame(0, MailMessage::whereNotNull('imap_uid')->count());
+        $this->assertSame(0, MailMessage::whereNotNull('sent_mime_path')->count());
+    }
+
+    public function test_legacy_backfill_and_reconstruction_exclude_uncertain_or_original_messages(): void
+    {
+        $host = 'xn----dtbhbbn3apgclecj7i.xn--p1ai';
+        config(['app.url' => 'https://'.$host]);
+        $old = $this->legacyMessage(['message_id' => Str::uuid().'@'.$host]);
+        $fallback = $this->legacyMessage(['message_id' => Str::uuid().'@local.pischeprom']);
+        $excluded = [];
+        foreach ([
+            ['delivery_status' => 'prepared'], ['delivery_status' => 'sending'],
+            ['delivery_status' => 'unknown'], ['delivery_status' => 'failed'],
+            ['sent_mime_path' => 'private/original.eml'], ['smtp_accepted_at' => now()],
+            ['direction' => 'incoming'], ['imap_uid' => 99],
+            ['message_id' => Str::uuid().'@provider.example'],
+            ['message_id' => 'original-from-provider@'.$host],
+        ] as $attributes) {
+            $excluded[] = $this->legacyMessage($attributes);
+        }
+        $migration = require database_path('migrations/2026_09_27_160000_backfill_legacy_local_sent_status.php');
+        $migration->up();
+        $migration->up();
+        $this->assertSame('legacy', $old->fresh()->sent_copy_status);
+        $this->assertSame('legacy', $fallback->fresh()->sent_copy_status);
+        foreach ($excluded as $message) {
+            $this->assertNull($message->fresh()->sent_copy_status);
+        }
+
+        $archive = Mockery::mock(SentMailArchive::class);
+        $archive->shouldReceive('assertReconstructionDestination')->once();
+        $archive->shouldNotReceive('prepare');
+        $archive->shouldNotReceive('archive');
+        $rows = (new LegacySentReconstruction(app(MailboxRegistry::class), $archive))->run('office@example.test');
+        $this->assertSame([$old->id, $fallback->id], array_column($rows, 'id'));
+        $this->assertFalse(LegacySentIdentity::matches('<'.Str::uuid().'@'.$host));
+    }
+
+    private function legacyMessage(array $attributes = []): MailMessage
+    {
+        return $this->message([
+            'message_id' => '<'.Str::uuid().'@local.pischeprom>',
+            'sent_mime_path' => null, 'sent_copy_status' => null, 'smtp_accepted_at' => null,
+            ...$attributes,
+        ]);
     }
 
     private function message(array $attributes = []): MailMessage
