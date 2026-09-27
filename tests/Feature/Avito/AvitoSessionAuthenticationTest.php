@@ -7,6 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Env;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class AvitoSessionAuthenticationTest extends TestCase
@@ -54,6 +55,85 @@ class AvitoSessionAuthenticationTest extends TestCase
                 ->assertOk()->assertHeader('Cache-Control', 'no-store, private');
         }
 
+        Http::assertNothingSent();
+    }
+
+    public function test_staff_session_survives_avito_page_and_api_requests_in_browser_order(): void
+    {
+        $origin = 'https://ameise.example.test';
+        $employee = $this->employee();
+        $this->loginWithCookie($employee, $origin);
+
+        for ($visit = 0; $visit < 2; $visit++) {
+            $this->resetRequestAuthentication();
+            $this->keepSessionCookie($this->get($origin.'/Ameise/avito')->assertOk());
+
+            foreach (['status', 'capabilities', 'messenger/auto-replies/control'] as $endpoint) {
+                $this->resetRequestAuthentication();
+                $this->keepSessionCookie(
+                    $this->getJson($origin.'/api/avito/'.$endpoint, ['Referer' => $origin.'/Ameise/avito'])
+                        ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+                );
+            }
+
+            $this->resetRequestAuthentication();
+            $this->keepSessionCookie(
+                $this->getJson($origin.'/api/user', ['Referer' => $origin.'/Ameise/avito'])
+                    ->assertOk()->assertJsonPath('id', $employee->id)
+            );
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function test_changing_a_staff_password_still_invalidates_the_browser_session(): void
+    {
+        $origin = 'https://ameise.example.test';
+        $employee = $this->employee();
+        $this->loginWithCookie($employee, $origin);
+        $this->resetRequestAuthentication();
+        $this->keepSessionCookie($this->get($origin.'/Ameise/avito')->assertOk());
+
+        $this->resetRequestAuthentication();
+        $this->keepSessionCookie(
+            $this->getJson($origin.'/api/user', ['Referer' => $origin.'/Ameise/avito'])
+                ->assertOk()->assertJsonPath('id', $employee->id)
+        );
+
+        $employee->forceFill(['password' => 'changed-password'])->save();
+
+        $this->resetRequestAuthentication();
+        $this->keepSessionCookie(
+            $this->getJson($origin.'/api/avito/status', ['Referer' => $origin.'/Ameise/avito'])
+                ->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.')
+        );
+
+        $this->resetRequestAuthentication();
+        $this->get($origin.'/Ameise/avito')->assertRedirect(route('Ameise.login'));
+        Http::assertNothingSent();
+    }
+
+    public function test_legacy_raw_password_hash_session_is_accepted_and_upgraded_by_the_api(): void
+    {
+        $origin = 'https://ameise.example.test';
+        $employee = $this->employee();
+        $this->loginWithCookie($employee, $origin);
+        // Existing sessions may contain Sanctum's pre-HMAC password hash format.
+        app('session.store')->put('password_hash_web', $employee->getAuthPassword());
+        app('session.store')->save();
+
+        $this->resetRequestAuthentication();
+        $this->keepSessionCookie(
+            $this->getJson($origin.'/api/user', ['Referer' => $origin.'/Ameise/avito'])
+                ->assertOk()->assertJsonPath('id', $employee->id)
+        );
+        $this->assertSame(
+            Auth::guard('web')->hashPasswordForCookie($employee->getAuthPassword()),
+            app('session.store')->get('password_hash_web')
+        );
+
+        $this->resetRequestAuthentication();
+        $this->get($origin.'/Ameise/avito')->assertOk();
         Http::assertNothingSent();
     }
 
@@ -164,11 +244,16 @@ class AvitoSessionAuthenticationTest extends TestCase
         $this->resetRequestAuthentication();
         $response = $this->post($origin.$path, ['email' => $user->email, 'password' => 'password'])
             ->assertRedirect()->assertSessionHasNoErrors();
+        $this->keepSessionCookie($response);
+
+        return app('session.store')->token();
+    }
+
+    private function keepSessionCookie(TestResponse $response): void
+    {
         $cookie = $response->getCookie(config('session.cookie'), false);
         $this->assertNotNull($cookie);
         $this->withUnencryptedCookie($cookie->getName(), $cookie->getValue());
-
-        return app('session.store')->token();
     }
 
     private function resetRequestAuthentication(): void

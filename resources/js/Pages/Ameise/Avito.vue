@@ -565,12 +565,14 @@ onMounted(loadAll)
             </div>
         </header>
 
-        <v-alert v-if="avitoStore.sessionExpired" type="warning" variant="tonal" density="compact" class="flex-grow-0 my-2" role="alert">
+        <v-alert v-if="avitoStore.sessionExpired" type="warning" variant="tonal" density="compact" class="avito-session-alert my-2" role="alert">
             <strong>Сессия Ameise завершилась. Требуется повторный вход.</strong>
             <div>Автообновление приостановлено. Войдите в новой вкладке и нажмите «Проверить вход». Черновик сообщения останется здесь.</div>
             <div v-if="avitoStore.sessionCheckError">{{ avitoStore.sessionCheckError }}</div>
-            <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text" prepend-icon="mdi-login">Войти в Ameise</v-btn>
-            <v-btn size="small" variant="text" :loading="avitoStore.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+            <div class="avito-session-alert__actions">
+                <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text" prepend-icon="mdi-login">Войти в Ameise</v-btn>
+                <v-btn size="small" variant="text" :loading="avitoStore.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+            </div>
         </v-alert>
 
         <v-snackbar
@@ -849,6 +851,8 @@ onMounted(loadAll)
 
 <style scoped>
 .avito-page { position: fixed; top: calc(var(--v-layout-top, 58px) + 6px); right: calc(var(--v-layout-right, 0px) + 8px); bottom: 8px; left: calc(var(--v-layout-left, 0px) + 8px); display: flex; flex-direction: column; gap: 5px; overflow: hidden; min-width: 0; min-height: 0; box-sizing: border-box; color: #edf0ff; background: radial-gradient(circle at 15% -5%, rgba(114, 70, 255, .2), transparent 38%), #0e1020; }
+.avito-session-alert { flex: 0 0 auto; }
+.avito-session-alert__actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .avito-hero { display: flex; flex: 0 0 auto; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid rgba(180, 166, 255, .22); border-radius: 10px; background: linear-gradient(125deg, rgba(71, 42, 151, .94), rgba(28, 31, 64, .96)); }
 .avito-hero h1 { margin: 0; font-size: 23px; line-height: 1; letter-spacing: -.03em; }
 .avito-hero__title { display: flex; min-width: 0; align-items: center; gap: 12px; }

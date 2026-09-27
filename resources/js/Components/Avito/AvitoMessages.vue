@@ -590,11 +590,13 @@ onBeforeUnmount(() => {
 
 <template>
     <section class="messenger-module" :class="[`mobile-pane-${mobilePane}`, { 'is-embedded': embedded, 'is-full-featured': embedded && fullFeatured }]">
-        <v-alert v-if="embedded && store.sessionExpired" type="warning" variant="tonal" density="compact" class="flex-grow-0" role="alert">
+        <v-alert v-if="embedded && store.sessionExpired" type="warning" variant="tonal" density="compact" class="messenger-session-alert" role="alert">
             <div>Сессия Ameise завершилась. Войдите в новой вкладке и нажмите «Проверить вход». Черновик останется здесь.</div>
             <div v-if="store.sessionCheckError">{{ store.sessionCheckError }}</div>
-            <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text">Войти в Ameise</v-btn>
-            <v-btn size="small" variant="text" :loading="store.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+            <div class="messenger-session-alert__actions">
+                <v-btn href="/Ameise/login" target="_blank" rel="noopener" size="small" variant="text">Войти в Ameise</v-btn>
+                <v-btn size="small" variant="text" :loading="store.sessionChecking" @click="checkSession">Проверить вход</v-btn>
+            </div>
         </v-alert>
         <header v-if="!embedded" class="messenger-toolbar">
             <div class="messenger-counts"><strong>Всего чатов: {{ overview.counts.chats || 0 }}</strong><span>Непрочитанных чатов: {{ overview.counts.unread_chats || 0 }}</span></div>
@@ -738,6 +740,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .messenger-module { display: flex; flex-direction: column; overflow: hidden; width: 100%; height: 100%; min-height: 0; color: #e9ebff; border: 1px solid #30344d; border-radius: 10px; background: #111427; }
+.messenger-session-alert { flex: 0 0 auto; }
+.messenger-session-alert__actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .messenger-toolbar { display: flex; flex: 0 0 auto; min-height: 48px; align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #30344d; background: #1b1e35; }
 .messenger-toolbar > .v-select { max-width: 230px; }
 .messenger-counts { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }.messenger-counts strong { font-size: 12px; }.messenger-counts span { color: #9299b9; font-size: 10px; }

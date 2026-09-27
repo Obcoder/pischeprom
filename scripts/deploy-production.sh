@@ -203,6 +203,14 @@ log 'Checking realtime host requirements before maintenance.'
         "$realtime_preflight_dir/pischeprom-reverb.service" "$realtime_preflight_dir/pischeprom-realtime-worker.service"
 ) || fail 'Realtime preflight failed. The current application is still online; its code and services were not changed.'
 
+# This application's Nginx vhost uses /var/run/php/php8.4-fpm.sock.
+# Check reload permissions before taking the current application offline.
+php_fpm_service='php8.4-fpm'
+systemctl is-active --quiet "$php_fpm_service" \
+    || fail 'The application PHP-FPM service is not active; deployment stopped before maintenance.'
+timeout 10s sudo -n -l -- systemctl reload "$php_fpm_service" >/dev/null 2>&1 \
+    || fail 'PHP-FPM reload permission is missing; deployment stopped before maintenance.'
+
 previous_sha="$(git rev-parse HEAD)"
 maintenance_started=0
 code_switch_started=0
@@ -439,6 +447,12 @@ php "$target_dir/scripts/check-production-mail-workspace.php" "$target_dir" \
 sudo chown -R "${application_owner}:${runtime_group}" "$target_dir"
 sudo find storage bootstrap/cache -type d -exec chmod 2770 {} +
 sudo find storage bootstrap/cache -type f -exec chmod 0660 {} +
+
+log 'Reloading PHP-FPM to load the deployed PHP code and dependencies.'
+timeout 30s sudo -n systemctl reload "$php_fpm_service" \
+    || fail 'PHP-FPM reload failed; inspect the service on the VPS.'
+systemctl is-active --quiet "$php_fpm_service" \
+    || fail 'PHP-FPM is not active after reload.'
 
 php artisan queue:restart
 
