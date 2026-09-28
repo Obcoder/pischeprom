@@ -18,6 +18,7 @@ const lastPage = ref(1)
 const total = ref(0)
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
+const selectedOrderEntityId = ref(null)
 let controller = null
 let requestId = 0
 let disposed = false
@@ -88,7 +89,14 @@ async function loadOrders(targetPage = page.value) {
 
 function openOrder(order) {
     selectedOrderId.value = order.id
+    selectedOrderEntityId.value = props.entity?.id
     orderDetailsOpen.value = true
+}
+
+function orderSaved(order) {
+    if (String(order?.id) !== String(selectedOrderId.value)
+        || selectedOrderEntityId.value !== props.entity?.id) return
+    return loadOrders(page.value)
 }
 
 function formatDate(value) {
@@ -177,7 +185,7 @@ onBeforeUnmount(() => {
                 <v-btn icon="mdi-chevron-right" size="x-small" variant="text" :disabled="loading || page >= lastPage" aria-label="Следующая страница заказов" @click="loadOrders(page + 1)" />
             </div>
         </v-card>
-        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" @saved="orderSaved" />
     </v-dialog>
 </template>
 

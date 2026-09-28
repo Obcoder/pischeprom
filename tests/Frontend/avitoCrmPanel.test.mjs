@@ -88,6 +88,30 @@ test('city searches cancel and discard outdated results and unmount cancels the 
     assert.deepEqual(api.cityResults.value, [{ id: 2, label: 'Санкт-Петербург' }])
 })
 
+test('saving Avito order details updates its card without touching the active draft and ignores a switched chat', t => {
+    const harness = panelHarness()
+    t.after(() => harness.dispose())
+    const { api, props, requests, render } = harness
+    props.chat = { id: 7 }
+    api.crm.value = { entity: { id: 3 }, candidates: [], orders: [{ id: 42, number: 'PP-42', total_amount: 10 }] }
+    api.activeTab.value = 'order'
+    api.orderItems.value = [{ good_id: 11, quantity: 3 }]
+    api.orderForm.internal_comment = 'Черновик'
+    api.openOrderDetails({ id: 42 })
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    dialog.props.onSaved({ id: 42, total_amount: 150, status: { name: 'Отложен' } })
+    assert.equal(api.crm.value.orders[0].total_amount, 150)
+    assert.equal(api.crm.value.orders[0].number, 'PP-42')
+    assert.equal(api.crm.value.orders[0].status.name, 'Отложен')
+    assert.equal(api.activeTab.value, 'order')
+    assert.deepEqual(api.orderItems.value, [{ good_id: 11, quantity: 3 }])
+    assert.equal(api.orderForm.internal_comment, 'Черновик')
+    assert.equal(requests.length, 0)
+    props.chat = { id: 8 }
+    dialog.props.onSaved({ id: 42, total_amount: 999 })
+    assert.equal(api.crm.value.orders[0].total_amount, 150)
+})
+
 test('building validation keeps the entered address and apartment and shows field errors', async t => {
     const harness = panelHarness()
     t.after(() => harness.dispose())

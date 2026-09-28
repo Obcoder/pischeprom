@@ -331,7 +331,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
             </footer>
         </section>
         <OrderStatusesDialog v-model="statusesOpen" :permissions="permissions" @changed="statusesChanged" />
-        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" @saved="fetchOrders" />
     </main>
 </template>
 

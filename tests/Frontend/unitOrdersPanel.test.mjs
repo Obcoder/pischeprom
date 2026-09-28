@@ -61,3 +61,19 @@ test('changing Unit or losing permission closes a selected order and prevents re
     assert.equal(api.orderDetailsOpen.value, false)
     assert.equal(findVNode(render(), node => node.type === api.OrderDetailsDialog), null)
 })
+
+test('saved Unit orders update totals and disappear if moved outside linked entities', t => {
+    const { api, props, render } = panelHarness(t)
+    api.openOrder({ id: 12 })
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    dialog.props.onSaved({ id: 12, entity_id: 7, total_amount: 150, status: { name: 'Отложен' }, items: [] })
+    assert.equal(api.orders.value[0].total_amount, 150)
+    assert.equal(api.orders.value[0].status.name, 'Отложен')
+    assert.equal(api.orderDetailsOpen.value, true)
+    assert.equal(props.unit.entities[0].orders[0].total_amount, undefined)
+    dialog.props.onSaved({ id: 12, entity_id: 8, total_amount: 200 })
+    assert.deepEqual(api.orders.value, [])
+    props.unit = { id: 2, entities: [{ id: 8, orders: [{ id: 12, total_amount: 300 }] }] }
+    dialog.props.onSaved({ id: 12, entity_id: 8, total_amount: 999 })
+    assert.notEqual(api.savedOrders.value[12].total_amount, 999)
+})

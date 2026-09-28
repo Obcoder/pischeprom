@@ -80,6 +80,7 @@ const productForm = reactive({
 const orderItems = ref([])
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
+const selectedOrderChatId = ref(null)
 const orderForm = reactive({
     order_status_id: null,
     contact_telephone_id: null,
@@ -340,7 +341,16 @@ function updateBuildingForm(value) {
 function openOrderDetails(order) {
     if (!order?.id) return
     selectedOrderId.value = order.id
+    selectedOrderChatId.value = props.chat?.id
     orderDetailsOpen.value = true
+}
+
+function orderSaved(order) {
+    if (String(order?.id) !== String(selectedOrderId.value)
+        || selectedOrderChatId.value !== props.chat?.id) return
+    crm.value.orders = (crm.value.orders || []).map(existing => String(existing.id) === String(order.id)
+        ? { ...existing, ...order }
+        : existing)
 }
 
 async function lookupAddress() {
@@ -806,7 +816,7 @@ onBeforeUnmount(() => {
                 <v-card-actions><v-btn variant="text" @click="addToOrder(selectedGood); productDialog = false">Добавить в заказ</v-btn><v-spacer /><v-btn color="deep-purple-lighten-1" prepend-icon="mdi-send" :loading="saving" @click="sendProduct">Отправить в Avito</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
-        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" theme="dark" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" theme="dark" @saved="orderSaved" />
     </aside>
 </template>
 

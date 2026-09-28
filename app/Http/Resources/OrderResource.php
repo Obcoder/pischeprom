@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Auth\StaffAccess;
+use App\Services\Orders\OrderDeliveryAccess;
 use App\Services\Orders\OrderDeliveryDateService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -10,6 +12,8 @@ class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $user = $request->user() ?? $request->user('sanctum');
+
         return [
             'id' => $this->id,
             'number' => $this->number,
@@ -32,6 +36,10 @@ class OrderResource extends JsonResource
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
             'items_count' => $this->whenCounted('items'),
+            'permissions' => [
+                'edit' => app(StaffAccess::class)->allows($user) && ! $this->shipped_at && ! $this->shipped_sale_id,
+                'delivery_edit' => OrderDeliveryAccess::allowed($user),
+            ],
 
             'status' => $this->whenLoaded('status', fn () => $this->status ? [
                 'id' => $this->status->id,

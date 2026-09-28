@@ -33,8 +33,31 @@ const props = defineProps({
 const orderTab = ref(null)
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
+const savedOrders = ref({})
 const activeOrderStatuses = computed(() => props.orderStatuses.filter(status => !status.is_closed))
-const visibleOrders = computed(() => props.ordersByStatus?.[orderTab.value] || [])
+const displayedOrdersByStatus = computed(() => {
+    const groups = Object.fromEntries(activeOrderStatuses.value.map(status => [status.code, []]))
+    const unique = new Map()
+    for (const orders of Object.values(props.ordersByStatus || {})) {
+        for (const order of orders) unique.set(order.id, savedOrders.value[order.id] || order)
+    }
+    for (const order of unique.values()) {
+        const status = order.status?.code || props.orderStatuses.find(status => String(status.id) === String(order.order_status_id))?.code
+        if (groups[status]) groups[status].push(order)
+    }
+    for (const orders of Object.values(groups)) {
+        orders.sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0) || Number(b.id) - Number(a.id))
+    }
+    return groups
+})
+const visibleOrders = computed(() => displayedOrdersByStatus.value[orderTab.value] || [])
+
+watch(() => props.ordersByStatus, () => { savedOrders.value = {} })
+
+function orderSaved(order) {
+    if (!props.canViewOrders || !order?.id) return
+    savedOrders.value = { ...savedOrders.value, [order.id]: order }
+}
 
 watch(() => activeOrderStatuses.value.map(status => status.code), codes => {
     if (!codes.includes(orderTab.value)) {
@@ -225,7 +248,7 @@ useHead({
                 >
                     <i class="order-summary__status-dot" />
                     {{ status.name }}
-                    <span>{{ ordersByStatus[status.code]?.length || 0 }}</span>
+                    <span>{{ displayedOrdersByStatus[status.code]?.length || 0 }}</span>
                 </button>
             </div>
 
@@ -299,7 +322,7 @@ useHead({
         </section>
 
         <AvitoWaitingList class="avito-waiting-summary" />
-        <OrderDetailsDialog v-if="canViewOrders" v-model="orderDetailsOpen" :order-id="selectedOrderId" />
+        <OrderDetailsDialog v-if="canViewOrders" v-model="orderDetailsOpen" :order-id="selectedOrderId" @saved="orderSaved" />
     </main>
 </template>
 

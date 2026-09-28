@@ -87,6 +87,28 @@ test('order rows support Enter and Space while keyboard events on nested control
     assert.equal(api.orderDetailsOpen.value, true)
 })
 
+test('saving order details refreshes the filtered current page without resetting the filter draft', async t => {
+    const harness = pageHarness()
+    t.after(() => harness.dispose())
+    const { api, requests, render } = harness
+    api.filters.page = 3
+    api.filters.status_id = 2
+    api.filters.delivery_unscheduled = true
+    api.draftFilters.status_id = 5
+    api.openOrder({ id: 22 })
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    const pending = dialog.props.onSaved({ id: 22, delivery_date: '2026-09-30' })
+    assert.equal(requests[0].options.params.page, 3)
+    assert.equal(requests[0].options.params.status_id, 2)
+    assert.equal(requests[0].options.params.delivery_unscheduled, 1)
+    requests[0].resolve({ data: [{ id: 23 }], meta: { current_page: 3, total: 75 } })
+    await pending
+    assert.equal(api.orders.value[0].id, 23)
+    assert.equal(api.selectedOrderId.value, 22)
+    assert.equal(api.orderDetailsOpen.value, true)
+    assert.equal(api.draftFilters.status_id, 5)
+})
+
 test('order rows retain apartment numbers for each delivery building', t => {
     const harness = pageHarness()
     t.after(() => harness.dispose())

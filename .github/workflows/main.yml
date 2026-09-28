@@ -127,6 +127,7 @@ jobs:
             tests/Feature/BuildingApartmentManagementTest.php \
             tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/OrderManagementTest.php \
+            tests/Feature/OrderResourcePermissionsTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/RegistrationTest.php \
             tests/TestCase.php
@@ -489,6 +490,7 @@ jobs:
             tests/Feature/WarehouseMutationAuthorizationTest.php \
             tests/Feature/CommerceRealtimeTest.php \
             tests/Feature/OrderManagementTest.php \
+            tests/Feature/OrderResourcePermissionsTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/Mobile \
             tests/Feature/BuildingApartmentManagementTest.php \

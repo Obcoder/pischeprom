@@ -12,10 +12,13 @@ const props = defineProps({
 
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
+const selectedOrderUnitId = ref(null)
+const savedOrders = ref({})
 
 function openOrder(order) {
     if (!props.canViewOrders) return
     selectedOrderId.value = order.id
+    selectedOrderUnitId.value = props.unit.id
     orderDetailsOpen.value = true
 }
 
@@ -24,15 +27,25 @@ watch(() => [props.unit.id, props.canViewOrders], () => {
     selectedOrderId.value = null
 })
 
+watch(() => props.unit, () => { savedOrders.value = {} })
+
+function orderSaved(order) {
+    if (!props.canViewOrders || String(order?.id) !== String(selectedOrderId.value)
+        || selectedOrderUnitId.value !== props.unit.id) return
+    savedOrders.value = { ...savedOrders.value, [order.id]: order }
+}
+
 const orders = computed(() => {
     if (!props.canViewOrders) return []
 
     const unique = new Map()
     for (const entity of props.unit.entities || []) {
         for (const order of entity.orders || []) {
+            const updated = savedOrders.value[order.id] || order
+            if (updated.entity_id && !(props.unit.entities || []).some(entity => String(entity.id) === String(updated.entity_id))) continue
             unique.set(order.id, {
-                ...order,
-                entity: order.entity || { id: entity.id, name: entity.name },
+                ...updated,
+                entity: updated.entity || { id: entity.id, name: entity.name },
             })
         }
     }
@@ -87,7 +100,7 @@ function orderMoney(order) {
                 </article>
             </div>
             <p v-else class="unit-orders__empty">У связанных юридических лиц пока нет заказов.</p>
-            <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" />
+            <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" @saved="orderSaved" />
         </template>
         <p v-else class="unit-orders__empty">Просмотр заказов недоступен.</p>
     </div>

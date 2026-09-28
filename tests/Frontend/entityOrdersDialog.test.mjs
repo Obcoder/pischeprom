@@ -116,6 +116,30 @@ test('closing Entity history also closes its order details immediately', async t
     assert.equal(harness.requests[0].options.signal.aborted, true)
 })
 
+test('saved order refreshes only the current Entity page and ignores a save from the previous Entity', async t => {
+    const harness = dialogHarness({ modelValue: true, entity: { id: 7 } })
+    t.after(() => harness.dispose())
+    const { api, props, requests, render } = harness
+    requests[0].resolve({ data: [{ id: 12 }], meta: { current_page: 2, last_page: 3, total: 51 } })
+    await Vue.nextTick()
+    api.openOrder({ id: 12 })
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    const pending = dialog.props.onSaved({ id: 12, entity_id: 8 })
+    assert.equal(requests[1].options.params.entity_id, 7)
+    assert.equal(requests[1].options.params.page, 2)
+    requests[1].resolve({ data: [], meta: { current_page: 2, last_page: 2, total: 50 } })
+    await pending
+    assert.equal(api.page.value, 2)
+    assert.equal(api.orderDetailsOpen.value, true)
+    props.entity = { id: 8 }
+    api.orderSaved({ id: 12, entity_id: 8 })
+    assert.equal(requests.length, 2)
+    await Vue.nextTick()
+    assert.equal(requests.length, 3)
+    api.orderSaved({ id: 12, entity_id: 8 })
+    assert.equal(requests.length, 3)
+})
+
 test('changing Entity aborts the previous request and ignores its late response', async t => {
     const harness = dialogHarness({ modelValue: true, entity: { id: 1 } })
     t.after(() => harness.dispose())

@@ -1,8 +1,8 @@
 <script setup>
 import axios from 'axios'
-import { Link } from '@inertiajs/vue3'
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
-import { route } from 'ziggy-js'
+import { computed, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
+import OrderDialogForm from '@/Components/Orders/OrderDialogForm.vue'
+import { useOrderDialogEditor } from '@/Composables/useOrderDialogEditor'
 import { buildingApartmentLabel } from '@/utils/buildingApartments'
 
 const props = defineProps({
@@ -11,15 +11,33 @@ const props = defineProps({
     editable: { type: Boolean, default: true },
     theme: { type: String, default: 'light' },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'saved'])
 const titleId = `order-details-${useId()}`
 const order = ref(null)
 const loading = ref(false)
 const error = ref('')
+const bodyElement = ref(null)
+const saveErrorElement = ref(null)
+const editor = reactive(useOrderDialogEditor({
+    order,
+    orderId: () => props.orderId,
+    visible: () => props.modelValue,
+    editable: () => props.editable,
+    client: axios,
+    onSaved: savedOrder => emit('saved', savedOrder),
+}))
+const busy = computed(() => editor.saving || editor.savingDate)
+const validationMessages = computed(() => [...new Set(Object.values(editor.errors).flat())])
 const orderNumber = computed(() => order.value?.number || (props.orderId ? `#${props.orderId}` : ''))
 let controller = null
 let requestId = 0
 let disposed = false
+
+watch(() => editor.error, message => {
+    if (!message) return
+    if (bodyElement.value) bodyElement.value.scrollTop = 0
+    saveErrorElement.value?.focus({ preventScroll: true })
+}, { flush: 'post' })
 
 function cancelRequest() {
     requestId += 1
@@ -29,8 +47,28 @@ function cancelRequest() {
 }
 
 function updateDialog(value) {
-    if (!value) cancelRequest()
+    if (!value) {
+        if (busy.value || !confirmDiscard()) return
+        cancelRequest()
+        editor.reset()
+    }
     emit('update:modelValue', value)
+}
+
+function confirmDiscard() {
+    return !editor.dirty || window.confirm('Закрыть без сохранения изменений?')
+}
+
+function cancelEdit() {
+    if (busy.value || !confirmDiscard()) return
+    editor.cancelEdit()
+    editor.cancelDateEdit()
+}
+
+function reloadOrder() {
+    if (busy.value || !confirmDiscard()) return
+    editor.reset()
+    loadOrder()
 }
 
 async function loadOrder() {
@@ -66,14 +104,6 @@ async function loadOrder() {
             loading.value = false
             controller = null
         }
-    }
-}
-
-function orderUrl() {
-    try {
-        return route('Ameise.orders.show', props.orderId)
-    } catch {
-        return `/Ameise/orders/${props.orderId}`
     }
 }
 
@@ -120,30 +150,32 @@ watch(
 onBeforeUnmount(() => {
     disposed = true
     cancelRequest()
+    editor.dispose()
 })
 </script>
 
 <template>
-    <v-dialog :model-value="modelValue" :aria-labelledby="titleId" max-width="900" scrollable @update:model-value="updateDialog">
+    <v-dialog :model-value="modelValue" :aria-labelledby="titleId" :persistent="busy || editor.dirty" max-width="900" scrollable @update:model-value="updateDialog">
         <v-card class="order-details" :class="{ 'order-details--dark': theme === 'dark' }" :theme="theme">
             <header class="order-details__header">
                 <v-icon class="order-details__symbol" icon="mdi-receipt-text-outline" size="23" />
                 <div class="order-details__heading">
                     <h2 :id="titleId">Заказ {{ orderNumber }}</h2>
-                    <span v-if="order">{{ formatDate(order.submitted_at || order.created_at, true) }}</span>
+                    <span v-if="editor.editing">Редактирование заказа</span>
+                    <span v-else-if="order">{{ formatDate(order.submitted_at || order.created_at, true) }}</span>
                     <span v-else>Детали заказа</span>
                 </div>
                 <span v-if="order?.status" class="order-details__status">
                     <i :style="{ backgroundColor: order.status.color || '#64748b' }" />{{ order.status.name }}
                 </span>
-                <Link v-if="order && editable" :href="orderUrl()" class="order-details__page-link" title="Редактировать заказ" aria-label="Редактировать заказ">
+                <button v-if="order && editor.canEdit && !editor.editing" type="button" class="order-details__edit" :disabled="busy || editor.editingDate || editor.stale" title="Редактировать заказ" aria-label="Редактировать заказ" @click="editor.beginEdit">
                     <v-icon icon="mdi-pencil-outline" size="15" /><span>Редактировать</span>
-                </Link>
-                <v-btn class="order-details__close" icon="mdi-close" size="small" variant="text" aria-label="Закрыть детали заказа" @click="updateDialog(false)" />
+                </button>
+                <v-btn class="order-details__close" icon="mdi-close" size="small" variant="text" :disabled="busy" aria-label="Закрыть детали заказа" @click="updateDialog(false)" />
             </header>
 
             <v-progress-linear v-if="loading" indeterminate :color="theme === 'dark' ? 'deep-purple-lighten-2' : 'brown-darken-3'" height="2" />
-            <div class="order-details__body" :aria-busy="loading">
+            <div ref="bodyElement" class="order-details__body" :aria-busy="loading">
                 <div v-if="error" class="order-details__message" role="alert">
                     <v-icon icon="mdi-alert-circle-outline" size="24" />
                     <span>{{ error }}</span>
@@ -151,12 +183,21 @@ onBeforeUnmount(() => {
                 </div>
                 <div v-else-if="loading" class="order-details__message" role="status">Загрузка заказа…</div>
                 <template v-else-if="order">
+                    <div v-if="editor.error" ref="saveErrorElement" class="order-details__notice order-details__notice--error" role="alert" tabindex="-1">
+                        <span>{{ editor.error }}</span>
+                        <ul v-if="validationMessages.length"><li v-for="message in validationMessages" :key="message">{{ message }}</li></ul>
+                        <button v-if="editor.stale" type="button" class="order-details__action" @click="reloadOrder">Обновить заказ</button>
+                        <button v-else-if="editor.editing && !editor.optionsReady" type="button" class="order-details__action" :disabled="editor.loadingOptions" @click="editor.beginEdit">Повторить загрузку справочников</button>
+                    </div>
+                    <div v-if="editor.success" class="order-details__notice" role="status"><v-icon icon="mdi-check-circle-outline" size="16" />{{ editor.success }}</div>
                     <div class="order-details__totals">
-                        <div><span>Сумма заказа</span><strong>{{ formatMoney(order.total_amount) }}</strong></div>
-                        <div><span>Общий вес</span><strong>{{ formatNumber(order.total_weight, 3) }} <small>кг</small></strong></div>
-                        <div><span>Позиций</span><strong>{{ order.items_count ?? order.items?.length ?? 0 }}</strong></div>
+                        <div><span>Сумма заказа</span><strong>{{ formatMoney(editor.editing ? editor.total : order.total_amount, editor.editing ? editor.form.currency_code : order.currency_code) }}</strong></div>
+                        <div><span>Общий вес</span><strong>{{ formatNumber(editor.editing ? editor.weight : order.total_weight, 3) }} <small>кг</small></strong></div>
+                        <div><span>Позиций</span><strong>{{ editor.editing ? editor.form.items.length : (order.items_count ?? order.items?.length ?? 0) }}</strong></div>
                     </div>
 
+                    <OrderDialogForm v-if="editor.editing" :editor="editor" @cancel="cancelEdit" />
+                    <template v-else>
                     <div class="order-details__info">
                         <section>
                             <h3><v-icon icon="mdi-domain" size="15" /> Покупатель</h3>
@@ -171,7 +212,18 @@ onBeforeUnmount(() => {
                         </section>
                         <section>
                             <h3><v-icon icon="mdi-truck-delivery-outline" size="15" /> Доставка</h3>
-                            <strong>{{ order.delivery_date ? formatDate(order.delivery_date) : 'Дата не назначена' }}</strong>
+                            <form v-if="editor.editingDate" class="order-details__date-form" aria-label="Назначение даты доставки" @submit.prevent="editor.saveDate">
+                                <label :for="`${titleId}-date`">Дата доставки</label>
+                                <input :id="`${titleId}-date`" v-model="editor.dateDraft" type="date" min="1000-01-01" max="9999-12-31" :disabled="busy || editor.stale" :aria-invalid="!!editor.errors.delivery_date" />
+                                <div class="order-details__date-actions">
+                                    <button type="submit" class="order-details__action order-details__action--primary" :disabled="busy || editor.stale || !editor.dateDirty">{{ editor.savingDate ? 'Сохранение…' : 'Сохранить дату' }}</button>
+                                    <button type="button" class="order-details__action" :disabled="busy" @click="cancelEdit">Отмена</button>
+                                </div>
+                            </form>
+                            <div v-else class="order-details__date-row">
+                                <strong>{{ order.delivery_date ? formatDate(order.delivery_date) : 'Дата не назначена' }}</strong>
+                                <button v-if="editor.canEditDelivery" type="button" class="order-details__date-edit" :disabled="editor.stale" @click="editor.beginDateEdit"><v-icon icon="mdi-calendar-edit" size="14" />{{ order.delivery_date ? 'Изменить дату' : 'Назначить дату' }}</button>
+                            </div>
                             <div v-if="order.preferred_delivery_time" class="order-details__multiline">{{ order.preferred_delivery_time }}</div>
                             <div v-for="building in (order.buildings || [])" :key="building.id" class="order-details__address">
                                 <span v-if="building.building_type" class="order-details__muted">{{ building.building_type }} · </span>{{ buildingAddress(building) }}
@@ -205,6 +257,7 @@ onBeforeUnmount(() => {
                         <span>Создан {{ formatDate(order.created_at, true) }}</span>
                         <span v-if="order.closed_at">Закрыт {{ formatDate(order.closed_at, true) }}</span>
                     </footer>
+                    </template>
                 </template>
             </div>
         </v-card>
@@ -218,6 +271,7 @@ onBeforeUnmount(() => {
     --details-hover: #e7ebef; --details-panel: #fbfcfd; --details-total: #185c4b; --details-note: #fffcf5;
  max-height: 85vh; border: 1px solid var(--details-border); border-radius: 10px; background: var(--details-bg); color: var(--details-text); }
 .order-details--dark {
+    color-scheme: dark;
     --details-bg: #171a2e; --details-text: #edf0ff; --details-border: #343850;
     --details-header: #1e223a; --details-muted: #a1a8c4; --details-accent: #b5a0ff;
     --details-hover: #303550; --details-panel: #1a1e34; --details-total: #9bdfc3; --details-note: #242039;
@@ -230,9 +284,22 @@ onBeforeUnmount(() => {
 .order-details__heading > span { color: var(--details-muted); font-size: 10px; }
 .order-details__status { display: inline-flex; align-items: center; gap: 6px; max-width: 35%; color: var(--details-muted); font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
 .order-details__status i { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; }
-.order-details__page-link { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 5px; height: 30px; padding: 0 7px; font-size: 10px; text-decoration: none; border-radius: 4px; color: var(--details-muted); }
-.order-details__page-link:hover { background: var(--details-hover); color: var(--details-accent); }
-.order-details__page-link:focus-visible { outline: 2px solid var(--details-accent); outline-offset: 2px; }
+.order-details__edit { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 5px; height: 30px; padding: 0 7px; font-size: 10px; border-radius: 4px; color: var(--details-muted); }
+.order-details__edit:hover { background: var(--details-hover); color: var(--details-accent); }
+.order-details button:focus-visible { outline: 2px solid var(--details-accent); outline-offset: 2px; }
+.order-details button:disabled { opacity: .5; cursor: default; }
+.order-details__notice { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 16px; border-bottom: 1px solid var(--details-border); color: var(--details-total); background: var(--details-panel); font-size: 12px; }
+.order-details__notice--error { color: #d85e70; }
+.order-details__notice ul { flex-basis: 100%; margin: 0; padding-left: 18px; }
+.order-details__date-row { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; }
+.order-details__date-edit { display: inline-flex; align-items: center; gap: 4px; color: var(--details-accent); font-size: 10px; }
+.order-details__date-form { display: grid; gap: 6px; max-width: 320px; }
+.order-details__date-form label { color: var(--details-muted); font-size: 10px; }
+.order-details__date-form input { min-width: 0; width: 100%; height: 34px; padding: 5px 9px; border: 1px solid var(--details-border); border-radius: 5px; color: var(--details-text); background: var(--details-panel); font-size: 12px; }
+.order-details__date-form input:focus { outline: 2px solid var(--details-accent); outline-offset: 1px; }
+.order-details__date-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.order-details__action { min-height: 30px; padding: 5px 10px; border: 1px solid var(--details-border); border-radius: 5px; font-size: 11px; color: var(--details-text); background: var(--details-panel); }
+.order-details__action--primary { color: var(--details-bg); border-color: var(--details-accent); background: var(--details-accent); }
 .order-details__body { min-height: 130px; overflow: auto; }
 .order-details__message { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; min-height: 160px; padding: 20px; color: var(--details-muted); font-size: 13px; text-align: center; }
 .order-details__totals { display: grid; grid-template-columns: 1.4fr 1fr 0.6fr; border-bottom: 1px solid var(--details-border); background: var(--details-panel); }
@@ -265,7 +332,7 @@ onBeforeUnmount(() => {
     .order-details__header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'heading close' 'status edit'; gap: 6px 8px; padding: 10px 12px; }
     .order-details__heading { grid-area: heading; }
     .order-details__close { grid-area: close; justify-self: end; }
-    .order-details__page-link { grid-area: edit; justify-self: end; }
+    .order-details__edit { grid-area: edit; justify-self: end; }
     .order-details__heading h2 { font-size: 14px; }
     .order-details__symbol { display: none; }
     .order-details__status { grid-area: status; max-width: 100%; font-size: 10px; }
