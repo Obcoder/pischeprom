@@ -184,6 +184,84 @@ test('sales refresh updates totals and details using applied filters without alt
     assert.equal(api.filters.date_from, '2030-01-01')
 })
 
+test('new sale shows stock from the goods warehouse in the selected measure, including zero and negative balances', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    api.measures.value = [{ id: 1, name: 'кг' }, { id: 2, name: 'шт' }]
+    api.openCreate()
+    const line = api.saleForm.goods[0]
+    Object.assign(line, { good_id: 132, measure_id: 1, quantity: 20, price: 152, total: 3040 })
+    api.saleForm.entity_id = 452
+    assert.equal(api.lineStockText(line), '…')
+    assert.equal(requests[0].url, 'good-warehouse-stock.index')
+    requests[0].resolve([
+        { good_id: 132, measure_id: 1, quantity: -10, warehouse: { code: 'goods', is_active: true } },
+        { good_id: 132, measure_id: 2, quantity: 7.123456, warehouse: { code: 'goods', is_active: true } },
+        { good_id: 132, measure_id: 1, quantity: 100, warehouse: { code: 'storage', is_active: true } },
+        { good_id: 133, measure_id: 1, quantity: 99, warehouse: { code: 'goods', is_active: false } },
+    ])
+    await Promise.resolve()
+    assert.equal(api.lineStockText(line), '-10 кг')
+    assert.equal(api.canSubmitSale.value, true, 'negative stock is informational and does not block saving')
+    line.measure_id = '2'
+    assert.equal(api.lineStockText(line), '7,123456 шт')
+    line.good_id = 133
+    line.measure_id = 1
+    assert.equal(api.lineStockText(line), '0 кг')
+    line.good_id = 134
+    assert.equal(api.lineStockText(line), '0 кг', 'goods without stock movements have a zero balance')
+    line.measure_id = null
+    assert.equal(api.lineStockText(line), '—')
+})
+
+test('sales stock refresh preserves the draft and ignores an older stock response', async () => {
+    const { api, requests, refresh } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    api.openCreate()
+    const line = api.saleForm.goods[0]
+    Object.assign(line, { good_id: 132, measure_id: 1, quantity: 30, price: 152, total: 4560 })
+    const pending = refresh()
+    requests[1].resolve({ data: [], meta: {} })
+    requests[2].resolve([{ good_id: 132, measure_id: 1, quantity: -20, warehouse: { code: 'goods', is_active: true } }])
+    await pending
+    requests[0].resolve([{ good_id: 132, measure_id: 1, quantity: 10, warehouse: { code: 'goods', is_active: true } }])
+    await Promise.resolve()
+    assert.equal(api.lineStock(line), -20)
+    assert.equal(line.quantity, 30)
+    assert.equal(line.total, 4560)
+    assert.equal(api.dialog.value, true)
+})
+
+test('stock load failure clears stale values without blocking a sale and can be retried', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    api.openCreate()
+    const line = api.saleForm.goods[0]
+    Object.assign(line, { good_id: 132, measure_id: 1, quantity: 30, price: 152, total: 4560 })
+    api.saleForm.entity_id = 452
+    requests[0].resolve([{ good_id: 132, measure_id: 1, quantity: 10, warehouse: { code: 'goods', is_active: true } }])
+    await Promise.resolve()
+    const failed = api.fetchSaleStock()
+    requests[1].reject(new Error('Stock service unavailable'))
+    await failed
+    assert.equal(api.stockError.value, true)
+    assert.equal(api.lineStockText(line), '—', 'an unknown balance must not be displayed as zero or stale stock')
+    assert.equal(api.canSubmitSale.value, true)
+    const retry = api.fetchSaleStock()
+    requests[2].resolve([])
+    await retry
+    assert.equal(api.stockError.value, false)
+    assert.equal(api.lineStock(line), 0)
+})
+
+test('stock responses from a disposed sale form or previous actor are ignored', async () => {
+    for (const action of ['dispose', 'changeActor']) {
+        const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+        const pending = harness.api.fetchSaleStock()
+        harness[action]()
+        harness.requests[0].resolve([{ good_id: 132, measure_id: 1, quantity: 10, warehouse: { code: 'goods', is_active: true } }])
+        await pending
+        assert.equal(harness.api.stockRows.value, null)
+    }
+})
+
 test('sale date save updates the open sale and refreshes previous sales using applied filters', async () => {
     const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
     const sale = { id: 5, date: '2026-09-20T00:00:00.000000Z', total: 10 }

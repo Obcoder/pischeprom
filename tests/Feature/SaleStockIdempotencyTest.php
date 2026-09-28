@@ -52,6 +52,7 @@ class SaleStockIdempotencyTest extends TestCase
     public function test_retrying_sale_creation_returns_the_original_sale_and_deducts_once(): void
     {
         $payload = $this->salePayload();
+        $payload['goods'][0]['quantity'] = 11;
         $saleId = $this->postJson('/api/sales', $payload)->assertCreated()->json('data.id');
 
         $this->postJson('/api/sales', $payload)->assertCreated()->assertJsonPath('data.id', $saleId);
@@ -62,27 +63,27 @@ class SaleStockIdempotencyTest extends TestCase
         $this->assertDatabaseCount('good_sale', 1);
         $this->assertDatabaseCount('sale_stock_requests', 1);
         $this->assertSame(1, GoodStockMovement::query()->where('sale_id', $saleId)->count());
-        $this->assertEquals(7, $this->balance());
+        $this->assertEquals(-1, $this->balance());
     }
 
     public function test_retrying_an_appended_line_deducts_and_increases_sale_total_once(): void
     {
         $sale = $this->emptySale();
-        $payload = ['request_id' => (string) Str::uuid(), ...$this->line()];
+        $payload = ['request_id' => (string) Str::uuid(), ...$this->line(), 'quantity' => 11];
 
-        $this->postJson("/api/sales/{$sale->id}/goods", $payload)->assertCreated()->assertJsonPath('data.total', 400);
-        $this->postJson("/api/sales/{$sale->id}/goods", $payload)->assertCreated()->assertJsonPath('data.total', 400);
+        $this->postJson("/api/sales/{$sale->id}/goods", $payload)->assertCreated()->assertJsonPath('data.total', 1200);
+        $this->postJson("/api/sales/{$sale->id}/goods", $payload)->assertCreated()->assertJsonPath('data.total', 1200);
 
         $this->assertDatabaseCount('good_sale', 1);
-        $this->assertSame('400.00', $sale->fresh()->total);
-        $this->assertSame('400.00', $sale->fresh()->outstanding_amount);
-        $this->assertEquals(7, $this->balance());
+        $this->assertSame('1200.00', $sale->fresh()->total);
+        $this->assertSame('1200.00', $sale->fresh()->outstanding_amount);
+        $this->assertEquals(-1, $this->balance());
     }
 
     public function test_legacy_endpoints_share_idempotency_with_the_modern_attachment_endpoint(): void
     {
         $sale = $this->emptySale();
-        $payload = ['request_id' => (string) Str::uuid(), 'sale_id' => $sale->id, ...$this->line()];
+        $payload = ['request_id' => (string) Str::uuid(), 'sale_id' => $sale->id, ...$this->line(), 'quantity' => 11];
 
         $this->postJson('/api/goodsales', $payload)->assertCreated();
         $this->postJson('/web/goodsale/store', $payload)->assertCreated();
@@ -90,8 +91,8 @@ class SaleStockIdempotencyTest extends TestCase
 
         $this->assertDatabaseCount('good_sale', 1);
         $this->assertDatabaseCount('sale_stock_requests', 1);
-        $this->assertSame('400.00', $sale->fresh()->total);
-        $this->assertEquals(7, $this->balance());
+        $this->assertSame('1200.00', $sale->fresh()->total);
+        $this->assertEquals(-1, $this->balance());
     }
 
     public function test_reusing_a_request_with_changed_payload_or_a_different_action_is_rejected(): void
@@ -129,17 +130,19 @@ class SaleStockIdempotencyTest extends TestCase
     {
         $payload = $this->salePayload();
         $payload['goods'][0]['quantity'] = 11;
+        $warehouse = Warehouse::query()->where('code', Warehouse::GOODS_CODE)->sole();
+        $warehouse->update(['is_active' => false]);
 
-        $this->postJson('/api/sales', $payload)->assertUnprocessable();
+        $this->postJson('/api/sales', $payload)->assertUnprocessable()->assertJsonValidationErrors('goods');
         $this->assertDatabaseCount('sale_stock_requests', 0);
         $this->assertDatabaseCount('sales', 0);
         $this->assertDatabaseCount('good_sale', 0);
         $this->assertEquals(10, $this->balance());
 
-        $payload['goods'][0]['quantity'] = 3;
+        $warehouse->update(['is_active' => true]);
         $this->postJson('/api/sales', $payload)->assertCreated();
         $this->assertDatabaseCount('sale_stock_requests', 1);
-        $this->assertEquals(7, $this->balance());
+        $this->assertEquals(-1, $this->balance());
     }
 
     public function test_line_total_mismatch_is_rejected_and_a_one_kopeck_difference_is_canonicalized(): void

@@ -201,8 +201,8 @@ class OrderFulfillmentService
                     'measure_id' => $item->measure_id,
                 ]);
             }
-            // Keep the existing ledger and valuation. Only this employee workflow has
-            // the temporary shortage exception; regular sales retain strict stock checks.
+            // Keep the existing ledger and valuation, applying the mobile shipment
+            // stock policy explicitly instead of inheriting the regular sales policy.
             $this->stock->sync($sale, $this->allowsNegativeStock());
             $order->forceFill([
                 'shipped_sale_id' => $sale->id,

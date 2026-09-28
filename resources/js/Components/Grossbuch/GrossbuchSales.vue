@@ -11,11 +11,16 @@ import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 const resource = useRealtimeResource({
     key: 'grossbuch-sales',
-    initialValue: { rows: [], totalItems: 0, totalAmount: 0, months: [], selectedSale: null },
-    topics: ['sales'],
-    load: ({ signal }) => fetchSales({ background: true, signal }),
+    initialValue: { rows: [], totalItems: 0, totalAmount: 0, months: [], selectedSale: null, stockRows: null },
+    topics: ['sales', 'goods_stock'],
+    load: ({ signal }) => Promise.all([
+        fetchSales({ background: true, signal }),
+        dialog.value ? fetchSaleStock({ background: true, signal }) : null,
+    ]),
 })
-const { rows, totalItems, totalAmount, months, selectedSale } = toRefs(resource.state)
+const { rows, totalItems, totalAmount, months, selectedSale, stockRows } = toRefs(resource.state)
+const stockLoading = ref(false)
+const stockError = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const dialog = ref(false)
@@ -34,6 +39,7 @@ const dateErrorMessage = ref('')
 const dateForm = reactive({ saleId: null, date: '' })
 const dateRangeMenu = ref(false)
 let salesRequestId = 0
+let stockRequestId = 0
 let lastSalesParams = null
 
 const entities = ref([])
@@ -106,6 +112,9 @@ const pageAmount = computed(() => rows.value.reduce((sum, row) => sum + toNumber
 
 const goodsById = computed(() => new Map(goods.value.map((good) => [Number(good.id), good])))
 const measuresById = computed(() => new Map(measures.value.map((measure) => [Number(measure.id), measure])))
+const stockByGoodAndMeasure = computed(() => new Map((stockRows.value || [])
+    .filter((row) => row.warehouse?.code === 'goods' && row.warehouse.is_active)
+    .map((row) => [`${Number(row.good_id)}:${Number(row.measure_id)}`, Number(row.quantity)])))
 const entityOptions = computed(() => entities.value.map((entity) => ({
     ...entity,
     search_text: [
@@ -287,7 +296,41 @@ function lineGood(line) {
 
 function goodVatText(good) {
     if (!good?.vat_rate) return 'НДС —'
-    return `${good.vat_rate.title || 'НДС'} ${good.vat_rate.rate}%`
+    return good.vat_rate.title?.trim()
+        || (good.vat_rate.rate != null ? `${formatMoney(good.vat_rate.rate)}%` : 'НДС —')
+}
+
+function lineStock(line) {
+    if (!line.good_id || !line.measure_id || stockRows.value === null) return null
+    return stockByGoodAndMeasure.value.get(`${Number(line.good_id)}:${Number(line.measure_id)}`) ?? 0
+}
+
+function lineStockText(line) {
+    if (!line.good_id || !line.measure_id) return '—'
+    if (stockLoading.value && stockRows.value === null) return '…'
+    const quantity = lineStock(line)
+    if (quantity === null) return '—'
+    return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 }).format(quantity)} ${measureTitle(line.measure_id)}`
+}
+
+async function fetchSaleStock({ background = false, signal } = {}) {
+    signal ||= resource.signal
+    const requestId = ++stockRequestId
+    stockLoading.value = true
+    stockError.value = false
+
+    try {
+        const { data } = await axios.get(route('good-warehouse-stock.index'), { signal })
+        if (requestId !== stockRequestId || signal?.aborted) return
+        stockRows.value = data
+    } catch (error) {
+        if (requestId !== stockRequestId || signal?.aborted || axios.isCancel(error)) return
+        stockRows.value = null
+        stockError.value = true
+        if (background) throw error
+    } finally {
+        if (requestId === stockRequestId) stockLoading.value = false
+    }
 }
 
 function normalizeEntity(entity) {
@@ -484,7 +527,9 @@ function resetForm() {
 
 function openCreate() {
     resetForm()
+    stockRows.value = null
     dialog.value = true
+    fetchSaleStock()
 }
 
 function openEntityCreate() {
@@ -724,7 +769,7 @@ onMounted(async () => {
         fetchSales(),
     ])
 })
-onBeforeUnmount(() => { salesRequestId++ })
+onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 </script>
 
 <template>
@@ -1266,11 +1311,17 @@ onBeforeUnmount(() => { salesRequestId++ })
                         </v-col>
                     </v-row>
 
+                    <div v-if="stockError" class="sale-stock-error" role="status">
+                        <span>Не удалось загрузить остатки. Продажу можно сохранить.</span>
+                        <v-btn variant="text" size="small" @click="fetchSaleStock()">Повторить</v-btn>
+                    </div>
+
                     <div class="sale-lines">
                         <div class="sale-lines__head">
                             <span>Товар</span>
                             <span>НДС</span>
                             <span>Тарность</span>
+                            <span title="Текущий остаток на складе в выбранной единице измерения">Остаток</span>
                             <span>Кол-во</span>
                             <span>Ед.</span>
                             <span>Цена</span>
@@ -1299,6 +1350,9 @@ onBeforeUnmount(() => { salesRequestId++ })
 
                             <span class="sale-line__meta sale-line__vat">{{ goodVatText(lineGood(line)) }}</span>
                             <span class="sale-line__meta">{{ lineGood(line)?.denominator || '—' }}</span>
+                            <span class="sale-line__meta sale-line__stock" :class="{ 'sale-line__stock--negative': lineStock(line) < 0 }">
+                                {{ lineStockText(line) }}
+                            </span>
 
                             <v-text-field
                                 v-model="line.quantity"
@@ -1652,7 +1706,8 @@ onBeforeUnmount(() => { salesRequestId++ })
 .sale-details__add-actions > div { display: flex; align-items: center; gap: 6px; }
 .sale-details__add-actions strong { color: #0f766e; font-weight: 600; }
 
-.sale-create-dialog :deep(.v-overlay__content) { margin: 12px; max-height: calc(100dvh - 24px); }
+.sale-create-dialog { --sale-dialog-top: clamp(12px, 10vh, 96px); align-items: flex-start; }
+.sale-create-dialog :deep(.v-overlay__content) { margin: var(--sale-dialog-top) 12px 12px; max-height: calc(100vh - var(--sale-dialog-top) - 12px); max-height: calc(100dvh - var(--sale-dialog-top) - 12px); }
 .sale-dialog__body { padding: 12px 14px !important; }
 .sale-dialog :deep(.v-card-actions) { flex-shrink: 0; min-height: 48px; padding: 8px 14px; border-top: 1px solid #e2e8f0; }
 .sale-form-field { display: grid; gap: 5px; }
@@ -1713,11 +1768,14 @@ onBeforeUnmount(() => { salesRequestId++ })
 :global(.sale-good-menu .v-list-item--active) { background: #f0fdfa !important; }
 .sale-lines { margin-top: 12px; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; }
 .sale-lines__head,
-.sale-line { display: grid; grid-template-columns: minmax(280px, 2.4fr) 84px 82px 88px 78px 92px 104px 30px; gap: 4px; align-items: center; min-width: 890px; }
+.sale-line { display: grid; grid-template-columns: minmax(280px, 2.4fr) 64px 70px 104px 88px 78px 92px 104px 30px; gap: 4px; align-items: center; min-width: 960px; }
 .sale-lines__head { padding: 7px 6px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .sale-line { padding: 5px 6px; border-top: 1px solid #edf1f5; }
 .sale-line__meta { color: #64748b; font-size: 11px; }
 .sale-line__vat { color: #0f766e; }
+.sale-line__stock { white-space: nowrap; }
+.sale-line__stock--negative { color: #b91c1c; }
+.sale-stock-error { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: #64748b; font-size: 12px; }
 .sale-dialog__footer-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: #64748b; font-size: 12px; }
 .sale-dialog__footer-line strong { color: #0f766e; font-weight: 600; }
 
@@ -1749,6 +1807,7 @@ onBeforeUnmount(() => { salesRequestId++ })
     .sales-error { max-height: 42px; margin: 3px 8px; }
 }
 @media (max-width: 600px) {
+    .sale-create-dialog { --sale-dialog-top: 12px; }
     .sale-details__title,
     .sale-dialog__title { padding: 8px 10px; gap: 6px; }
     .sale-details__title > div,

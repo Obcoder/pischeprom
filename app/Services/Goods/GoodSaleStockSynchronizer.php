@@ -15,10 +15,10 @@ class GoodSaleStockSynchronizer
 
     /**
      * A saved Sale is posted: payment_status concerns payments, not stock.
-     * allowNegativeStock is explicit for historical reconciliation and the
-     * temporary mobile shipment policy; ordinary sales remain strict.
+     * Sales may overdraw stock; the ledger keeps the shortage visible.
+     * Mobile shipments can explicitly enforce their separate stock policy.
      */
-    public function sync(Sale $sale, bool $allowNegativeStock = false): void
+    public function sync(Sale $sale, bool $allowNegativeStock = true): void
     {
         DB::transaction(function () use ($sale, $allowNegativeStock): void {
             $sale = Sale::query()->without('entity')->whereKey($sale->id)
@@ -113,7 +113,7 @@ class GoodSaleStockSynchronizer
             return $value / $quantity;
         }
 
-        // Historical sales may precede stock accounting. Estimate cost from recorded receipts,
+        // Sales may precede stock accounting. Estimate cost from recorded receipts,
         // never from the selling price, and leave the shortage visible for reconciliation.
         $receipts = $bucket->filter(fn ($row) => $row->quantity_delta > 0);
         $received = (float) $receipts->sum('quantity_delta');

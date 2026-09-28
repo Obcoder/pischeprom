@@ -83,7 +83,7 @@ class SaleGoodsStockTest extends TestCase
 
     public function test_repeated_sync_does_not_deduct_twice_or_reprice_existing_sale(): void
     {
-        $this->receipt(10, 20);
+        $this->receipt(1, 20);
         $saleId = $this->postJson(route('sales.store'), $this->saleData([$this->line(3)]))
             ->assertCreated()->json('data.id');
         $movement = GoodStockMovement::query()->where('sale_id', $saleId)->sole();
@@ -99,7 +99,7 @@ class SaleGoodsStockTest extends TestCase
             'quantity_delta' => -3,
             'unit_price' => 20,
         ]);
-        $this->assertEqualsWithDelta(17, $this->balance(), 0.0000001);
+        $this->assertEqualsWithDelta(8, $this->balance(), 0.0000001);
     }
 
     public function test_overflowing_total_inventory_value_cannot_create_a_nonfinite_sale_cost(): void
@@ -118,7 +118,7 @@ class SaleGoodsStockTest extends TestCase
 
     public function test_appending_the_same_good_creates_one_movement_per_sale_line(): void
     {
-        $this->receipt(10, 20);
+        $this->receipt(4, 20);
         $saleId = $this->postJson(route('sales.store'), $this->saleData([$this->line(3)]))
             ->assertCreated()->json('data.id');
 
@@ -127,40 +127,76 @@ class SaleGoodsStockTest extends TestCase
 
         $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $saleId)->count());
         $this->assertSame(2, DB::table('good_sale')->where('sale_id', $saleId)->count());
-        $this->assertEqualsWithDelta(5, $this->balance(), 0.0000001);
+        $this->assertEqualsWithDelta(-1, $this->balance(), 0.0000001);
     }
 
-    public function test_insufficient_stock_rolls_back_sale_and_every_line_and_movement(): void
+    public function test_sale_posts_every_line_even_when_one_good_has_insufficient_stock(): void
     {
         $secondGood = Good::query()->create(['name' => 'Сахар']);
         $this->receipt(10, 20);
         $this->receipt(1, 5, ['good_id' => $secondGood->id]);
+
+        $saleId = $this->postJson(route('sales.store'), $this->saleData([
+            $this->line(2),
+            $this->line(3, 100, ['good_id' => $secondGood->id]),
+        ]))->assertCreated()->assertJsonPath('data.total', 500)->json('data.id');
+
+        $this->assertDatabaseCount('good_sale', 2);
+        $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $saleId)->count());
+        $this->assertEqualsWithDelta(8, $this->balance(), 0.0000001);
+        $this->getJson(route('good-warehouse-stock.index', [
+            'warehouse_id' => $this->warehouse->id,
+            'good_id' => $secondGood->id,
+        ]))->assertOk()->assertJsonCount(1)
+            ->assertJsonPath('0.quantity', -2)
+            ->assertJsonPath('0.stock_value', -10);
+    }
+
+    public function test_invalid_stock_cost_rolls_back_sale_and_every_line_and_movement(): void
+    {
+        $secondGood = Good::query()->create(['name' => 'Сахар']);
+        $this->receipt(10, 20);
+        $this->receipt(1, 1e308, ['good_id' => $secondGood->id]);
+        $this->receipt(1, 1e308, ['good_id' => $secondGood->id]);
         Queue::fake();
 
         $this->postJson(route('sales.store'), $this->saleData([
             $this->line(2),
             $this->line(3, 100, ['good_id' => $secondGood->id]),
-        ]))->assertUnprocessable();
+        ]))->assertUnprocessable()->assertJsonValidationErrors('goods');
 
         $this->assertDatabaseCount('sales', 0);
         $this->assertDatabaseCount('good_sale', 0);
-        $this->assertDatabaseCount('good_stock_movements', 2);
+        $this->assertDatabaseCount('good_stock_movements', 3);
         $this->assertEqualsWithDelta(10, $this->balance(), 0.0000001);
         Queue::assertNotPushed(EvaluateGoodStockAvailabilityJob::class, fn ($job) => $job->goodId === $this->good->id);
     }
 
-    public function test_duplicate_lines_cannot_each_spend_the_same_available_stock(): void
+    public function test_duplicate_lines_both_deduct_stock_even_when_their_sum_exceeds_stock(): void
     {
         $this->receipt(5, 20);
 
         $this->postJson(route('sales.store'), $this->saleData([
             $this->line(3),
             $this->line(3),
-        ]))->assertUnprocessable();
+        ]))->assertCreated();
 
-        $this->assertDatabaseCount('sales', 0);
-        $this->assertDatabaseCount('good_sale', 0);
-        $this->assertEqualsWithDelta(5, $this->balance(), 0.0000001);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('good_sale', 2);
+        $this->assertDatabaseCount('good_stock_movements', 3);
+        $this->assertEqualsWithDelta(-1, $this->balance(), 0.0000001);
+    }
+
+    public function test_sales_can_start_without_receipts_and_further_reduce_negative_stock(): void
+    {
+        $this->postJson(route('sales.store'), $this->saleData([$this->line(2)]))->assertCreated();
+        $this->postJson(route('sales.store'), $this->saleData([$this->line(3)]))->assertCreated();
+
+        $this->assertDatabaseCount('sales', 2);
+        $this->assertDatabaseCount('good_stock_movements', 2);
+        $this->assertSame([0.0, 0.0], GoodStockMovement::query()->pluck('unit_price')->map(fn ($cost) => (float) $cost)->all());
+        $this->assertEqualsWithDelta(-5, $this->balance(), 0.0000001);
+        $this->assertFalse(app(GoodStockService::class)->isInStock($this->good));
     }
 
     public function test_failed_attachment_preserves_sale_total_payment_state_and_stock(): void
@@ -168,9 +204,12 @@ class SaleGoodsStockTest extends TestCase
         $this->receipt(5, 20);
         $saleId = $this->postJson(route('sales.store'), $this->saleData([$this->line(3)]))
             ->assertCreated()->json('data.id');
+        $secondGood = Good::query()->create(['name' => 'Сахар']);
+        $this->receipt(1, 1e308, ['good_id' => $secondGood->id]);
+        $this->receipt(1, 1e308, ['good_id' => $secondGood->id]);
 
-        $this->postJson(route('sales.goods.store', $saleId), $this->line(3))
-            ->assertUnprocessable();
+        $this->postJson(route('sales.goods.store', $saleId), $this->line(3, 100, ['good_id' => $secondGood->id]))
+            ->assertUnprocessable()->assertJsonValidationErrors('goods');
 
         $this->assertDatabaseHas('sales', [
             'id' => $saleId,
@@ -183,21 +222,30 @@ class SaleGoodsStockTest extends TestCase
         $this->assertEqualsWithDelta(2, $this->balance(), 0.0000001);
     }
 
-    public function test_other_warehouses_and_measures_do_not_cover_goods_warehouse_shortage(): void
+    public function test_sale_shortage_only_affects_its_warehouse_and_measure(): void
     {
         $otherWarehouse = Warehouse::query()->create(['name' => 'Другой склад', 'code' => 'other']);
         $otherMeasure = Measure::query()->create(['name' => 'мешок']);
         $this->receipt(1, 20);
-        $this->receipt(100, 20, ['warehouse_id' => $otherWarehouse->id]);
-        $this->receipt(100, 20, ['measure_id' => $otherMeasure->id]);
-        $this->receipt(100, 20, ['measure_id' => null]);
+        $otherWarehouseReceipt = $this->receipt(100, 70, ['warehouse_id' => $otherWarehouse->id]);
+        $otherMeasureReceipt = $this->receipt(100, 90, ['measure_id' => $otherMeasure->id]);
+        $unmeasuredReceipt = $this->receipt(100, 50, ['measure_id' => null]);
 
-        $this->postJson(route('sales.store'), $this->saleData([$this->line(2)]))
-            ->assertUnprocessable();
+        $saleId = $this->postJson(route('sales.store'), $this->saleData([$this->line(2)]))
+            ->assertCreated()->json('data.id');
 
-        $this->assertDatabaseCount('sales', 0);
-        $this->assertDatabaseCount('good_sale', 0);
-        $this->assertEqualsWithDelta(1, $this->balance(), 0.0000001);
+        $this->assertDatabaseHas('good_stock_movements', [
+            'sale_id' => $saleId,
+            'warehouse_id' => $this->warehouse->id,
+            'measure_id' => $this->measure->id,
+            'quantity_delta' => -2,
+            'unit_price' => 20,
+        ]);
+        foreach ([$otherWarehouseReceipt, $otherMeasureReceipt, $unmeasuredReceipt] as $receipt) {
+            $this->assertDatabaseHas('good_stock_movements', ['id' => $receipt->id, 'quantity_delta' => 100]);
+        }
+        $this->assertDatabaseCount('good_stock_movements', 5);
+        $this->assertEqualsWithDelta(-1, $this->balance(), 0.0000001);
     }
 
     public function test_exact_available_fractional_quantity_can_be_sold_without_phantom_stock(): void
@@ -210,8 +258,10 @@ class SaleGoodsStockTest extends TestCase
         $this->assertEqualsWithDelta(0, $this->balance(), 0.0000001);
         $this->assertFalse(app(GoodStockService::class)->isInStock($this->good));
         $this->postJson(route('sales.store'), $this->saleData([$this->line(0.000001)]))
-            ->assertUnprocessable();
-        $this->assertDatabaseCount('sales', 1);
+            ->assertCreated();
+        $this->assertDatabaseCount('sales', 2);
+        $this->assertEqualsWithDelta(-0.000001, $this->balance(), 0.000000001);
+        $this->assertFalse(app(GoodStockService::class)->isInStock($this->good));
     }
 
     #[DataProvider('invalidQuantities')]
@@ -257,20 +307,19 @@ class SaleGoodsStockTest extends TestCase
         $this->assertEqualsWithDelta(3, $this->balance(), 0.0000001);
     }
 
-    public function test_legacy_endpoint_cannot_bypass_insufficient_stock_check(): void
+    public function test_legacy_endpoint_allows_sales_with_insufficient_stock(): void
     {
         $this->receipt(1, 20);
         $sale = $this->emptySale();
 
         $this->postJson(route('goodsales.store'), [
             'sale_id' => $sale->id,
-            'allow_negative_stock' => true,
             ...$this->line(2),
-        ])->assertUnprocessable();
+        ])->assertCreated();
 
-        $this->assertDatabaseCount('good_sale', 0);
-        $this->assertDatabaseHas('sales', ['id' => $sale->id, 'total' => 0, 'outstanding_amount' => 0]);
-        $this->assertEqualsWithDelta(1, $this->balance(), 0.0000001);
+        $this->assertDatabaseCount('good_sale', 1);
+        $this->assertDatabaseHas('sales', ['id' => $sale->id, 'total' => 200, 'outstanding_amount' => 200]);
+        $this->assertEqualsWithDelta(-1, $this->balance(), 0.0000001);
     }
 
     public function test_sale_movement_cannot_be_edited_or_deleted_through_manual_movement_api(): void
