@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deliveryMapUrl, telephoneHref } from '../src/delivery.js'
+import { deliveryBuildingAddress, deliveryMapUrl, telephoneHref } from '../src/delivery.js'
 
 test('phone action uses only the server normalized dial number', () => {
     assert.equal(telephoneHref({ number: '+7 (999) 123-45-67', dial_number: '+79991234567' }), 'tel:+79991234567')
@@ -20,4 +20,16 @@ test('map action preserves an approved Yandex URL and safely encodes an address 
         assert.equal(result.searchParams.get('text'), address)
     }
     assert.equal(deliveryMapUrl({}), null)
+})
+
+test('map navigation excludes the apartment while the displayed delivery address retains its number', () => {
+    const address = {
+        building_address: 'Москва, Лесная, 5',
+        full_address: 'Москва, Лесная, 5, офис 12А',
+        apartment: { id: 1, number: '12А', type: 'office', label: 'офис 12А' },
+    }
+    assert.equal(deliveryBuildingAddress(address), 'Москва, Лесная, 5')
+    assert.equal(new URL(deliveryMapUrl(address)).searchParams.get('text'), 'Москва, Лесная, 5')
+    assert.equal(address.full_address, 'Москва, Лесная, 5, офис 12А')
+    assert.equal(deliveryBuildingAddress({ full_address: 'Старый адрес, 8' }), 'Старый адрес, 8')
 })

@@ -70,6 +70,9 @@ class OrderResource extends JsonResource
                 'postcode' => $building->postcode,
                 'role' => $building->pivot?->role,
                 'position' => $building->pivot?->position,
+                'apartment_id' => $building->pivot?->apartment_id,
+                'apartment' => $building->apartment,
+                'apartments' => $building->apartments,
                 'building_type' => $building->buildingType?->name,
                 'city' => $building->city ? [
                     'id' => $building->city->id,

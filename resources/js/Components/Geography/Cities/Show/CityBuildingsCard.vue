@@ -1,4 +1,5 @@
 <script setup>
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
 const props = defineProps({
     city: {
         type: Object,
@@ -89,6 +90,8 @@ defineEmits([
                             </v-chip>
                         </div>
                     </template>
+
+                    <ApartmentSelector :building="building" :selectable="false" class="mt-2" />
                 </v-list-item>
             </v-list>
 

@@ -15,6 +15,7 @@ use App\Models\Unit;
 use App\Models\Uri;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class UnitRelationController extends Controller
 {
@@ -104,11 +105,16 @@ class UnitRelationController extends Controller
     {
         $data = $request->validate([
                                        'building_id' => ['required', 'integer', 'exists:buildings,id'],
+                                       'apartment_id' => ['sometimes', 'nullable', 'integer', Rule::exists('apartments', 'id')->where('building_id', $request->input('building_id'))],
                                    ]);
 
         $building = Building::findOrFail($data['building_id']);
 
-        $unit->buildings()->syncWithoutDetaching([$building->id]);
+        $unit->buildings()->syncWithoutDetaching([
+            $building->id => array_key_exists('apartment_id', $data) ? ['apartment_id' => $data['apartment_id']] : [],
+        ]);
+
+        $building = $unit->buildings()->findOrFail($building->id);
 
         return response()->json([
                                     'message' => 'Building attached.',

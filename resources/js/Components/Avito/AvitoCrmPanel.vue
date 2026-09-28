@@ -3,6 +3,9 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import AvitoAutoReplies from './AvitoAutoReplies.vue'
 import AvitoMessageTemplates from './AvitoMessageTemplates.vue'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
+import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
 
 const props = defineProps({
     chat: { type: Object, default: null },
@@ -48,7 +51,8 @@ const entityForm = reactive(emptyEntityForm())
 const manualPhone = ref('')
 
 const buildingOpen = ref(false)
-const buildingForm = reactive({ candidate_id: null, city_id: null, building_type_id: null, address: '', postcode: '' })
+const emptyBuildingForm = () => ({ candidate_id: null, city_id: null, building_type_id: null, address: '', postcode: '', delivery_apartment_number: '', delivery_apartment_type: 'apartment' })
+const buildingForm = reactive(emptyBuildingForm())
 const citySearch = ref('')
 const cityResults = ref([])
 const citySearching = ref(false)
@@ -76,6 +80,7 @@ const orderForm = reactive({
     order_status_id: null,
     contact_telephone_id: null,
     building_ids: [],
+    building_apartments: {},
     currency_code: 'RUB',
     preferred_delivery_time: '',
     internal_comment: '',
@@ -150,7 +155,11 @@ async function loadCrm() {
         const { data } = await axios.get(`/api/avito/messenger/chats/${props.chat.id}/crm`)
         crm.value = data
         if (!orderForm.contact_telephone_id) orderForm.contact_telephone_id = data.entity?.telephones?.[0]?.id || null
-        if (!orderForm.building_ids.length && data.entity?.buildings?.[0]) orderForm.building_ids = [data.entity.buildings[0].id]
+        if (!orderForm.building_ids.length && data.entity?.buildings?.[0]) {
+            const building = data.entity.buildings[0]
+            orderForm.building_ids = [building.id]
+            orderForm.building_apartments[building.id] = selectedApartment(building)?.id || null
+        }
         if (!entityForm.name) entityForm.name = props.chat.peer_name || props.chat.title || 'Клиент Avito'
     } catch (exception) {
         fail(exception, 'Не удалось загрузить карточку клиента Avito.')
@@ -288,6 +297,8 @@ function prepareAddressCandidate(candidate) {
     buildingForm.candidate_id = candidate?.id || null
     buildingForm.address = candidate?.raw_value || ''
     buildingForm.postcode = ''
+    buildingForm.delivery_apartment_number = ''
+    buildingForm.delivery_apartment_type = 'apartment'
     addressLookupMessage.value = ''
 }
 
@@ -319,10 +330,12 @@ async function saveBuilding() {
             building_type_id: buildingForm.building_type_id,
             address: buildingForm.address.trim(),
             postcode: buildingForm.postcode.trim() || null,
+            delivery_apartment_number: buildingForm.delivery_apartment_number.trim() || null,
+            delivery_apartment_type: buildingForm.delivery_apartment_type,
         })
         notify(data.message)
         buildingOpen.value = false
-        Object.assign(buildingForm, { candidate_id: null, city_id: null, building_type_id: null, address: '', postcode: '' })
+        Object.assign(buildingForm, emptyBuildingForm())
         await loadCrm()
         emit('chat-updated')
     } catch (exception) {
@@ -372,6 +385,7 @@ async function createOrder() {
     try {
         const { data } = await axios.post(`/api/avito/messenger/chats/${props.chat.id}/crm/orders`, {
             ...orderForm,
+            building_apartments: selectedBuildingApartments(orderForm.building_ids, orderForm.building_apartments),
             items: orderItems.value.map((item) => ({
                 good_id: item.good_id,
                 quantity: Number(item.quantity),
@@ -461,6 +475,7 @@ function resetTransientState() {
     orderItems.value = []
     orderForm.contact_telephone_id = null
     orderForm.building_ids = []
+    orderForm.building_apartments = {}
 }
 
 function availabilityLabel(good) {
@@ -538,7 +553,10 @@ onBeforeUnmount(() => {
                         <span v-for="unit in crm.entity.units" :key="`unit-${unit.id}`"><v-icon icon="mdi-source-branch" size="12" />{{ unit.name }}</span>
                     </div>
                     <div v-if="crm.entity.buildings?.length" class="entity-buildings">
-                        <span v-for="building in crm.entity.buildings" :key="building.id"><v-icon icon="mdi-map-marker-outline" size="12" />{{ building.label }}</span>
+                        <div v-for="building in crm.entity.buildings" :key="building.id">
+                            <span><v-icon icon="mdi-map-marker-outline" size="12" />{{ building.label }}</span>
+                            <ApartmentSelector :building="building" :selectable="false" class="mt-1" />
+                        </div>
                     </div>
                 </div>
 
@@ -612,6 +630,7 @@ onBeforeUnmount(() => {
                     <v-autocomplete v-model="buildingForm.city_id" v-model:search="citySearch" :items="cityResults" item-title="label" item-value="id" label="Город" density="compact" variant="outlined" hide-details clearable :loading="citySearching" no-filter />
                     <v-textarea v-model="buildingForm.address" label="Адрес" rows="2" auto-grow density="compact" variant="outlined" hide-details />
                     <div class="form-grid"><v-select v-model="buildingForm.building_type_id" :items="options.building_types" item-title="name" item-value="id" label="Тип" density="compact" variant="outlined" hide-details clearable /><v-text-field v-model="buildingForm.postcode" label="Индекс" density="compact" variant="outlined" hide-details /></div>
+                    <DeliveryApartmentFields v-model:number="buildingForm.delivery_apartment_number" v-model:type="buildingForm.delivery_apartment_type" :disabled="saving" />
                     <div class="form-actions"><v-btn size="x-small" variant="text" prepend-icon="mdi-map-search-outline" :loading="addressLookupLoading" :disabled="!buildingForm.city_id || !buildingForm.address.trim()" @click="lookupAddress">Проверить DaData</v-btn><v-btn size="small" color="deep-purple-lighten-1" :loading="saving" :disabled="!buildingForm.city_id || !buildingForm.address.trim()" @click="saveBuilding">Сохранить</v-btn></div>
                     <small v-if="addressLookupMessage" class="form-hint">{{ addressLookupMessage }}</small>
                 </div>
@@ -655,6 +674,13 @@ onBeforeUnmount(() => {
                         <div class="form-grid"><v-select v-model="orderForm.order_status_id" :items="options.order_statuses" item-title="name" item-value="id" label="Статус" density="compact" variant="outlined" hide-details /><v-select v-model="orderForm.currency_code" :items="options.currency_codes" label="Валюта" density="compact" variant="outlined" hide-details /></div>
                         <v-select v-model="orderForm.contact_telephone_id" :items="crm.entity.telephones" item-title="number" item-value="id" label="Телефон заказа" density="compact" variant="outlined" hide-details clearable />
                         <v-select v-model="orderForm.building_ids" :items="crm.entity.buildings" item-title="label" item-value="id" label="Адрес доставки" density="compact" variant="outlined" hide-details clearable multiple chips />
+                        <ApartmentSelector
+                            v-for="buildingId in orderForm.building_ids"
+                            :key="buildingId"
+                            v-model="orderForm.building_apartments[buildingId]"
+                            :building="crm.entity.buildings.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
+                            :disabled="saving"
+                        />
                         <v-text-field v-model="orderForm.preferred_delivery_time" label="Желаемое время доставки" density="compact" variant="outlined" hide-details clearable />
                         <v-textarea v-model="orderForm.internal_comment" label="Внутренний комментарий" rows="2" auto-grow density="compact" variant="outlined" hide-details />
                         <v-checkbox v-model="orderForm.send_confirmation" label="Отправить подтверждение заказа в Avito" density="compact" hide-details />

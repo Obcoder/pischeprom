@@ -213,11 +213,17 @@ class MailMessageCrmService
         if ($building->isDirty()) {
             $building->save();
         }
+        $apartmentNumber = trim((string) ($data['delivery_apartment_number'] ?? ''));
+        $apartment = $apartmentNumber !== '' ? $building->apartments()->firstOrCreate([
+            'number' => $apartmentNumber,
+            'type' => $data['delivery_apartment_type'] ?? 'apartment',
+        ]) : null;
+        $pivot = $apartment ? ['apartment_id' => $apartment->id] : [];
         if (! empty($data['entity_id'])) {
-            $building->entities()->syncWithoutDetaching([$data['entity_id']]);
+            $building->entities()->syncWithoutDetaching([$data['entity_id'] => $pivot]);
         }
         if (! empty($data['unit_id'])) {
-            $building->units()->syncWithoutDetaching([$data['unit_id']]);
+            $building->units()->syncWithoutDetaching([$data['unit_id'] => $pivot]);
         }
 
         return $building;

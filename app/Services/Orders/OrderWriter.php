@@ -5,6 +5,7 @@ namespace App\Services\Orders;
 use App\Models\Good;
 use App\Models\Order;
 use App\Models\OrderStatus;
+use App\Services\Buildings\BuildingApartmentSelection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -70,19 +71,30 @@ class OrderWriter
                 ->unique()
                 ->values();
 
+            $buildingPivots = app(BuildingApartmentSelection::class)->forBuildings(
+                $buildingIds->all(),
+                $data['building_apartments'] ?? [],
+            );
+
             $order->buildings()->sync(
                 $buildingIds
                     ->mapWithKeys(fn (int $buildingId, int $position) => [
                         $buildingId => [
                             'role' => $position === 0 ? 'delivery' : 'logistics',
                             'position' => $position,
+                            ...$buildingPivots[$buildingId],
                         ],
                     ])
                     ->all()
             );
 
             if ($buildingIds->isNotEmpty()) {
-                $order->entity?->buildings()->syncWithoutDetaching($buildingIds->all());
+                $entity = $order->entity;
+                $existingBuildingIds = $entity->buildings()->allRelatedIds();
+                $newBuildings = $buildingIds->diff($existingBuildingIds)->mapWithKeys(fn (int $id) => [
+                    $id => $buildingPivots[$id],
+                ])->all();
+                $entity->buildings()->syncWithoutDetaching($newBuildings);
             }
 
             return $order->fresh($this->relations());
@@ -98,6 +110,7 @@ class OrderWriter
             'contactTelephone:id,number',
             'buildings.city.region',
             'buildings.buildingType',
+            'buildings.apartments',
             'items.good:id,name,slug',
         ];
     }

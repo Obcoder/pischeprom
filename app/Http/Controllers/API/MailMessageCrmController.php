@@ -135,6 +135,8 @@ class MailMessageCrmController extends Controller
             'building_type_id' => ['nullable', 'integer', 'exists:building_types,id'],
             'address' => ['required', 'string', 'max:255'],
             'postcode' => ['nullable', 'string', 'max:32'],
+            'delivery_apartment_number' => ['nullable', 'string', 'max:50'],
+            'delivery_apartment_type' => ['nullable', 'in:apartment,office,premise'],
         ]);
     }
 

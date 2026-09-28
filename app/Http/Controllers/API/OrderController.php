@@ -131,6 +131,7 @@ class OrderController extends Controller
                     'postcode' => $building->postcode,
                     'city' => $building->city?->name,
                     'building_type' => $building->buildingType?->name,
+                    'apartments' => $building->apartments,
                 ])
                 ->values(),
             'goods' => Good::query()
@@ -222,6 +223,8 @@ class OrderController extends Controller
             'submitted_at' => ['nullable', 'date'],
             'building_ids' => ['nullable', 'array'],
             'building_ids.*' => ['integer', 'distinct', 'exists:buildings,id'],
+            'building_apartments' => ['sometimes', 'array'],
+            'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.good_id' => ['required', 'integer', 'distinct', 'exists:goods,id'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999'],

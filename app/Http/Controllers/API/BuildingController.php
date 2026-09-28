@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateBuildingRequest;
 use App\Models\Building;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BuildingController extends Controller
 {
@@ -15,10 +16,10 @@ class BuildingController extends Controller
     {
         $query = Building::query()
             ->with([
-                       'city.region.country',
-                       'buildingType',
-                       'units',
-                   ])
+                'city.region.country',
+                'buildingType',
+                'units',
+            ])
             ->orderBy('address');
 
         if ($request->filled('city_id')) {
@@ -33,10 +34,10 @@ class BuildingController extends Controller
         $building = Building::create($request->validated());
 
         $building->load([
-                            'city.region.country',
-                            'buildingType',
-                            'units',
-                        ]);
+            'city.region.country',
+            'buildingType',
+            'units',
+        ]);
 
         return response()->json($building, 201);
     }
@@ -44,10 +45,10 @@ class BuildingController extends Controller
     public function show(Building $building): JsonResponse
     {
         $building->load([
-                            'city.region.country',
-                            'buildingType',
-                            'units',
-                        ]);
+            'city.region.country',
+            'buildingType',
+            'units',
+        ]);
 
         return response()->json($building);
     }
@@ -57,17 +58,24 @@ class BuildingController extends Controller
         $building->update($request->validated());
 
         $building->refresh()->load([
-                                       'city.region.country',
-                                       'buildingType',
-                                       'units',
-                                   ]);
+            'city.region.country',
+            'buildingType',
+            'units',
+        ]);
 
         return response()->json($building);
     }
 
     public function destroy(Building $building): JsonResponse
     {
-        $building->delete();
+        DB::transaction(function () use ($building): void {
+            $apartments = $building->apartments()->lockForUpdate()->pluck('id');
+            foreach (['building_order', 'building_unit', 'building_entities'] as $table) {
+                abort_if(DB::table($table)->whereIn('apartment_id', $apartments)->exists(), 409,
+                    'В здании есть помещения, используемые в заказах, организациях или компаниях.');
+            }
+            $building->delete();
+        });
 
         return response()->json(null, 204);
     }

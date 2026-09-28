@@ -54,6 +54,10 @@ class EntityResource extends JsonResource
                 'city_id' => $item->city_id,
                 'address' => $item->address,
                 'postcode' => $item->postcode,
+                'apartment_id' => $item->pivot?->apartment_id,
+                'apartment' => $item->apartment,
+                'apartments' => $item->apartments,
+                'pivot' => ['apartment_id' => $item->pivot?->apartment_id],
                 'building_type' => [
                     'id' => $item->buildingType?->id,
                     'name' => $item->buildingType?->name,
@@ -197,6 +201,10 @@ class EntityResource extends JsonResource
             'buildings' => $this->mapLoadedRelation($unit, 'buildings', fn ($building) => [
                 'id' => $building->id,
                 'address' => $building->address,
+                'apartment_id' => $building->pivot?->apartment_id,
+                'apartment' => $building->apartment,
+                'apartments' => $building->apartments,
+                'pivot' => ['apartment_id' => $building->pivot?->apartment_id],
                 'city' => $building->city ? [
                     'id' => $building->city->id,
                     'name' => $building->city->name,

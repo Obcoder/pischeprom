@@ -27,6 +27,9 @@
         <tr><th>Компания</th><td>{{ $inquiry->company ?: 'Не указана' }}</td></tr>
         <tr><th>Город</th><td>{{ $inquiry->delivery_city ?: 'Уточнить' }}</td></tr>
         <tr><th>Адрес доставки</th><td>{{ $inquiry->delivery_address ?: 'Уточнить' }}</td></tr>
+        @if($inquiry->deliveryApartmentLabel())
+            <tr><th>Помещение</th><td>{{ $inquiry->deliveryApartmentLabel() }}</td></tr>
+        @endif
         <tr><th>Как ответить</th><td>{{ $inquiry->preferred_contact === 'max' ? 'MAX: '.$inquiry->max_contact : 'По email' }}</td></tr>
     </table>
     @if($inquiry->comment)

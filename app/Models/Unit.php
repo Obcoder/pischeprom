@@ -96,6 +96,7 @@ class Unit extends Model
     public function buildings()
     {
         return $this->belongsToMany(Building::class)
+            ->withPivot('apartment_id')
             ->using(building_unit::class);
     }
 

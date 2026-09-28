@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Unit;
+use App\Services\Buildings\BuildingApartmentSelection;
 use App\Services\Mail\UnansweredOutgoingMailService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -45,9 +46,18 @@ class UnitController extends Controller
 
     public function store(Request $request)
     {
+        $data = $request->validate([
+            'buildings' => ['sometimes', 'array'],
+            'buildings.*' => ['integer', 'distinct', 'exists:buildings,id'],
+            'building_apartments' => ['sometimes', 'array'],
+            'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
+        ]);
+        $buildingPivots = app(BuildingApartmentSelection::class)->forBuildings(
+            $data['buildings'] ?? [], $data['building_apartments'] ?? [],
+        );
         $unit = Unit::create($request->all());
 
-        $unit->buildings()->sync($request->input('buildings', []));
+        $unit->buildings()->sync($buildingPivots);
         $unit->emails()->sync($request->input('emails', []));
         $unit->fields()->sync($request->input('fields', []));
         $unit->uris()->sync($request->input('uris', []));

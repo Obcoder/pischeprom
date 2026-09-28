@@ -38,7 +38,7 @@ class OrderFulfillmentService
             'buildings' => fn ($query) => $query->withoutEagerLoads()
                 ->select(['buildings.id', 'buildings.address', 'buildings.city_id'])
                 ->orderBy('buildings.id')
-                ->with(['city' => fn ($city) => $city->withoutEagerLoads()->select(['id', 'name', 'region_id'])
+                ->with(['apartments:id,building_id,number,type', 'city' => fn ($city) => $city->withoutEagerLoads()->select(['id', 'name', 'region_id'])
                     ->with(['region' => fn ($region) => $region->withoutEagerLoads()->select(['id', 'name'])])]),
         ];
     }
@@ -60,6 +60,11 @@ class OrderFulfillmentService
                 'region' => $building->city?->region?->only(['id', 'name']),
                 'role' => $building->pivot?->role,
                 'position' => $building->pivot?->position,
+                // Keep existing fingerprints valid for addresses without a selected apartment.
+                ...($building->pivot?->apartment_id ? [
+                    'apartment_id' => (int) $building->pivot->apartment_id,
+                    'apartment' => $building->apartment?->only(['id', 'number', 'type']),
+                ] : []),
             ])->values()->all(),
             'items' => $order->items->map(fn (OrderItem $item) => $item->only([
                 'id', 'good_id', 'good_name', 'quantity', 'denominator', 'line_weight',

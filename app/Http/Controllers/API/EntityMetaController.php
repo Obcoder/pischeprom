@@ -55,6 +55,7 @@ class EntityMetaController extends Controller
                                             'city_id' => $item->city_id,
                                             'address' => $item->address,
                                             'postcode' => $item->postcode,
+                                            'apartments' => $item->apartments,
                                             'building_type' => [
                                                 'id' => $item->buildingType?->id,
                                                 'name' => $item->buildingType?->name,

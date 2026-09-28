@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 
 const props = defineProps({
     entity: { type: Object, default: null },
@@ -28,7 +29,7 @@ const buildings = computed(() => props.entity?.buildings || [])
         <div v-if="buildings.length" class="entity-geography__addresses">
             <div v-for="building in buildings" :key="building.id" class="entity-geography__address">
                 <v-icon icon="mdi-office-building-outline" size="15" />
-                <span>{{ [building.postcode, building.city?.name, building.address].filter(Boolean).join(', ') }}</span>
+                <span>{{ [building.postcode, building.city?.name, building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</span>
             </div>
         </div>
         <p v-else class="entity-geography__empty">Здания не указаны</p>

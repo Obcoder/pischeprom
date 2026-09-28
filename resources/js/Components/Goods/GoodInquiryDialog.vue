@@ -2,6 +2,7 @@
 import axios from 'axios'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { usePage } from '@inertiajs/vue3'
+import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -36,6 +37,8 @@ const form = reactive({
     company: '',
     delivery_city: '',
     delivery_address: '',
+    delivery_apartment_number: '',
+    delivery_apartment_type: 'apartment',
     comment: '',
     proposed_price: '',
     bargain_scenario: 'custom',
@@ -182,6 +185,8 @@ async function submit() {
             company: form.company.trim(),
             delivery_city: form.delivery_city.trim(),
             delivery_address: form.delivery_address.trim(),
+            delivery_apartment_number: form.delivery_apartment_number.trim(),
+            delivery_apartment_type: form.delivery_apartment_type,
             comment: form.comment.trim(),
             proposed_price: isBargain.value ? Number(form.proposed_price) : null,
             bargain_scenario: isBargain.value ? form.bargain_scenario : null,
@@ -377,6 +382,14 @@ async function submit() {
                                 <small class="field-hint">Можно согласовать с менеджером после заявки.</small>
                                 <small v-if="fieldError('delivery_address')" class="field-error">{{ fieldError('delivery_address') }}</small>
                             </div>
+
+                            <DeliveryApartmentFields
+                                v-if="isOrder"
+                                v-model:number="form.delivery_apartment_number"
+                                v-model:type="form.delivery_apartment_type"
+                                :errors="errors"
+                                :disabled="saving"
+                            />
 
                             <div class="inquiry-field">
                                 <label for="inquiry-comment">{{ isBargain ? 'Что поможет договориться?' : 'Ваш вопрос или пожелания' }}</label>

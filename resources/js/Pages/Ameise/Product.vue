@@ -1,4 +1,5 @@
 <script setup>
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {Link} from "@inertiajs/vue3";
 import {route} from "ziggy-js";
@@ -224,7 +225,7 @@ onMounted(()=>{
                             <template v-slot:item.unit.buildings="{item}">
                                 <div v-for="building in item.unit.buildings">
                                     <div>{{building.city.name}}</div>
-                                    <div>{{building.address}}</div>
+                                    <div>{{ [building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</div>
                                 </div>
                             </template>
                         </v-data-table>

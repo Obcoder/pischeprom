@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { route } from 'ziggy-js'
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -100,7 +101,7 @@ function formatPhone(value) {
 }
 
 function buildingAddress(building) {
-    return [building.postcode, building.city?.region, building.city?.name, building.address].filter(Boolean).join(', ') || 'Адрес не указан'
+    return [building.postcode, building.city?.region, building.city?.name, building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ') || 'Адрес не указан'
 }
 
 watch(

@@ -29,6 +29,11 @@ class GoodInquiryOrderWriter
         $telephone = $this->entities->attachPhone($entity, $inquiry->customer_phone);
         $address = trim(implode(', ', array_filter([$inquiry->delivery_city, $inquiry->delivery_address])));
         $building = $address !== '' ? Building::query()->firstOrCreate(['address' => $address, 'city_id' => null]) : null;
+        $apartmentNumber = trim((string) $inquiry->delivery_apartment_number);
+        $apartment = $building && $apartmentNumber !== '' ? $building->apartments()->firstOrCreate([
+            'number' => $apartmentNumber,
+            'type' => $inquiry->delivery_apartment_type ?? 'apartment',
+        ]) : null;
 
         return $this->orders->save(null, [
             'entity_id' => $entity->id,
@@ -36,6 +41,7 @@ class GoodInquiryOrderWriter
             'created_by_user_id' => $inquiry->user_id,
             'contact_telephone_id' => $telephone?->id,
             'building_ids' => $building ? [$building->id] : [],
+            'building_apartments' => $building ? [$building->id => $apartment?->id] : [],
             'currency_code' => $inquiry->currency_code,
             'internal_comment' => implode("\n", array_filter([
                 'Заказ с публичной страницы. Требует подтверждения цены, наличия и доставки менеджером.',

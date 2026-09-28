@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 import { route } from 'ziggy-js'
 import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 import { usePhoneFormatter } from '@/Composables/entities/usePhoneFormatter'
@@ -586,7 +587,7 @@ const openChat = (entity, chat) => emit('open-avito', { entity, chat })
                                 <strong v-if="group.city">{{ group.city }}</strong>
                             </span>
                             <span v-for="(building, index) in group.addresses" :key="building.id || index" class="entity-geography-address">
-                                <span>{{ building.address || 'Адрес не указан' }}</span>
+                                <span>{{ [building.address || 'Адрес не указан', buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</span>
                                 <small v-if="building.postcode" class="entity-geography-postcode">{{ building.postcode }}</small>
                                 <small v-if="building.building_type?.name" class="entity-address-type" :title="`Класс адреса: ${building.building_type.name}`">{{ building.building_type.name }}</small>
                             </span>

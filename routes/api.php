@@ -26,6 +26,7 @@ use App\Http\Controllers\API\AiSales\UnitProductMatchController as AiSalesUnitPr
 use App\Http\Controllers\API\AiSales\UnitProspectingDossierController as AiSalesUnitProspectingDossierController;
 use App\Http\Controllers\API\AiSales\UnitRoleController as AiSalesUnitRoleController;
 use App\Http\Controllers\API\AiSales\UnitSourceController as AiSalesUnitSourceController;
+use App\Http\Controllers\API\ApartmentController;
 use App\Http\Controllers\API\BeelinePbxController;
 use App\Http\Controllers\API\BrandController;
 use App\Http\Controllers\API\BuildingController;
@@ -773,6 +774,7 @@ Route::apiResource('units', UnitController::class)->except(['show']);
 
 Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
+Route::apiResource('buildings.apartments', ApartmentController::class)->names('api.buildings.apartments');
 Route::apiResource('building-types', BuildingTypeController::class)
     ->parameters(['building-types' => 'buildingType']);
 Route::apiResource('catalogs', CatalogController::class);

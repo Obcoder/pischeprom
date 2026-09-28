@@ -290,7 +290,7 @@ class AvitoMessageTemplateService
             return null;
         }
 
-        return collect([$building->postcode, $building->city?->name, $building->address])
+        return collect([$building->postcode, $building->city?->name, $building->address_with_apartment])
             ->filter()
             ->implode(', ');
     }

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -134,6 +135,7 @@ watch(
                         </v-col>
                     </v-row>
                 </v-form>
+                <ApartmentSelector v-if="building?.id" :building="building" :selectable="false" />
             </v-card-text>
 
             <v-divider />

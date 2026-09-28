@@ -22,8 +22,8 @@ export function useUnitRelations(refreshUnit) {
         await refreshUnit()
     }
 
-    async function attachBuilding(unitId, buildingId) {
-        await axios.post(route('api.units.buildings.attach', unitId), { building_id: buildingId })
+    async function attachBuilding(unitId, buildingId, apartmentId = null) {
+        await axios.post(route('api.units.buildings.attach', unitId), { building_id: buildingId, apartment_id: apartmentId })
         await refreshUnit()
     }
 

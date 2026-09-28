@@ -1,6 +1,7 @@
 <script setup>
 import axios from 'axios'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
 
 const props = defineProps({
     message: { type: Object, default: null },
@@ -195,6 +196,7 @@ function resetForm() {
         entity_id: props.defaultEntityId || null, unit_id: props.defaultUnitId || null,
         name: props.message?.from_name || '', full_name: '', INN: '', KPP: '', OGRN: '', legal_address: '',
         email_address: sender.value, number: '', address: '', city_id: null, building_type_id: null, postcode: '',
+        delivery_apartment_number: '', delivery_apartment_type: 'apartment',
         is_customer: false, is_supplier: false, query: '', dadata_raw: null,
         country_id: null, entity_classification_id: null,
     })
@@ -224,7 +226,15 @@ function payload() {
     if (action.value === 'phone') return { ...target, number: String(form.number ?? '').trim() }
     if (action.value === 'email') return { ...target, address: String(form.email_address ?? '').trim() }
     if (action.value === 'website') return { unit_id: target.unit_id, address: String(form.address ?? '').trim() }
-    if (action.value === 'building') return { ...target, address: String(form.address ?? '').trim(), city_id: form.city_id, building_type_id: form.building_type_id || null, postcode: String(form.postcode ?? '').trim() || null }
+    if (action.value === 'building') return {
+        ...target,
+        address: String(form.address ?? '').trim(),
+        city_id: form.city_id,
+        building_type_id: form.building_type_id || null,
+        postcode: String(form.postcode ?? '').trim() || null,
+        delivery_apartment_number: String(form.delivery_apartment_number ?? '').trim() || null,
+        delivery_apartment_type: form.delivery_apartment_type,
+    }
     const contact = { email_address: String(form.email_address ?? '').trim() || sender.value }
     if (action.value === 'entity') {
         if (mode.value === 'existing') return { ...contact, ...target }
@@ -411,6 +421,7 @@ onBeforeUnmount(cancelRequests)
                         <v-combobox v-model="form.address" :items="candidates.addresses || []" label="Адрес из письма — проверьте перед сохранением" :return-object="false" density="compact" variant="outlined" hide-details :disabled="saving" />
                         <v-autocomplete v-model="form.city_id" v-model:search="citySearch" :items="cities" item-value="id" :item-title="searchLabel" label="Город" no-filter :loading="searching.cities" density="compact" variant="outlined" hide-details clearable :disabled="saving" no-data-text="Города не найдены" />
                         <div class="mail-crm-form-row"><v-select v-model="form.building_type_id" :items="options.building_types || []" item-value="id" :item-title="searchLabel" label="Тип адреса" density="compact" variant="outlined" hide-details clearable :disabled="saving" /><v-text-field v-model="form.postcode" label="Почтовый индекс" density="compact" variant="outlined" hide-details :disabled="saving" /></div>
+                        <DeliveryApartmentFields v-model:number="form.delivery_apartment_number" v-model:type="form.delivery_apartment_type" :disabled="saving" />
                     </template>
                     <div v-if="showEntityTarget || showUnitTarget" class="mail-crm-form-row">
                         <v-autocomplete v-if="showEntityTarget" v-model="form.entity_id" v-model:search="entitySearch" :items="entityOptions" item-value="id" :item-title="searchLabel" label="Привязать к Entity" no-filter :loading="searching.entities" density="compact" variant="outlined" hide-details clearable :disabled="saving" no-data-text="Entity не найдены" />

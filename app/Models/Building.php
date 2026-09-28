@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Building extends Model
 {
@@ -26,7 +27,27 @@ class Building extends Model
     protected $with = [
         'city',
         'buildingType',
+        'apartments',
     ];
+
+    protected $appends = ['apartment'];
+
+    public function apartments(): HasMany
+    {
+        return $this->hasMany(Apartment::class)->orderBy('number')->orderBy('id');
+    }
+
+    public function getApartmentAttribute(): ?Apartment
+    {
+        $id = $this->pivot?->apartment_id;
+
+        return $id ? $this->apartments->firstWhere('id', (int) $id) : null;
+    }
+
+    public function getAddressWithApartmentAttribute(): string
+    {
+        return collect([$this->address, $this->apartment?->label])->filter()->implode(', ');
+    }
 
     public function city(): BelongsTo
     {
@@ -42,19 +63,20 @@ class Building extends Model
 
     public function units(): BelongsToMany
     {
-        return $this->belongsToMany(Unit::class);
+        return $this->belongsToMany(Unit::class)->withPivot('apartment_id');
     }
 
     public function entities(): BelongsToMany
     {
         return $this->belongsToMany(Entity::class, 'building_entities')
+            ->withPivot('apartment_id')
             ->withTimestamps();
     }
 
     public function orders(): BelongsToMany
     {
         return $this->belongsToMany(Order::class)
-            ->withPivot(['role', 'position'])
+            ->withPivot(['role', 'position', 'apartment_id'])
             ->withTimestamps();
     }
 }

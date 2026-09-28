@@ -26,7 +26,7 @@ function harness(t, name, initialProps = {}, responses = {}) {
         _useModel: (props, key) => Vue.computed({ get: () => props[key], set: value => { props[key] = value } }),
         onBeforeUnmount: callback => disposal.push(callback),
         route: (name, id) => `/test/${name}/${id || ''}`,
-        MailInvoiceDetails: {}, MailPdfViewer: {}, MailMessageReaderHeader: {}, MailMessageCrmTools: {}, WordAttachmentPreview: {}, MailHtmlBody: {},
+        MailInvoiceDetails: {}, MailPdfViewer: {}, MailMessageReaderHeader: {}, MailMessageCrmTools: {}, WordAttachmentPreview: {}, MailHtmlBody: {}, DeliveryApartmentFields: {},
         axios: {
             async get(url, options) {
                 reads.push({ url, options })

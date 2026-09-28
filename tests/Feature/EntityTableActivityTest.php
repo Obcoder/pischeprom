@@ -113,8 +113,19 @@ class EntityTableActivityTest extends TestCase
             Schema::create($pivot, function (Blueprint $table) use ($foreignKey): void {
                 $table->unsignedBigInteger('entity_id');
                 $table->unsignedBigInteger($foreignKey);
+                if ($foreignKey === 'building_id') {
+                    $table->unsignedBigInteger('apartment_id')->nullable();
+                }
             });
         }
+
+        Schema::create('apartments', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('building_id');
+            $table->string('number');
+            $table->string('type');
+            $table->timestamps();
+        });
 
         DB::table('order_statuses')->insert([
             ['id' => 1, 'code' => 'open'],

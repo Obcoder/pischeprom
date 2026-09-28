@@ -1,3 +1,5 @@
+import { deliveryBuildingAddress } from './delivery.js'
+
 function ensureActive(signal) {
     if (signal?.aborted) throw new DOMException('Map request cancelled', 'AbortError')
 }
@@ -38,7 +40,7 @@ export function groupDeliveryAddresses(orders) {
         const addresses = (order.delivery_addresses || []).filter(address => typeof address.full_address === 'string' && address.full_address.trim())
         if (!addresses.length) missing.push({ order, reason: 'Адрес доставки не указан.' })
         for (const address of addresses) {
-            const key = address.full_address.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU')
+            const key = deliveryBuildingAddress(address).replace(/\s+/g, ' ').toLocaleLowerCase('ru-RU')
             if (!groups.has(key)) groups.set(key, { key, address, orders: [] })
             const group = groups.get(key)
             if (!group.orders.some(item => item.id === order.id)) group.orders.push(order)
@@ -88,7 +90,7 @@ export async function resolveDeliveryGroups(groups, geocode, {
             let coordinates = null
             let reason = 'Не удалось точно определить дом. Проверьте адрес в заказе.'
             try {
-                coordinates = exactGeocodeCoordinates(await timedGeocode(geocode, group.address.full_address, timeoutMs, signal))
+                coordinates = exactGeocodeCoordinates(await timedGeocode(geocode, deliveryBuildingAddress(group.address), timeoutMs, signal))
             } catch (error) {
                 if (error.name === 'AbortError') throw error
                 reason = 'Яндекс Карты не ответили. Повторите обновление.'

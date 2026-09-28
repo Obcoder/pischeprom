@@ -4,6 +4,8 @@ import axios from 'axios'
 import { route } from 'ziggy-js'
 import { Link } from '@inertiajs/vue3'
 import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import { selectedBuildingApartments } from '@/utils/buildingApartments'
 
 const units = ref([])
 const fields = ref([])
@@ -44,6 +46,7 @@ const defaultUnitForm = () => ({
     is_customer: false,
     is_supplier: false,
     buildings: [],
+    building_apartments: {},
     cities: [],
     emails: [],
     fields: [],
@@ -162,6 +165,7 @@ async function storeUnit() {
             is_customer: formUnit.is_customer,
             is_supplier: formUnit.is_supplier,
             buildings: formUnit.buildings,
+            building_apartments: selectedBuildingApartments(formUnit.buildings, formUnit.building_apartments),
             cities: formUnit.cities,
             emails: formUnit.emails,
             fields: formUnit.fields,
@@ -584,12 +588,19 @@ watch(searchUnits, () => indexUnits())
                                         :items="buildings"
                                         :item-title="formatBuildingTitle"
                                         item-value="id"
-                                        label="Buildings"
+                                        label="Здания / адреса"
                                         multiple
                                         chips
                                         variant="solo"
                                         density="comfortable"
                                         bg-color="blue-grey-darken-4"
+                                    />
+                                    <ApartmentSelector
+                                        v-for="buildingId in formUnit.buildings"
+                                        :key="buildingId"
+                                        v-model="formUnit.building_apartments[buildingId]"
+                                        :building="buildings.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
+                                        class="mt-2"
                                     />
                                 </v-col>
                                 <v-col>

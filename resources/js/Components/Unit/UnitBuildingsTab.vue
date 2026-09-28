@@ -1,6 +1,8 @@
 <script setup>
 import axios from 'axios'
-import { reactive, ref } from 'vue'
+import { reactive, ref, watch } from 'vue'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import { selectedApartment } from '@/utils/buildingApartments'
 
 const props = defineProps({
     unit: { type: Object, required: true },
@@ -10,12 +12,16 @@ const props = defineProps({
 const emit = defineEmits(['refresh'])
 
 const attachBuildingId = ref(null)
+const attachApartmentId = ref(null)
+const relationError = ref('')
 const dialog = ref(false)
 const saving = ref(false)
 const deletingId = ref(null)
 const detachingId = ref(null)
 const errors = ref({})
 const editing = ref(null)
+
+watch(attachBuildingId, () => { attachApartmentId.value = null })
 
 const form = reactive({
     city_id: null,
@@ -54,12 +60,25 @@ function openEdit(building) {
 async function attachExisting() {
     if (!attachBuildingId.value) return
 
-    await axios.post(`/api/units/${props.unit.id}/buildings`, {
-        building_id: attachBuildingId.value,
-    })
+    if (await saveApartment(attachBuildingId.value, attachApartmentId.value)) {
+        attachBuildingId.value = null
+        attachApartmentId.value = null
+    }
+}
 
-    attachBuildingId.value = null
-    emit('refresh')
+async function saveApartment(buildingId, apartmentId) {
+    relationError.value = ''
+    try {
+        await axios.post(`/api/units/${props.unit.id}/buildings`, {
+            building_id: buildingId,
+            apartment_id: apartmentId || null,
+        })
+        emit('refresh')
+        return true
+    } catch (error) {
+        relationError.value = error.response?.data?.message || 'Не удалось сохранить помещение для адреса.'
+        return false
+    }
 }
 
 async function saveBuilding() {
@@ -87,6 +106,7 @@ async function saveBuilding() {
         if (building?.id) {
             await axios.post(`/api/units/${props.unit.id}/buildings`, {
                 building_id: building.id,
+                apartment_id: editing.value ? selectedApartment(editing.value)?.id || null : null,
             })
         }
 
@@ -104,10 +124,13 @@ async function detachBuilding(building) {
     if (!building?.id) return
 
     detachingId.value = building.id
+    relationError.value = ''
 
     try {
         await axios.delete(`/api/units/${props.unit.id}/buildings/${building.id}`)
         emit('refresh')
+    } catch (error) {
+        relationError.value = error.response?.data?.message || 'Не удалось отвязать адрес.'
     } finally {
         detachingId.value = null
     }
@@ -117,10 +140,13 @@ async function deleteBuilding(building) {
     if (!building?.id || !window.confirm(`Удалить объект "${building.address}" полностью?`)) return
 
     deletingId.value = building.id
+    relationError.value = ''
 
     try {
         await axios.delete(`/api/buildings/${building.id}`)
         emit('refresh')
+    } catch (error) {
+        relationError.value = error.response?.data?.message || 'Не удалось удалить здание.'
     } finally {
         deletingId.value = null
     }
@@ -129,6 +155,7 @@ async function deleteBuilding(building) {
 
 <template>
     <div class="unit-buildings-tab">
+        <v-alert v-if="relationError" type="error" variant="tonal" density="compact">{{ relationError }}</v-alert>
         <div class="unit-buildings-tab__toolbar">
             <v-autocomplete
                 v-model="attachBuildingId"
@@ -145,6 +172,12 @@ async function deleteBuilding(building) {
             <button type="button" @click="openCreate">Добавить объект</button>
         </div>
 
+        <ApartmentSelector
+            v-if="attachBuildingId"
+            v-model="attachApartmentId"
+            :building="dict.buildings?.find(building => Number(building.id) === Number(attachBuildingId)) || { id: attachBuildingId }"
+        />
+
         <div class="unit-buildings-tab__grid">
             <article v-for="building in (unit.buildings || [])" :key="building.id" class="unit-building-card">
                 <div>
@@ -157,6 +190,12 @@ async function deleteBuilding(building) {
                     <button type="button" :disabled="detachingId === building.id" @click="detachBuilding(building)">Отвязать</button>
                     <button type="button" class="is-danger" :disabled="deletingId === building.id" @click="deleteBuilding(building)">Удалить</button>
                 </div>
+                <ApartmentSelector
+                    :building="building"
+                    :model-value="selectedApartment(building)?.id || null"
+                    class="unit-building-card__apartment"
+                    @update:model-value="saveApartment(building.id, $event)"
+                />
             </article>
 
             <div v-if="!unit.buildings?.length" class="unit-buildings-tab__empty">
@@ -242,6 +281,8 @@ async function deleteBuilding(building) {
     border-radius: 0;
     background: #fff;
 }
+
+.unit-building-card__apartment { grid-column: 1 / -1; }
 
 .unit-building-card strong,
 .unit-building-card span {

@@ -1,4 +1,5 @@
 <script setup>
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
 import axios from 'axios'
 import { computed, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
@@ -848,6 +849,15 @@ watch(
                                     </v-list-item>
                                 </template>
                             </v-autocomplete>
+
+                            <ApartmentSelector
+                                v-for="buildingId in form.buildings"
+                                :key="buildingId"
+                                v-model="form.building_apartments[buildingId]"
+                                :building="buildingOptions.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
+                                :error-messages="validationMessage(`building_apartments.${buildingId}`)"
+                                class="mt-3"
+                            />
 
                             <v-expand-transition>
                                 <div v-if="buildingFormOpen" class="building-create-panel">

@@ -5,6 +5,7 @@ import DeliveryContacts from './DeliveryContacts.vue'
 import { exactGeocodeCoordinates, groupDeliveryAddresses, loadDeliveryOrders, loadYandexMaps, resolveDeliveryGroups, timedGeocode } from './delivery-map.js'
 import { disposeYandexRoute, fastestYandexRoute, planDeliveryRoute, requestYandexRoute, ROUTE_LIMITS, splitRoutePoints, yandexRouteUrl } from './delivery-route.js'
 import { formatDeliveryDate } from './delivery-date.js'
+import { deliveryBuildingAddress } from './delivery.js'
 
 const props = defineProps({
     api: { type: Object, required: true }, search: { type: String, default: '' }, filter: { type: String, default: 'all' },
@@ -353,7 +354,7 @@ onBeforeUnmount(() => {
                 <p class="delivery-route-note">{{ routePlan.exact ? 'Выбран порядок с минимальным суммарным временем по рассчитанным дорогам.' : 'Приближённый порядок объезда по времени проезда дорог.' }}</p>
                 <p class="delivery-route-note">Старт: {{ routePlan.origin }}</p>
                 <article v-for="(point, index) in routePlan.stops" :key="point.key" class="delivery-route-stop">
-                    <strong>{{ index + 1 }}. {{ point.address.full_address }}</strong>
+                    <strong>{{ index + 1 }}. {{ deliveryBuildingAddress(point.address) }}</strong>
                     <v-btn v-for="order in point.orders" :key="order.id" variant="text" color="primary" append-icon="mdi-arrow-top-right"
                         class="delivery-route-order-link" block @click="emit('open-order', order.id)">Заказ {{ order.number }} · {{ order.entity?.name || 'Покупатель не указан' }}</v-btn>
                 </article>
@@ -366,7 +367,7 @@ onBeforeUnmount(() => {
         </section>
         <div v-if="selected" ref="selectedElement" class="delivery-map-selection">
             <div class="delivery-map-selection-heading">
-                <h3>{{ selected.address.full_address }}</h3>
+                <h3>{{ deliveryBuildingAddress(selected.address) }}</h3>
                 <v-btn icon="mdi-close" variant="text" aria-label="Закрыть выбранный адрес" @click="selected = null" />
             </div>
             <article v-for="order in selected.orders" :key="order.id" class="delivery-map-order">

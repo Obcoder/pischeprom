@@ -6,6 +6,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
 
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -50,6 +52,7 @@ const form = reactive({
     entity_id: null,
     order_status_id: null,
     building_ids: [],
+    building_apartments: {},
     currency_code: 'RUB',
     submitted_at: '',
     delivery_date: '',
@@ -131,6 +134,7 @@ function fillForm(source) {
         entity_id: source.entity_id || source.entity?.id || null,
         order_status_id: source.order_status_id || source.status?.id || null,
         building_ids: (source.buildings || []).map((building) => building.id),
+        building_apartments: Object.fromEntries((source.buildings || []).map(building => [building.id, selectedApartment(building)?.id || null])),
         currency_code: source.currency_code || 'RUB',
         submitted_at: toDateTimeLocal(source.submitted_at),
         delivery_date: source.delivery_date || '',
@@ -230,6 +234,7 @@ function contentPayload() {
         entity_id: form.entity_id,
         order_status_id: form.order_status_id,
         building_ids: form.building_ids || [],
+        building_apartments: selectedBuildingApartments(form.building_ids, form.building_apartments),
         currency_code: form.currency_code,
         submitted_at: form.submitted_at || null,
         preferred_delivery_time: form.preferred_delivery_time || null,
@@ -511,7 +516,7 @@ onMounted(async () => {
                             <span>02</span>
                             <h2>Логистика</h2>
                         </div>
-                        <small>Buildings выбранного маршрута</small>
+                        <small>Здания и помещения выбранного маршрута</small>
                     </header>
 
                     <div class="order-panel__body order-panel__body--fields">
@@ -521,7 +526,7 @@ onMounted(async () => {
                             :items="options.buildings"
                             item-title="address"
                             item-value="id"
-                            label="Buildings"
+                            label="Здания / адреса"
                             variant="outlined"
                             density="compact"
                             multiple
@@ -536,6 +541,15 @@ onMounted(async () => {
                                 />
                             </template>
                         </v-autocomplete>
+
+                        <ApartmentSelector
+                            v-for="buildingId in form.building_ids"
+                            :key="buildingId"
+                            v-model="form.building_apartments[buildingId]"
+                            :building="options.buildings.find(building => Number(building.id) === Number(buildingId)) || order?.buildings?.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
+                            :disabled="contentDisabled"
+                            :error-messages="fieldError(`building_apartments.${buildingId}`)"
+                        />
 
                         <div class="order-delivery-date">
                             <v-text-field

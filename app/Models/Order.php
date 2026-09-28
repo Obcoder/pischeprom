@@ -130,7 +130,7 @@ class Order extends Model
     public function buildings(): BelongsToMany
     {
         return $this->belongsToMany(Building::class)
-            ->withPivot(['role', 'position'])
+            ->withPivot(['role', 'position', 'apartment_id'])
             ->withTimestamps()
             ->orderByPivot('position');
     }

@@ -67,6 +67,20 @@ test('equal delivery addresses are geocoded once and all orders at the address r
     assert.deepEqual(grouped.missing.map(entry => entry.order.id), [3, 4])
 })
 
+test('different apartments in one building share a geocoder request and preserve each order destination', async () => {
+    const building_address = 'Москва, Тверская, 1'
+    const grouped = groupDeliveryAddresses([
+        { id: 1, delivery_addresses: [{ building_address, full_address: `${building_address}, кв. 12` }] },
+        { id: 2, delivery_addresses: [{ building_address, full_address: `${building_address}, офис 21` }] },
+    ])
+    const calls = []
+    await resolveDeliveryGroups(grouped.groups, async query => { calls.push(query); return geocode() })
+    assert.deepEqual(calls, [building_address])
+    assert.deepEqual(grouped.groups[0].orders.map(order => order.delivery_addresses[0].full_address), [
+        `${building_address}, кв. 12`, `${building_address}, офис 21`,
+    ])
+})
+
 test('only exact house coordinates become delivery pins; approximations and invalid coordinates are rejected', () => {
     assert.deepEqual(exactGeocodeCoordinates(geocode()), [55.75, 37.61])
     assert.deepEqual(exactGeocodeCoordinates(geocode('number')), [55.75, 37.61])

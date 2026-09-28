@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { route } from 'ziggy-js'
+import ApartmentSelector from './ApartmentSelector.vue'
 
 const buildings = ref([])
 const cities = ref([])
@@ -357,6 +358,7 @@ onMounted(refresh)
 
                 <template #item.address="{ item }">
                     <strong class="building-address">{{ item.address }}</strong>
+                    <ApartmentSelector :building="item" :selectable="false" class="my-1" />
                 </template>
 
                 <template #item.postcode="{ item }">
@@ -456,6 +458,7 @@ onMounted(refresh)
                                 />
                             </div>
                         </v-form>
+                        <ApartmentSelector v-if="selectedBuilding" :building="selectedBuilding" :selectable="false" />
                     </v-card-text>
 
                     <v-divider />

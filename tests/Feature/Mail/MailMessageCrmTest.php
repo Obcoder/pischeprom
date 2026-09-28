@@ -197,7 +197,11 @@ class MailMessageCrmTest extends TestCase
         $city = City::query()->create(['name' => 'Курск', 'region_id' => $region->id]);
         $entity = Entity::query()->create(['name' => 'Клиент']);
         $unit = Unit::query()->create(['name' => 'Склад']);
-        $payload = ['city_id' => $city->id, 'address' => 'ул. Ленина, 10', 'entity_id' => $entity->id, 'unit_id' => $unit->id, 'postcode' => '305000'];
+        $payload = [
+            'city_id' => $city->id, 'address' => 'ул. Ленина, 10',
+            'entity_id' => $entity->id, 'unit_id' => $unit->id, 'postcode' => '305000',
+            'delivery_apartment_number' => '305', 'delivery_apartment_type' => 'office',
+        ];
         $this->actingAs($this->staff());
         $first = $this->postJson($this->url($message, '/buildings'), $payload)->assertCreated();
         $this->postJson($this->url($message, '/buildings'), $payload)->assertOk()->assertJsonPath('record.id', $first->json('record.id'));
@@ -205,6 +209,9 @@ class MailMessageCrmTest extends TestCase
         $building = Building::query()->firstOrFail();
         $this->assertTrue($building->entities()->whereKey($entity->id)->exists());
         $this->assertTrue($building->units()->whereKey($unit->id)->exists());
+        $this->assertDatabaseCount('apartments', 1);
+        $this->assertSame('офис 305', $entity->fresh()->buildings->sole()->apartment->label);
+        $this->assertSame('офис 305', $unit->fresh()->buildings->sole()->apartment->label);
         $this->getJson('/api/mail-crm/cities?search='.urlencode('Курск'))->assertOk()->assertJsonPath('items.0.id', $city->id);
     }
 

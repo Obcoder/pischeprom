@@ -5,6 +5,7 @@ namespace Tests\Feature\Avito;
 use App\Models\AvitoChat;
 use App\Models\AvitoContactCandidate;
 use App\Models\AvitoMessengerAccount;
+use App\Models\Building;
 use App\Models\BuildingType;
 use App\Models\City;
 use App\Models\Country;
@@ -157,11 +158,15 @@ class AvitoCrmTest extends TestCase
             'building_type_id' => $homeBuildingType->id,
             'address' => 'ул. Ленина, д. 10',
             'postcode' => '101000',
+            'delivery_apartment_number' => '7А',
+            'delivery_apartment_type' => 'apartment',
         ])->assertCreated();
         $buildingId = (int) $buildingResponse->json('building.id');
+        $apartment = Building::query()->findOrFail($buildingId)->apartments->sole();
         $this->assertDatabaseHas('building_entities', [
             'entity_id' => $entityId,
             'building_id' => $buildingId,
+            'apartment_id' => $apartment->id,
         ]);
         $this->assertDatabaseHas('buildings', [
             'id' => $buildingId,
@@ -194,6 +199,7 @@ class AvitoCrmTest extends TestCase
             ]],
         ])->assertCreated()
             ->assertJsonPath('order.total_amount', 700)
+            ->assertJsonPath('order.buildings.0.apartment.number', '7А')
             ->assertJsonPath('outbound.sent', 1);
         $orderId = (int) $orderResponse->json('order.id');
         $orderNumber = (string) $orderResponse->json('order.number');
@@ -208,6 +214,7 @@ class AvitoCrmTest extends TestCase
             return str_contains($text, "Заказ {$orderNumber} создан.")
                 && str_contains($text, 'Тестовый товар')
                 && str_contains($text, 'Итого: 700 RUB')
+                && str_contains($text, 'кв. 7А')
                 && ! str_contains($text, 'подтвердите заказ ответным сообщением');
         });
 
@@ -227,6 +234,7 @@ class AvitoCrmTest extends TestCase
             ->assertJsonPath('entity.units.0.name', 'Московский Unit')
             ->assertJsonPath('entity.telephones.0.number', '+79991234567')
             ->assertJsonPath('entity.buildings.0.building_type', 'Домашний')
+            ->assertJsonPath('entity.buildings.0.apartment_id', $apartment->id)
             ->assertJsonPath('orders.0.id', $orderId);
     }
 

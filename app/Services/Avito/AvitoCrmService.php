@@ -189,7 +189,14 @@ class AvitoCrmService
                 $building->update($updates);
             }
 
-            $entity->buildings()->syncWithoutDetaching([$building->id]);
+            $apartmentNumber = trim((string) ($data['delivery_apartment_number'] ?? ''));
+            $apartment = $apartmentNumber !== '' ? $building->apartments()->firstOrCreate([
+                'number' => $apartmentNumber,
+                'type' => $data['delivery_apartment_type'] ?? 'apartment',
+            ]) : null;
+            $entity->buildings()->syncWithoutDetaching([
+                $building->id => $apartment ? ['apartment_id' => $apartment->id] : [],
+            ]);
 
             if ($candidate) {
                 $candidate->update([
@@ -257,6 +264,10 @@ class AvitoCrmService
                 'internal_comment' => $data['internal_comment'] ?? null,
                 'currency_code' => strtoupper((string) ($data['currency_code'] ?? 'RUB')),
                 'building_ids' => $buildingIds->all(),
+                'building_apartments' => $data['building_apartments'] ?? $entity->buildings
+                    ->whereIn('id', $buildingIds)->mapWithKeys(fn (Building $building) => [
+                        $building->id => $building->pivot?->apartment_id,
+                    ])->all(),
                 'items' => $data['items'],
             ]);
 

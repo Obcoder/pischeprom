@@ -112,8 +112,8 @@ class CustomerOrderNotificationService
     {
         return $order->buildings
             ->first(fn ($building) => $building->pivot?->role === 'delivery')
-            ?->address
-            ?: $order->buildings->first()?->address
+            ?->address_with_apartment
+            ?: $order->buildings->first()?->address_with_apartment
             ?: 'не указан';
     }
 

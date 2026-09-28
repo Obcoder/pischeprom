@@ -5,6 +5,7 @@ import axios from 'axios'
 
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { useOrderCart } from '@/Composables/useOrderCart'
+import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
 
 const page = usePage()
 const { route } = useAppRoute()
@@ -29,6 +30,8 @@ const fieldErrors = ref({})
 
 const form = reactive({
     delivery_address: '',
+    delivery_apartment_number: '',
+    delivery_apartment_type: 'apartment',
     preferred_delivery_time: '',
     customer_phone: '',
     customer_phone_source: 'manual',
@@ -104,6 +107,8 @@ function openCheckout() {
     errorMessage.value = ''
     successMessage.value = ''
     form.delivery_address = savedDeliveryAddress.value
+    form.delivery_apartment_number = ''
+    form.delivery_apartment_type = 'apartment'
     form.preferred_delivery_time = ''
     form.customer_phone_source = hasSavedPhone.value ? 'profile' : 'manual'
     form.customer_phone = hasSavedPhone.value ? savedPhone.value : ''
@@ -159,6 +164,8 @@ function submitOrder() {
                 quantity: item.quantity,
             })),
             delivery_address: form.delivery_address,
+            delivery_apartment_number: form.delivery_apartment_number.trim(),
+            delivery_apartment_type: form.delivery_apartment_type,
             preferred_delivery_time: form.preferred_delivery_time,
             customer_phone: form.customer_phone,
             customer_phone_source: form.customer_phone_source,
@@ -308,6 +315,13 @@ function submitOrder() {
                                     {{ firstError('delivery_address') }}
                                 </small>
                             </label>
+
+                            <DeliveryApartmentFields
+                                v-model:number="form.delivery_apartment_number"
+                                v-model:type="form.delivery_apartment_type"
+                                :errors="fieldErrors"
+                                :disabled="submitting"
+                            />
 
                             <label class="order-checkout__field">
                                 <span>Удобное время</span>

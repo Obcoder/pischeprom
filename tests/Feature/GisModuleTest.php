@@ -287,7 +287,15 @@ class GisModuleTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('apartments', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('building_id');
+            $table->string('number');
+            $table->string('type');
+            $table->timestamps();
+        });
         Schema::create('building_entities', function (Blueprint $table) {
+            $table->unsignedBigInteger('apartment_id')->nullable();
             $table->foreignId('building_id')->constrained('buildings')->cascadeOnDelete();
             $table->foreignId('entity_id')->constrained('entities')->cascadeOnDelete();
         });

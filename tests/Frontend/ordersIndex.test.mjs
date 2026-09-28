@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
 
 function pageHarness() {
     const filename = fileURLToPath(new URL('../../resources/js/Pages/Ameise/Orders/Index.vue', import.meta.url))
@@ -15,6 +16,7 @@ function pageHarness() {
     const requests = [], disposal = []
     const environment = {
         ...Vue, Link: {}, router: {}, VerwalterLayout: {}, OrderStatusesDialog: {},
+        buildingApartmentLabel,
         route: () => '', useHead: () => {}, useDebounceFn: callback => callback,
         onMounted: () => {}, onBeforeUnmount: callback => disposal.push(callback),
         axios: {
@@ -33,6 +35,15 @@ function pageHarness() {
     const api = scope.run(() => component.setup({ permissions: {} }, { expose: () => {} }))
     return { api, requests, dispose() { disposal.forEach(callback => callback()); scope.stop() } }
 }
+
+test('order rows retain apartment numbers for each delivery building', t => {
+    const harness = pageHarness()
+    t.after(() => harness.dispose())
+    assert.equal(harness.api.buildingsLabel({ buildings: [
+        { address: 'Ленина, 10', apartment: { number: '7', type: 'apartment' } },
+        { address: 'Мира, 5', apartment: { number: '2', type: 'premise' } },
+    ] }), 'Ленина, 10, кв. 7 · Мира, 5, пом. 2')
+})
 
 test('filter menu edits stay in a draft until applied, and reopening discards cancelled edits', async t => {
     const harness = pageHarness()

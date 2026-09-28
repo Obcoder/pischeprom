@@ -92,6 +92,7 @@ class GoodInquiryTest extends TestCase
         $this->postJson($this->url($good), $this->payload([
             'kind' => 'order', 'listed_price' => 1, 'proposed_price' => 0.01,
             'delivery_city' => 'Москва', 'delivery_address' => 'Складская, 1',
+            'delivery_apartment_number' => '12Б', 'delivery_apartment_type' => 'premise',
         ]))->assertCreated()->assertJsonStructure(['inquiry' => ['order_number']]);
 
         $inquiry = GoodInquiry::query()->sole();
@@ -105,6 +106,9 @@ class GoodInquiryTest extends TestCase
         $this->assertNotSame($known->id, $order->entity_id);
         $this->assertSame('Existing company', $known->fresh()->name);
         $this->assertSame('Москва, Складская, 1', $order->buildings->sole()->address);
+        $this->assertSame('12Б', $order->buildings->sole()->apartment->number);
+        $this->assertSame('premise', $order->buildings->sole()->apartment->type);
+        $this->assertSame('пом. 12Б', $inquiry->deliveryApartmentLabel());
         $this->assertStringContainsString('Требует подтверждения', $order->internal_comment);
     }
 

@@ -39,6 +39,16 @@ class GoodInquiry extends Model
         };
     }
 
+    public function deliveryApartmentLabel(): ?string
+    {
+        return filled($this->delivery_apartment_number)
+            ? (new Apartment([
+                'number' => $this->delivery_apartment_number,
+                'type' => $this->delivery_apartment_type ?? 'apartment',
+            ]))->label
+            : null;
+    }
+
     public function scenarioLabel(): string
     {
         return match ($this->bargain_scenario) {

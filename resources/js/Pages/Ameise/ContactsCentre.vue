@@ -1,4 +1,5 @@
 <script setup>
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
@@ -1043,7 +1044,7 @@ useHead({
                                             class="crm-building"
                                         >
                                             <v-icon icon="mdi-office-building-marker-outline" size="13" />
-                                            <span class="crm-building__address">{{ building.address || 'Building #' + building.id }}</span>
+                                            <span class="crm-building__address">{{ [building.address || 'Building #' + building.id, buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</span>
                                             <span v-if="buildingLocation(building)" class="crm-building__location">
                                                 <v-icon icon="mdi-map-marker-outline" size="12" />
                                                 {{ buildingLocation(building) }}

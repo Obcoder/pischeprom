@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
 
 function dialogHarness(initialProps = {}) {
     const filename = fileURLToPath(new URL('../../resources/js/Components/Orders/OrderDetailsDialog.vue', import.meta.url))
@@ -18,6 +19,7 @@ function dialogHarness(initialProps = {}) {
     const emitted = []
     const environment = {
         ...Vue,
+        buildingApartmentLabel,
         Link: {},
         route: (name, id) => `/${name}/${id}`,
         useId: () => 'test-dialog',
@@ -42,6 +44,13 @@ function dialogHarness(initialProps = {}) {
         dispose() { disposal.forEach(callback => callback()); scope.stop() },
     }
 }
+
+test('order addresses include the selected apartment or office number', t => {
+    const harness = dialogHarness()
+    t.after(() => harness.dispose())
+    assert.equal(harness.api.buildingAddress({ city: { name: 'Москва' }, address: 'Ленина, 10', apartment: { type: 'office', number: '12Б' } }), 'Москва, Ленина, 10, офис 12Б')
+    assert.equal(harness.api.buildingAddress({ address: 'Ленина, 10' }), 'Ленина, 10')
+})
 
 test('order details loads lazily and refreshes the same order on each opening', async t => {
     const harness = dialogHarness({ orderId: 7 })

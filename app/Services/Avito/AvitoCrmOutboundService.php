@@ -250,7 +250,7 @@ class AvitoCrmOutboundService
             $building = $order->buildings->first();
             $lines[] = 'Доставка: '.implode(', ', array_filter([
                 $building->city?->name,
-                $building->address,
+                $building->address_with_apartment,
             ]));
         }
         if (filled($order->preferred_delivery_time)) {

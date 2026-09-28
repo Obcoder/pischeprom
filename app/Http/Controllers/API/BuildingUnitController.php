@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\building_unit;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class BuildingUnitController extends Controller
 {
@@ -21,7 +22,19 @@ class BuildingUnitController extends Controller
      */
     public function store(Request $request)
     {
-        $buildingUnit = building_unit::create($request->all());
+        $data = $request->validate([
+            'building_id' => ['required', 'integer', 'exists:buildings,id'],
+            'unit_id' => ['required', 'integer', 'exists:units,id'],
+            'location_id' => ['nullable', 'integer', 'exists:locations,id'],
+            'apartment_id' => ['sometimes', 'nullable', 'integer', Rule::exists('apartments', 'id')->where('building_id', $request->input('building_id'))],
+        ]);
+
+        $buildingUnit = building_unit::query()->updateOrCreate([
+            'building_id' => $data['building_id'],
+            'unit_id' => $data['unit_id'],
+        ], $data);
+
+        return response()->json($buildingUnit, $buildingUnit->wasRecentlyCreated ? 201 : 200);
     }
 
     /**

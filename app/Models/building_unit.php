@@ -10,5 +10,6 @@ class building_unit extends Pivot
         'building_id',
         'unit_id',
         'location_id',
+        'apartment_id',
     ];
 }

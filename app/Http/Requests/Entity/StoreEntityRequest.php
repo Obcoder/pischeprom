@@ -26,6 +26,8 @@ class StoreEntityRequest extends FormRequest
 
             'buildings' => ['array'],
             'buildings.*' => ['integer', 'exists:buildings,id'],
+            'building_apartments' => ['sometimes', 'array'],
+            'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
 
             'cities' => ['array'],
             'cities.*' => ['integer', 'exists:cities,id'],

@@ -1,4 +1,5 @@
 <script setup>
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 import axios from 'axios'
 import { Link, router } from '@inertiajs/vue3'
 import { useDebounceFn } from '@vueuse/core'
@@ -191,7 +192,7 @@ function toggleUnscheduled(checked) {
     if (checked) draftFilters.delivery_date = ''
 }
 function buildingsLabel(order) {
-    return (order.buildings || []).map(building => [building.city?.name, building.address].filter(Boolean).join(', ')).join(' · ')
+    return (order.buildings || []).map(building => [building.city?.name, building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ')).join(' · ')
 }
 function statusesChanged(statuses) {
     options.statuses = statuses

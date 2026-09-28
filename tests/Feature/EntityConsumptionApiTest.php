@@ -52,7 +52,15 @@ class EntityConsumptionApiTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('city_id')->nullable();
         });
+        Schema::create('apartments', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('building_id');
+            $table->string('number');
+            $table->string('type');
+            $table->timestamps();
+        });
         Schema::create('building_entities', function (Blueprint $table): void {
+            $table->unsignedBigInteger('apartment_id')->nullable();
             $table->unsignedBigInteger('building_id');
             $table->unsignedBigInteger('entity_id');
         });

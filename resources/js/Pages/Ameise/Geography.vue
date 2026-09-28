@@ -3,6 +3,7 @@ import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {onMounted, ref} from "vue";
 import axios from "axios";
 import {useForm} from "@inertiajs/vue3";
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
 defineOptions({
     layout: VerwalterLayout,
 })
@@ -222,6 +223,7 @@ function storeBuilding(){
                                                                         {{building.city.region.name}}
                                                                     </v-list-item-subtitle>
                                                                     {{building.address}}
+                                                                    <ApartmentSelector :building="building" :selectable="false" class="mt-2" />
                                                                 </v-list-item>
                                                             </v-list>
                                                         </v-col>

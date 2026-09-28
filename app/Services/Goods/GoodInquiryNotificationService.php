@@ -105,7 +105,7 @@ class GoodInquiryNotificationService
             'Email: '.$inquiry->customer_email,
             $inquiry->customer_phone ? 'Телефон: '.$inquiry->customer_phone : null,
             $inquiry->company ? 'Компания: '.$inquiry->company : null,
-            'Доставка: '.Str::limit(implode(', ', array_filter([$inquiry->delivery_city, $inquiry->delivery_address])) ?: 'уточнить', 300),
+            'Доставка: '.Str::limit(implode(', ', array_filter([$inquiry->delivery_city, $inquiry->delivery_address, $inquiry->deliveryApartmentLabel()])) ?: 'уточнить', 300),
             'Ответить: '.($inquiry->preferred_contact === 'max' ? 'MAX '.$inquiry->max_contact : 'по email'),
             $inquiry->comment ? 'Комментарий: '.Str::limit($inquiry->comment, 700) : null,
             $inquiry->order ? 'Заказ: '.$inquiry->order->number.' '.route('Ameise.orders.show', $inquiry->order) : null,

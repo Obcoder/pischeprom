@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class CustomerOrderController extends Controller
@@ -32,6 +33,8 @@ class CustomerOrderController extends Controller
             'items.*.good_id' => ['required', 'integer', 'exists:goods,id'],
             'items.*.quantity' => ['nullable', 'numeric', 'min:1', 'max:999'],
             'delivery_address' => ['required', 'string', 'max:3000'],
+            'delivery_apartment_number' => ['nullable', 'string', 'max:50'],
+            'delivery_apartment_type' => ['nullable', Rule::in(['apartment', 'office', 'premise'])],
             'preferred_delivery_time' => ['required', 'string', 'max:255'],
             'customer_phone' => ['required', 'string', 'max:64'],
             'customer_phone_source' => ['nullable', 'string', 'in:profile,manual'],
@@ -85,9 +88,14 @@ class CustomerOrderController extends Controller
                 'city_id' => $user->city_id,
                 'address' => $address,
             ]);
+            $apartmentNumber = trim((string) ($validated['delivery_apartment_number'] ?? ''));
+            $apartment = $apartmentNumber !== '' ? $building->apartments()->firstOrCreate([
+                'number' => $apartmentNumber,
+                'type' => $validated['delivery_apartment_type'] ?? 'apartment',
+            ]) : null;
 
-            if ($canManageEntity) {
-                $entity->buildings()->syncWithoutDetaching([$building->id]);
+            if ($canManageEntity && ! $entity->buildings()->whereKey($building->id)->exists()) {
+                $entity->buildings()->attach($building->id, ['apartment_id' => $apartment?->id]);
             }
 
             $order = Order::query()->create([
@@ -107,6 +115,7 @@ class CustomerOrderController extends Controller
             $order->buildings()->attach($building->id, [
                 'role' => 'delivery',
                 'position' => 0,
+                'apartment_id' => $apartment?->id,
             ]);
 
             return $order->load([

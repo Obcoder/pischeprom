@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
 
 export function useEntityForm() {
     const initialState = () => ({
@@ -13,6 +14,7 @@ export function useEntityForm() {
         country_id: null,
         dadata_raw: null,
         buildings: [],
+        building_apartments: {},
         cities: [],
         emails: [],
         telephones: [],
@@ -38,6 +40,7 @@ export function useEntityForm() {
         form.country_id = entity.country_id ?? null
         form.dadata_raw = entity.dadata_raw ?? null
         form.buildings = entity.buildings?.map(x => x.id) ?? []
+        form.building_apartments = Object.fromEntries((entity.buildings || []).map(building => [building.id, selectedApartment(building)?.id || null]))
         form.cities = entity.cities?.map(x => x.id) ?? []
         form.emails = entity.emails?.map(x => x.id) ?? []
         form.telephones = entity.telephones?.map(x => x.id) ?? []
@@ -56,6 +59,7 @@ export function useEntityForm() {
         country_id: form.country_id,
         dadata_raw: form.dadata_raw,
         buildings: form.buildings,
+        building_apartments: selectedBuildingApartments(form.buildings, form.building_apartments),
         cities: form.cities,
         emails: form.emails,
         telephones: form.telephones,

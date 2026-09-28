@@ -103,6 +103,8 @@ class MobileOrderFulfillmentTest extends TestCase
                 ->assertJsonCount(2, $path.'.delivery_addresses')
                 ->assertJsonPath($path.'.delivery_addresses.0.id', $legacy->id)
                 ->assertJsonPath($path.'.delivery_addresses.0.city', null)
+                ->assertJsonPath($path.'.delivery_addresses.0.apartment_id', null)
+                ->assertJsonPath($path.'.delivery_addresses.0.apartment', null)
                 ->assertJsonPath($path.'.delivery_addresses.1.id', $delivery->id)
                 ->assertJsonPath($path.'.delivery_addresses.1.city', 'Самара')
                 ->assertJsonPath($path.'.delivery_addresses.1.full_address', $fullAddress)
@@ -111,6 +113,107 @@ class MobileOrderFulfillmentTest extends TestCase
                 ->assertJsonPath($path.'.contact_telephone.number', '8 (917) 123-45-67')
                 ->assertJsonPath($path.'.contact_telephone.dial_number', '+79171234567');
         }
+    }
+
+    public function test_list_details_and_map_show_the_selected_apartment_but_navigate_to_the_building(): void
+    {
+        $building = Building::query()->create(['address' => 'Ленина, 10']);
+        $order = $this->order();
+        $order->buildings()->attach($building->id, ['role' => 'delivery', 'position' => 0]);
+
+        foreach (['apartment' => 'кв. 12А', 'office' => 'офис 12А', 'premise' => 'пом. 12А'] as $type => $label) {
+            $apartment = $building->apartments()->create(['number' => '12А', 'type' => $type]);
+            $order->buildings()->updateExistingPivot($building->id, ['apartment_id' => $apartment->id]);
+
+            foreach ([[$this->url($order), 'data'], ['/api/mobile/v1/orders', 'data.0'], ['/api/mobile/v1/delivery-map/orders', 'data.0']] as [$url, $path]) {
+                $this->getJson($url)->assertOk()
+                    ->assertJsonPath($path.'.delivery_addresses.0.apartment_id', $apartment->id)
+                    ->assertJsonPath($path.'.delivery_addresses.0.apartment.id', $apartment->id)
+                    ->assertJsonPath($path.'.delivery_addresses.0.apartment.number', '12А')
+                    ->assertJsonPath($path.'.delivery_addresses.0.apartment.type', $type)
+                    ->assertJsonPath($path.'.delivery_addresses.0.apartment.label', $label)
+                    ->assertJsonPath($path.'.delivery_addresses.0.full_address', 'Ленина, 10, '.$label)
+                    ->assertJsonPath($path.'.delivery_addresses.0.building_address', 'Ленина, 10')
+                    ->assertJsonPath($path.'.delivery_addresses.0.yandex_maps_url', 'https://yandex.ru/maps/?text='.rawurlencode('Ленина, 10'));
+            }
+        }
+    }
+
+    public function test_apartment_selection_and_number_edits_require_preparation_again(): void
+    {
+        $order = $this->order();
+        $building = Building::query()->create(['address' => 'Ленина, 10']);
+        $apartment = $building->apartments()->create(['number' => '12', 'type' => 'apartment']);
+        $office = $building->apartments()->create(['number' => '21', 'type' => 'office']);
+        $order->buildings()->attach($building->id, ['role' => 'delivery', 'position' => 0, 'apartment_id' => $apartment->id]);
+
+        foreach ([
+            fn () => $order->buildings()->updateExistingPivot($building->id, ['apartment_id' => $office->id]),
+            fn () => $office->update(['number' => '22']),
+            fn () => $office->update(['type' => 'premise']),
+            fn () => $order->buildings()->updateExistingPivot($building->id, ['apartment_id' => null]),
+        ] as $change) {
+            $prepared = $this->prepare($order);
+            $change();
+            $this->postJson($this->url($order).'/ship', ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()])
+                ->assertConflict();
+            $current = $this->getJson($this->url($order))->assertOk()
+                ->assertJsonPath('data.workflow_status', 'awaiting')->assertJsonPath('data.can_ship', false)->json('data');
+            $this->assertNotSame($prepared['version'], $current['version']);
+            $this->assertContains('order_changed', array_column($current['warnings'], 'code'));
+        }
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_apartment_crud_edits_move_affected_orders_from_ready_to_awaiting_in_mobile_and_map_filters(): void
+    {
+        $this->actingAs($this->employee);
+        $mobileToken = $this->employee->createToken('mobile:apartment-edit', ['mobile:orders'], now()->addHour())->plainTextToken;
+        $order = $this->order();
+        $building = Building::query()->create(['address' => 'Мира, 1']);
+        $apartment = $building->apartments()->create(['number' => '12', 'type' => 'apartment']);
+        $order->buildings()->attach($building->id, ['role' => 'delivery', 'position' => 0, 'apartment_id' => $apartment->id]);
+        $unaffected = $this->order();
+        $unaffected->buildings()->attach($building->id, ['role' => 'delivery', 'position' => 0]);
+        $unaffectedPrepared = $this->prepare($unaffected);
+        $prepared = $this->prepare($order);
+        $apartmentUrl = "/api/buildings/{$building->id}/apartments/{$apartment->id}";
+
+        // Saving unchanged data or rejecting deletion must keep a valid assembly intact.
+        $this->withHeader('Authorization', '');
+        $this->putJson($apartmentUrl, ['number' => '12', 'type' => 'apartment'])->assertOk();
+        $this->deleteJson($apartmentUrl)->assertConflict();
+        $this->withToken($mobileToken);
+        $this->getJson($this->url($order))->assertOk()
+            ->assertJsonPath('data.workflow_status', 'ready')
+            ->assertJsonPath('data.version', $prepared['version']);
+
+        foreach ([['number' => '13', 'type' => 'apartment'], ['number' => '13', 'type' => 'office']] as $attributes) {
+            $prepared = $this->prepare($order);
+            $this->withHeader('Authorization', '');
+            $this->putJson($apartmentUrl, $attributes)->assertOk();
+            $this->withToken($mobileToken);
+            $this->assertNull($order->fresh()->prepared_at);
+            $this->assertNotNull($order->fresh()->preparation_invalidated_at);
+
+            foreach (['/api/mobile/v1/orders', '/api/mobile/v1/delivery-map/orders'] as $endpoint) {
+                $this->getJson($endpoint.'?filter=awaiting')->assertOk()
+                    ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $order->id);
+                $this->getJson($endpoint.'?filter=ready')->assertOk()
+                    ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.id', $unaffected->id);
+            }
+            $current = $this->getJson($this->url($order))->assertOk()
+                ->assertJsonPath('data.workflow_status', 'awaiting')->assertJsonPath('data.can_ship', false)->json('data');
+            $this->assertContains('order_changed', array_column($current['warnings'], 'code'));
+            $this->postJson($this->url($order).'/ship', ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()])
+                ->assertConflict();
+            $this->getJson($this->url($unaffected))->assertOk()
+                ->assertJsonPath('data.workflow_status', 'ready')
+                ->assertJsonPath('data.version', $unaffectedPrepared['version']);
+        }
+
+        $this->assertDatabaseCount('sales', 0);
     }
 
     public function test_missing_delivery_contacts_are_not_replaced_with_arbitrary_customer_data(): void

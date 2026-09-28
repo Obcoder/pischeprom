@@ -16,8 +16,8 @@
 <p>
     Адрес доставки:
     <strong>
-        {{ $order->buildings->first(fn ($building) => $building->pivot?->role === 'delivery')?->address
-            ?: $order->buildings->first()?->address
+        {{ $order->buildings->first(fn ($building) => $building->pivot?->role === 'delivery')?->address_with_apartment
+            ?: $order->buildings->first()?->address_with_apartment
             ?: 'не указан' }}
     </strong><br>
     Удобное время: <strong>{{ $order->preferred_delivery_time ?: 'не указано' }}</strong>

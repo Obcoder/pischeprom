@@ -52,7 +52,7 @@ class Entity extends Model
 
     public function buildings(): BelongsToMany
     {
-        return $this->belongsToMany(Building::class, 'building_entities');
+        return $this->belongsToMany(Building::class, 'building_entities')->withPivot('apartment_id');
     }
 
     public function chats(): BelongsToMany

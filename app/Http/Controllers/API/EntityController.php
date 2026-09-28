@@ -7,6 +7,7 @@ use App\Http\Requests\Entity\StoreEntityRequest;
 use App\Http\Requests\Entity\UpdateEntityRequest;
 use App\Http\Resources\EntityResource;
 use App\Models\Entity;
+use App\Services\Buildings\BuildingApartmentSelection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -218,7 +219,10 @@ class EntityController extends Controller
                 continue;
             }
 
-            $entity->{$relation}()->sync($this->relationIds($request, $relation));
+            $ids = $this->relationIds($request, $relation);
+            $entity->{$relation}()->sync($relation === 'buildings'
+                ? app(BuildingApartmentSelection::class)->forBuildings($ids, $request->input('building_apartments', []))
+                : $ids);
         }
     }
 

@@ -1,5 +1,7 @@
 <script setup>
 import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
+import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import { buildingApartmentLabel, selectedBuildingApartments } from '@/utils/buildingApartments'
 import VerwalterLayout from "@/Layouts/VerwalterLayout.vue";
 import {computed, onBeforeUnmount, onMounted, reactive, ref, toRefs} from "vue";
 import axios from "axios";
@@ -125,11 +127,13 @@ const showFormEntity = ref(false);
 const formEntity = useForm({
     name: null,
     entity_classification_id: null,
-    buildings: null,
+    buildings: [],
+    building_apartments: {},
     telephones: null,
     cities: null,
 })
 function storeEntity(){
+    formEntity.building_apartments = selectedBuildingApartments(formEntity.buildings, formEntity.building_apartments)
     formEntity.post(route('web.entity.store'), {
         replace: false,
         preserveState: true,
@@ -626,6 +630,13 @@ onBeforeUnmount(() => {
                                                                                 density="comfortable"
                                                                                 color="teal"
                                                                 ></v-autocomplete>
+                                                                <ApartmentSelector
+                                                                    v-for="buildingId in formEntity.buildings"
+                                                                    :key="buildingId"
+                                                                    v-model="formEntity.building_apartments[buildingId]"
+                                                                    :building="buildings.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
+                                                                    class="mt-2"
+                                                                />
                                                             </v-col>
                                                         </v-row>
                                                     </v-form>
@@ -668,7 +679,7 @@ onBeforeUnmount(() => {
                                                 <div v-for="building in item.buildings"
                                                      class="font-Typingrad text-[10px]">
                                                     <div>{{building.city.name}}</div>
-                                                    <div>{{building.address}}</div>
+                                                    <div>{{ [building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</div>
                                                 </div>
                                             </template>
                                         </v-data-table>

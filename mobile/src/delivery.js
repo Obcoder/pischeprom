@@ -3,6 +3,10 @@ export function telephoneHref(telephone) {
     return /^\+?\d{3,20}$/.test(number) ? `tel:${number}` : null
 }
 
+export function deliveryBuildingAddress(address) {
+    return String(address?.building_address || address?.full_address || address?.address || '').trim()
+}
+
 export function deliveryMapUrl(address) {
     if (address?.yandex_maps_url) {
         try {
@@ -11,6 +15,6 @@ export function deliveryMapUrl(address) {
                 && !url.username && !url.password) return url.href
         } catch { /* A saved address can still be opened as a search. */ }
     }
-    const query = String(address?.full_address || address?.address || '').trim()
+    const query = deliveryBuildingAddress(address)
     return query ? `https://yandex.ru/maps/?text=${encodeURIComponent(query)}` : null
 }

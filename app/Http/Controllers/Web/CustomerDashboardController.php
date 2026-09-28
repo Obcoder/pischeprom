@@ -90,8 +90,8 @@ class CustomerDashboardController extends Controller
                     'currency_code' => $order->currency_code,
                     'delivery_address' => $order->buildings
                         ->first(fn ($building) => $building->pivot?->role === 'delivery')
-                        ?->address
-                        ?: $order->buildings->first()?->address,
+                        ?->address_with_apartment
+                        ?: $order->buildings->first()?->address_with_apartment,
                     'preferred_delivery_time' => $order->preferred_delivery_time,
                     'submitted_at' => $order->submitted_at?->toIso8601String(),
                     'items' => $order->items->map(fn ($item) => [

@@ -298,6 +298,8 @@ class AvitoCrmController extends Controller
             'building_type_id' => ['nullable', 'integer', 'exists:building_types,id'],
             'address' => ['required', 'string', 'max:255'],
             'postcode' => ['nullable', 'string', 'max:32'],
+            'delivery_apartment_number' => ['nullable', 'string', 'max:50'],
+            'delivery_apartment_type' => ['nullable', 'in:apartment,office,premise'],
         ]);
         $candidate = filled($validated['candidate_id'] ?? null)
             ? AvitoContactCandidate::query()->findOrFail($validated['candidate_id'])
@@ -352,6 +354,8 @@ class AvitoCrmController extends Controller
             'currency_code' => ['required', 'string', 'min:3', 'max:8'],
             'building_ids' => ['nullable', 'array'],
             'building_ids.*' => ['integer', 'distinct', 'exists:buildings,id'],
+            'building_apartments' => ['nullable', 'array'],
+            'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
             'source_message_id' => ['nullable', 'integer', 'exists:avito_messages,id'],
             'send_confirmation' => ['nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
@@ -441,11 +445,14 @@ class AvitoCrmController extends Controller
             'buildings' => $entity->buildings->map(fn ($building) => [
                 'id' => $building->id,
                 'address' => $building->address,
+                'apartments' => $building->apartments,
+                'apartment_id' => $building->pivot?->apartment_id,
+                'apartment' => $building->apartment,
                 'postcode' => $building->postcode,
                 'city' => $building->city?->name,
                 'region' => $building->city?->region?->name,
                 'building_type' => $building->buildingType?->name,
-                'label' => collect([$building->city?->name, $building->address])->filter()->implode(', '),
+                'label' => collect([$building->city?->name, $building->address_with_apartment])->filter()->implode(', '),
             ])->values(),
         ];
     }

@@ -89,6 +89,7 @@ jobs:
         run: |
           vendor/bin/pint --test \
             app/Actions/Fortify/CreateNewUser.php \
+            app/Http/Controllers/API/ApartmentController.php \
             app/Http/Controllers/API/OrderController.php \
             app/Http/Controllers/API/OrderStatusController.php \
             app/Http/Controllers/API/UnitController.php \
@@ -100,6 +101,7 @@ jobs:
             app/Http/Middleware/HandleInertiaRequests.php \
             app/Http/Resources/OrderResource.php \
             app/Mail/CustomerOrderCreatedMail.php \
+            app/Models/Apartment.php \
             app/Models/Building.php \
             app/Models/Entity.php \
             app/Models/Good.php \
@@ -109,6 +111,7 @@ jobs:
             app/Models/Unit.php \
             app/Models/User.php \
             app/Services/Entities/UserEntityResolver.php \
+            app/Services/Buildings/BuildingApartmentSelection.php \
             app/Services/Orders/CustomerOrderNotificationService.php \
             app/Services/Orders/OrderWriter.php \
             database/migrations/2025_04_14_213002_add_columns_domain_and_is_in_abuse_i_p_d_b_to_emails_table.php \
@@ -119,6 +122,10 @@ jobs:
             database/migrations/2026_06_29_000004_add_geo_point_to_gis_tables.php \
             database/migrations/2026_07_05_000010_create_stock_movements_table.php \
             database/migrations/2026_07_25_130000_normalize_orders_architecture.php \
+            database/migrations/2026_09_28_120000_create_apartments_and_building_selections.php \
+            database/migrations/2026_09_28_121000_add_apartment_details_to_good_inquiries.php \
+            tests/Feature/BuildingApartmentManagementTest.php \
+            tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/RegistrationTest.php \
@@ -484,6 +491,8 @@ jobs:
             tests/Feature/OrderManagementTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/Mobile \
+            tests/Feature/BuildingApartmentManagementTest.php \
+            tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \

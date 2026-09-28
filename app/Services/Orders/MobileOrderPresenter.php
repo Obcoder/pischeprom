@@ -126,14 +126,19 @@ class MobileOrderPresenter
         $address = trim((string) $building->address);
         $city = trim((string) $building->city?->name);
         $region = trim((string) $building->city?->region?->name);
-        $fullAddress = collect([$region, $city, $address])->filter()->unique()->implode(', ');
+        $buildingAddress = collect([$region, $city, $address])->filter()->unique()->implode(', ');
+        $apartment = $building->apartment;
+        $fullAddress = collect([$buildingAddress, $apartment?->label])->filter()->implode(', ');
 
         return [
             'id' => $building->id,
             'address' => $address,
             'city' => $city !== '' ? $city : null,
+            'apartment_id' => $apartment?->id,
+            'apartment' => $apartment?->only(['id', 'number', 'type', 'label']),
+            'building_address' => $buildingAddress,
             'full_address' => $fullAddress,
-            'yandex_maps_url' => 'https://yandex.ru/maps/?text='.rawurlencode($fullAddress),
+            'yandex_maps_url' => 'https://yandex.ru/maps/?text='.rawurlencode($buildingAddress),
         ];
     }
 
