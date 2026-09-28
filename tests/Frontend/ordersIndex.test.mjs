@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
+import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 function pageHarness() {
     const filename = fileURLToPath(new URL('../../resources/js/Pages/Ameise/Orders/Index.vue', import.meta.url))
@@ -15,7 +16,7 @@ function pageHarness() {
     assert.deepEqual(template.errors, [])
     const requests = [], disposal = []
     const environment = {
-        ...Vue, Link: {}, router: {}, VerwalterLayout: {}, OrderStatusesDialog: {},
+        ...Vue, Link: {}, VerwalterLayout: {}, OrderStatusesDialog: {}, OrderDetailsDialog: {},
         buildingApartmentLabel,
         route: () => '', useHead: () => {}, useDebounceFn: callback => callback,
         onMounted: () => {}, onBeforeUnmount: callback => disposal.push(callback),
@@ -33,8 +34,58 @@ function pageHarness() {
     const component = new Function('env', `with(env){${script}}`)(environment)
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup({ permissions: {} }, { expose: () => {} }))
-    return { api, requests, dispose() { disposal.forEach(callback => callback()); scope.stop() } }
+    return { api, requests, render: templateRenderer(template, api, { permissions: {} }), dispose() { disposal.forEach(callback => callback()); scope.stop() } }
 }
+
+test('order number opens details over the filtered list and closing preserves the current page', async t => {
+    const harness = pageHarness()
+    t.after(() => harness.dispose())
+    const { api, requests, render } = harness
+    api.filters.status_id = 3
+    api.filters.page = 2
+    const loaded = api.fetchOrders()
+    requests[0].resolve({ data: [{ id: 22, number: 'ORDER-22' }], meta: { current_page: 2, last_page: 3, total: 60 } })
+    await loaded
+    const number = findVNode(render(), node => hasClass(node, 'orders-ledger__number'))
+    assert.equal(number.type, 'button')
+    assert.equal(number.props['aria-haspopup'], 'dialog')
+    assert.equal(number.props.href, undefined)
+    let stopped = false
+    number.props.onClick({ stopPropagation: () => { stopped = true } })
+    assert.equal(stopped, true)
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    assert.equal(dialog.props.modelValue, true)
+    assert.equal(dialog.props['order-id'], 22)
+    dialog.props['onUpdate:modelValue'](false)
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.equal(api.filters.status_id, 3)
+    assert.equal(api.filters.page, 2)
+    assert.equal(api.meta.current_page, 2)
+    assert.deepEqual(api.orders.value.map(order => order.id), [22])
+    assert.equal(requests.length, 1)
+})
+
+test('order rows support Enter and Space while keyboard events on nested controls remain independent', t => {
+    const harness = pageHarness()
+    t.after(() => harness.dispose())
+    const { api, render } = harness
+    api.orders.value = [{ id: 11 }, { id: 22 }]
+    const first = findVNode(render(), node => node.type === 'tr' && node.key === 11)
+    const second = findVNode(render(), node => node.type === 'tr' && node.key === 22)
+    const dispatch = (row, key, nested = false) => {
+        let prevented = false
+        const event = { key, target: nested ? {} : row, currentTarget: row, preventDefault: () => { prevented = true } }
+        for (const handler of Array.isArray(row.props.onKeydown) ? row.props.onKeydown : [row.props.onKeydown]) handler(event)
+        return prevented
+    }
+    assert.equal(dispatch(first, 'Enter', true), false)
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.equal(dispatch(first, 'Enter'), true)
+    assert.equal(api.selectedOrderId.value, 11)
+    assert.equal(dispatch(second, ' '), true)
+    assert.equal(api.selectedOrderId.value, 22)
+    assert.equal(api.orderDetailsOpen.value, true)
+})
 
 test('order rows retain apartment numbers for each delivery building', t => {
     const harness = pageHarness()

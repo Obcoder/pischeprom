@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 function dialogHarness(initialProps = {}) {
     const filename = fileURLToPath(new URL('../../resources/js/Components/Dictionaries/Entities/EntityOrdersDialog.vue', import.meta.url))
@@ -23,8 +24,7 @@ function dialogHarness(initialProps = {}) {
     const emitted = []
     const environment = {
         ...Vue,
-        Link: {},
-        route: (name, id) => `/${name}/${id}`,
+        OrderDetailsDialog: {},
         onBeforeUnmount: callback => disposal.push(callback),
         axios: {
             get(url, options) {
@@ -48,7 +48,7 @@ function dialogHarness(initialProps = {}) {
     }))
 
     return {
-        api, props, requests, emitted,
+        api, props, requests, emitted, render: templateRenderer(template, api, props),
         dispose() {
             disposal.forEach(callback => callback())
             scope.stop()
@@ -79,7 +79,41 @@ test('entity orders opens lazily, requests all statuses and paginates using the 
     requests[1].resolve({ data: [{ id: 12 }], meta: { current_page: 2, last_page: 2, total: 26 } })
     await nextPage
     assert.equal(api.page.value, 2)
-    assert.equal(api.orderUrl(api.orders.value[0]), '/Ameise.orders.show/12')
+})
+
+test('order details opens over Entity history, preserves pagination, and closes when the Entity changes', async t => {
+    const harness = dialogHarness({ modelValue: true, entity: { id: 7 } })
+    t.after(() => harness.dispose())
+    const { api, props, requests, render } = harness
+    requests[0].resolve({ data: [{ id: 12 }], meta: { current_page: 2, last_page: 3, total: 51 } })
+    await Vue.nextTick()
+    const number = findVNode(render(), node => hasClass(node, 'entity-orders-dialog__number'))
+    assert.equal(number.type, 'button')
+    assert.equal(number.props.href, undefined)
+    number.props.onClick()
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    assert.equal(dialog.props.modelValue, true)
+    assert.equal(dialog.props['order-id'], 12)
+    dialog.props['onUpdate:modelValue'](false)
+    assert.equal(api.page.value, 2)
+    assert.equal(api.total.value, 51)
+    assert.equal(requests.length, 1)
+    number.props.onClick()
+    props.entity = { id: 8 }
+    await Vue.nextTick()
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.equal(api.selectedOrderId.value, null)
+    assert.equal(requests[1].options.params.entity_id, 8)
+})
+
+test('closing Entity history also closes its order details immediately', async t => {
+    const harness = dialogHarness({ modelValue: true, entity: { id: 7 } })
+    t.after(() => harness.dispose())
+    harness.api.openOrder({ id: 12 })
+    harness.api.updateDialog(false)
+    assert.equal(harness.api.orderDetailsOpen.value, false)
+    assert.equal(harness.api.selectedOrderId.value, null)
+    assert.equal(harness.requests[0].options.signal.aborted, true)
 })
 
 test('changing Entity aborts the previous request and ignores its late response', async t => {

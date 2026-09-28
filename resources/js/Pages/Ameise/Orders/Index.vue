@@ -1,13 +1,14 @@
 <script setup>
 import { buildingApartmentLabel } from '@/utils/buildingApartments'
 import axios from 'axios'
-import { Link, router } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import { useDebounceFn } from '@vueuse/core'
 import { useHead } from '@unhead/vue'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import OrderStatusesDialog from '@/Components/Orders/OrderStatusesDialog.vue'
+import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 
 defineOptions({ layout: VerwalterLayout })
 defineProps({
@@ -23,6 +24,8 @@ const errorMessage = ref('')
 const optionsError = ref('')
 const filterMenuOpen = ref(false)
 const statusesOpen = ref(false)
+const orderDetailsOpen = ref(false)
+const selectedOrderId = ref(null)
 const options = reactive({ statuses: [], entities: [], buildings: [], goods: [] })
 const meta = reactive({ current_page: 1, last_page: 1, per_page: 25, total: 0 })
 const emptyFilters = () => ({
@@ -151,16 +154,15 @@ function goToPage(page) {
     filters.page = target
     fetchOrders()
 }
-function orderUrl(order) {
-    try { return route('Ameise.orders.show', order.id) }
-    catch { return `/Ameise/orders/${order.id}` }
-}
 function goodUrl(good) {
     if (!good?.id) return '#'
     try { return route('Ameise.good.show', good.id) }
     catch { return `/Ameise/goods/${good.id}` }
 }
-function openOrder(order) { router.visit(orderUrl(order)) }
+function openOrder(order) {
+    selectedOrderId.value = order.id
+    orderDetailsOpen.value = true
+}
 function formatDate(value) {
     if (!value) return '—'
     const date = new Date(value)
@@ -300,8 +302,8 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                         </th>
                     </tr></thead>
                     <tbody v-if="orders.length" :class="{ 'is-loading': loading }">
-                        <tr v-for="order in orders" :key="order.id" tabindex="0" @click="openOrder(order)" @keydown.enter.self.prevent="openOrder(order)">
-                            <td><Link :href="orderUrl(order)" class="orders-ledger__number" @click.stop>{{ order.number || `#${order.id}` }}</Link><small v-if="order.internal_comment" class="orders-ledger__comment" :title="order.internal_comment"><v-icon icon="mdi-text-box-outline" size="12" />{{ order.internal_comment }}</small></td>
+                        <tr v-for="order in orders" :key="order.id" tabindex="0" @click="openOrder(order)" @keydown.enter.self.prevent="openOrder(order)" @keydown.space.self.prevent="openOrder(order)">
+                            <td><button type="button" class="orders-ledger__number" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number || `#${order.id}`}`" @click.stop="openOrder(order)">{{ order.number || `#${order.id}` }}</button><small v-if="order.internal_comment" class="orders-ledger__comment" :title="order.internal_comment"><v-icon icon="mdi-text-box-outline" size="12" />{{ order.internal_comment }}</small></td>
                             <td><span class="orders-ledger__status" :style="{ '--status-color': order.status?.color || '#64748b' }">{{ order.status?.name || '—' }}</span></td>
                             <td><strong class="orders-ledger__entity" :title="order.entity?.name">{{ order.entity?.name || 'Без контрагента' }}</strong><small v-if="order.entity?.INN">ИНН {{ order.entity.INN }}</small></td>
                             <td><div class="orders-ledger__goods">
@@ -329,6 +331,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
             </footer>
         </section>
         <OrderStatusesDialog v-model="statusesOpen" :permissions="permissions" @changed="statusesChanged" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" />
     </main>
 </template>
 
@@ -386,6 +389,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-ledger td > small, .orders-ledger__goods small { margin-top: 2px; color: #87909b; font-size: 9px; }
 .orders-ledger__number { color: #384556; font-size: 10px; font-weight: 750; text-decoration: none; }
 .orders-ledger__number:hover { text-decoration: underline; }
+.orders-ledger__number:focus-visible { outline: 2px solid #9e6868; outline-offset: 2px; }
 .orders-ledger__number, .orders-ledger__money, .orders-ledger__date { font-variant-numeric: tabular-nums; }
 .orders-ledger__entity, .orders-ledger__comment, .orders-ledger__building { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orders-ledger__comment .v-icon { margin-right: 3px; }

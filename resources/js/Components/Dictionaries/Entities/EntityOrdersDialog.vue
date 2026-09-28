@@ -1,8 +1,7 @@
 <script setup>
 import axios from 'axios'
-import { Link } from '@inertiajs/vue3'
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { route } from 'ziggy-js'
+import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -17,6 +16,8 @@ const page = ref(1)
 const requestedPage = ref(1)
 const lastPage = ref(1)
 const total = ref(0)
+const orderDetailsOpen = ref(false)
+const selectedOrderId = ref(null)
 let controller = null
 let requestId = 0
 let disposed = false
@@ -29,7 +30,11 @@ function cancelRequest() {
 }
 
 function updateDialog(value) {
-    if (!value) cancelRequest()
+    if (!value) {
+        cancelRequest()
+        orderDetailsOpen.value = false
+        selectedOrderId.value = null
+    }
     emit('update:modelValue', value)
 }
 
@@ -81,12 +86,9 @@ async function loadOrders(targetPage = page.value) {
     }
 }
 
-function orderUrl(order) {
-    try {
-        return route('Ameise.orders.show', order.id)
-    } catch {
-        return `/Ameise/orders/${order.id}`
-    }
+function openOrder(order) {
+    selectedOrderId.value = order.id
+    orderDetailsOpen.value = true
 }
 
 function formatDate(value) {
@@ -111,6 +113,8 @@ watch(
         requestedPage.value = 1
         lastPage.value = 1
         total.value = 0
+        orderDetailsOpen.value = false
+        selectedOrderId.value = null
         loadOrders()
     },
     { immediate: true },
@@ -153,7 +157,7 @@ onBeforeUnmount(() => {
                     </thead>
                     <tbody>
                         <tr v-for="order in orders" :key="order.id">
-                            <td><Link :href="orderUrl(order)">{{ order.number || `#${order.id}` }}</Link></td>
+                            <td><button type="button" class="entity-orders-dialog__number" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number || `#${order.id}`}`" @click="openOrder(order)">{{ order.number || `#${order.id}` }}</button></td>
                             <td>
                                 <span class="entity-orders-dialog__status">
                                     <span class="entity-orders-dialog__status-dot" :style="{ backgroundColor: order.status?.color || '#94a3b8' }" />
@@ -173,6 +177,7 @@ onBeforeUnmount(() => {
                 <v-btn icon="mdi-chevron-right" size="x-small" variant="text" :disabled="loading || page >= lastPage" aria-label="Следующая страница заказов" @click="loadOrders(page + 1)" />
             </div>
         </v-card>
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" />
     </v-dialog>
 </template>
 
@@ -236,14 +241,19 @@ onBeforeUnmount(() => {
     color: rgba(255, 255, 255, 0.7);
 }
 
-.entity-orders-dialog__body a {
+.entity-orders-dialog__number {
     color: #eaf4ff;
     font-weight: 700;
     text-decoration: none;
 }
 
-.entity-orders-dialog__body a:hover {
+.entity-orders-dialog__number:hover {
     text-decoration: underline;
+}
+
+.entity-orders-dialog__number:focus-visible {
+    outline: 2px solid #eaf4ff;
+    outline-offset: 2px;
 }
 
 .entity-orders-dialog__status {

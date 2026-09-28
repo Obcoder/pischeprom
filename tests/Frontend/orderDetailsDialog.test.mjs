@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
+import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 function dialogHarness(initialProps = {}) {
     const filename = fileURLToPath(new URL('../../resources/js/Components/Orders/OrderDetailsDialog.vue', import.meta.url))
@@ -36,11 +37,11 @@ function dialogHarness(initialProps = {}) {
     }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
-    const props = Vue.reactive({ modelValue: false, orderId: null, ...initialProps })
+    const props = Vue.reactive({ modelValue: false, orderId: null, editable: true, theme: 'light', ...initialProps })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose: () => {}, emit: (...args) => emitted.push(args) }))
     return {
-        api, props, requests, emitted,
+        api, props, requests, emitted, render: templateRenderer(template, api, props),
         dispose() { disposal.forEach(callback => callback()); scope.stop() },
     }
 }
@@ -50,6 +51,20 @@ test('order addresses include the selected apartment or office number', t => {
     t.after(() => harness.dispose())
     assert.equal(harness.api.buildingAddress({ city: { name: 'Москва' }, address: 'Ленина, 10', apartment: { type: 'office', number: '12Б' } }), 'Москва, Ленина, 10, офис 12Б')
     assert.equal(harness.api.buildingAddress({ address: 'Ленина, 10' }), 'Ленина, 10')
+})
+
+test('floating details match the dark workspace and expose a separate explicit edit action', async t => {
+    const harness = dialogHarness({ modelValue: true, orderId: 7, theme: 'dark' })
+    t.after(() => harness.dispose())
+    harness.requests[0].resolve({ data: { id: 7, number: 'PP-7', buildings: [], items: [] } })
+    await Vue.nextTick()
+    const card = findVNode(harness.render(), node => hasClass(node, 'order-details'))
+    assert.equal(card.props.theme, 'dark')
+    assert.ok(hasClass(card, 'order-details--dark'))
+    const edit = findVNode(harness.render(), node => hasClass(node, 'order-details__page-link'))
+    assert.equal(edit.props['aria-label'], 'Редактировать заказ')
+    harness.props.editable = false
+    assert.equal(findVNode(harness.render(), node => hasClass(node, 'order-details__page-link')), null)
 })
 
 test('order details loads lazily and refreshes the same order on each opening', async t => {

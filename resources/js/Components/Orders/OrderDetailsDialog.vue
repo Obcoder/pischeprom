@@ -8,6 +8,8 @@ import { buildingApartmentLabel } from '@/utils/buildingApartments'
 const props = defineProps({
     modelValue: Boolean,
     orderId: { type: [Number, String], default: null },
+    editable: { type: Boolean, default: true },
+    theme: { type: String, default: 'light' },
 })
 const emit = defineEmits(['update:modelValue'])
 const titleId = `order-details-${useId()}`
@@ -123,7 +125,7 @@ onBeforeUnmount(() => {
 
 <template>
     <v-dialog :model-value="modelValue" :aria-labelledby="titleId" max-width="900" scrollable @update:model-value="updateDialog">
-        <v-card class="order-details" theme="light">
+        <v-card class="order-details" :class="{ 'order-details--dark': theme === 'dark' }" :theme="theme">
             <header class="order-details__header">
                 <v-icon class="order-details__symbol" icon="mdi-receipt-text-outline" size="23" />
                 <div class="order-details__heading">
@@ -134,13 +136,13 @@ onBeforeUnmount(() => {
                 <span v-if="order?.status" class="order-details__status">
                     <i :style="{ backgroundColor: order.status.color || '#64748b' }" />{{ order.status.name }}
                 </span>
-                <Link v-if="orderId" :href="orderUrl()" class="order-details__page-link" title="Открыть страницу заказа" aria-label="Открыть страницу заказа">
-                    <v-icon icon="mdi-open-in-new" size="18" />
+                <Link v-if="order && editable" :href="orderUrl()" class="order-details__page-link" title="Редактировать заказ" aria-label="Редактировать заказ">
+                    <v-icon icon="mdi-pencil-outline" size="15" /><span>Редактировать</span>
                 </Link>
-                <v-btn icon="mdi-close" size="small" variant="text" aria-label="Закрыть детали заказа" @click="updateDialog(false)" />
+                <v-btn class="order-details__close" icon="mdi-close" size="small" variant="text" aria-label="Закрыть детали заказа" @click="updateDialog(false)" />
             </header>
 
-            <v-progress-linear v-if="loading" indeterminate color="brown-darken-3" height="2" />
+            <v-progress-linear v-if="loading" indeterminate :color="theme === 'dark' ? 'deep-purple-lighten-2' : 'brown-darken-3'" height="2" />
             <div class="order-details__body" :aria-busy="loading">
                 <div v-if="error" class="order-details__message" role="alert">
                     <v-icon icon="mdi-alert-circle-outline" size="24" />
@@ -210,50 +212,63 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.order-details { max-height: 85vh; border: 1px solid #d7dce2; border-radius: 10px; background: #fff; color: #252b33; }
-.order-details__header { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid #d7dce2; background: #f5f6f8; }
-.order-details__symbol { color: #7f1d1d; }
+.order-details {
+    --details-bg: #fff; --details-text: #252b33; --details-border: #d7dce2;
+    --details-header: #f5f6f8; --details-muted: #737c88; --details-accent: #7f1d1d;
+    --details-hover: #e7ebef; --details-panel: #fbfcfd; --details-total: #185c4b; --details-note: #fffcf5;
+ max-height: 85vh; border: 1px solid var(--details-border); border-radius: 10px; background: var(--details-bg); color: var(--details-text); }
+.order-details--dark {
+    --details-bg: #171a2e; --details-text: #edf0ff; --details-border: #343850;
+    --details-header: #1e223a; --details-muted: #a1a8c4; --details-accent: #b5a0ff;
+    --details-hover: #303550; --details-panel: #1a1e34; --details-total: #9bdfc3; --details-note: #242039;
+    box-shadow: 0 24px 90px #06081499;
+}
+.order-details__header { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--details-border); background: var(--details-header); }
+.order-details__symbol { color: var(--details-accent); }
 .order-details__heading { flex: 1; min-width: 0; }
 .order-details__heading h2 { margin: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 800; line-height: 1.3; }
-.order-details__heading > span { color: #737c88; font-size: 10px; }
-.order-details__status { display: inline-flex; align-items: center; gap: 6px; max-width: 35%; color: #48525e; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
+.order-details__heading > span { color: var(--details-muted); font-size: 10px; }
+.order-details__status { display: inline-flex; align-items: center; gap: 6px; max-width: 35%; color: var(--details-muted); font-size: 11px; font-weight: 700; overflow-wrap: anywhere; }
 .order-details__status i { flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; }
-.order-details__page-link { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; height: 30px; border-radius: 4px; color: #697582; }
-.order-details__page-link:hover { background: #e7ebef; color: #7f1d1d; }
-.order-details__page-link:focus-visible { outline: 2px solid #7f1d1d; outline-offset: 2px; }
+.order-details__page-link { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 5px; height: 30px; padding: 0 7px; font-size: 10px; text-decoration: none; border-radius: 4px; color: var(--details-muted); }
+.order-details__page-link:hover { background: var(--details-hover); color: var(--details-accent); }
+.order-details__page-link:focus-visible { outline: 2px solid var(--details-accent); outline-offset: 2px; }
 .order-details__body { min-height: 130px; overflow: auto; }
-.order-details__message { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; min-height: 160px; padding: 20px; color: #697582; font-size: 13px; text-align: center; }
-.order-details__totals { display: grid; grid-template-columns: 1.4fr 1fr 0.6fr; border-bottom: 1px solid #dfe4e9; background: #fbfcfd; }
-.order-details__totals > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-right: 1px solid #e4e8ec; }
+.order-details__message { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; min-height: 160px; padding: 20px; color: var(--details-muted); font-size: 13px; text-align: center; }
+.order-details__totals { display: grid; grid-template-columns: 1.4fr 1fr 0.6fr; border-bottom: 1px solid var(--details-border); background: var(--details-panel); }
+.order-details__totals > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; border-right: 1px solid var(--details-border); }
 .order-details__totals > div:last-child { border-right: 0; }
-.order-details__totals span { color: #77818c; font-size: 10px; }
+.order-details__totals span { color: var(--details-muted); font-size: 10px; }
 .order-details__totals strong { font-size: 18px; font-variant-numeric: tabular-nums; }
-.order-details__totals > div:first-child strong { color: #185c4b; }
+.order-details__totals > div:first-child strong { color: var(--details-total); }
 .order-details__totals small { font-size: 12px; font-weight: 500; }
-.order-details__info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 14px 16px; border-bottom: 1px solid #dfe4e9; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.order-details h3 { display: flex; align-items: center; gap: 5px; margin: 0 0 6px; color: #727c89; font-size: 10px; font-weight: 700; }
-.order-details__muted { color: #7b8490; font-size: 11px; }
-.order-details__phone { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; color: #7f1d1d; font-variant-numeric: tabular-nums; text-decoration: none; }
+.order-details__info { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 14px 16px; border-bottom: 1px solid var(--details-border); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.order-details h3 { display: flex; align-items: center; gap: 5px; margin: 0 0 6px; color: var(--details-muted); font-size: 10px; font-weight: 700; }
+.order-details__muted { color: var(--details-muted); font-size: 11px; }
+.order-details__phone { display: inline-flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--details-accent); font-variant-numeric: tabular-nums; text-decoration: none; }
 .order-details__phone:hover { text-decoration: underline; }
 .order-details__address { margin-top: 5px; }
 .order-details__multiline { white-space: pre-wrap; }
 .order-details__items { overflow-x: auto; }
 .order-details__items table { width: 100%; border-collapse: collapse; }
-.order-details__items th, .order-details__items td { padding: 9px 12px; border-bottom: 1px solid #e5e9ed; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.order-details__items th { background: #f0f2f4; color: #697582; font-size: 10px; font-weight: 700; }
+.order-details__items th, .order-details__items td { padding: 9px 12px; border-bottom: 1px solid var(--details-border); text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.order-details__items th { background: var(--details-header); color: var(--details-muted); font-size: 10px; font-weight: 700; }
 .order-details__items th:first-child, .order-details__items td:first-child { min-width: 180px; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .order-details__items td strong { font-size: 12px; }
-.order-details__items td small { display: block; margin-top: 2px; color: #7b8490; font-size: 10px; }
+.order-details__items td small { display: block; margin-top: 2px; color: var(--details-muted); font-size: 10px; }
 .order-details__items td:last-child { font-weight: 700; }
-.order-details__items .order-details__empty { text-align: center; color: #7b8490; }
-.order-details__comment { padding: 14px 16px; border-bottom: 1px solid #e5e9ed; background: #fffcf5; }
+.order-details__items .order-details__empty { text-align: center; color: var(--details-muted); }
+.order-details__comment { padding: 14px 16px; border-bottom: 1px solid var(--details-border); background: var(--details-note); }
 .order-details__comment p { margin: 0; font-size: 12px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.order-details__footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 9px 16px; color: #87909b; font-size: 10px; }
+.order-details__footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 9px 16px; color: var(--details-muted); font-size: 10px; }
 @media (max-width: 600px) {
-    .order-details__header { gap: 6px; padding: 8px; flex-wrap: wrap; }
+    .order-details__header { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'heading close' 'status edit'; gap: 6px 8px; padding: 10px 12px; }
+    .order-details__heading { grid-area: heading; }
+    .order-details__close { grid-area: close; justify-self: end; }
+    .order-details__page-link { grid-area: edit; justify-self: end; }
     .order-details__heading h2 { font-size: 14px; }
     .order-details__symbol { display: none; }
-    .order-details__status { max-width: 30%; font-size: 10px; }
+    .order-details__status { grid-area: status; max-width: 100%; font-size: 10px; }
     .order-details__totals > div { padding: 10px; }
     .order-details__totals strong { font-size: 15px; }
     .order-details__info { grid-template-columns: 1fr; gap: 14px; padding: 12px; }

@@ -88,14 +88,6 @@ function entityUrl(entityId) {
     }
 }
 
-function orderUrl(orderId) {
-    try {
-        return route('Ameise.orders.show', orderId)
-    } catch (error) {
-        return `/Ameise/orders/${orderId}`
-    }
-}
-
 function goodUrl(good) {
     if (!good?.id) {
         return '#'
@@ -244,7 +236,7 @@ useHead({
                             <th scope="col">Entity / Заказ</th>
                             <th scope="col">Товары</th>
                             <th scope="col">Сумма</th>
-                            <th scope="col" class="order-ledger__action"><span class="sr-only">Страница заказа</span></th>
+                            <th scope="col" class="order-ledger__action"><span class="sr-only">Детали заказа</span></th>
                         </tr>
                     </thead>
                     <tbody v-if="visibleOrders.length">
@@ -284,13 +276,14 @@ useHead({
                                 {{ formatMoney(order.total_amount, order.currency_code) }}
                             </td>
                             <td class="order-ledger__action">
-                                <Link
-                                    :href="orderUrl(order.id)"
-                                    class="order-ledger__page-link"
-                                    :aria-label="`Открыть страницу заказа ${order.number || `#${order.id}`}`"
-                                    title="Открыть страницу заказа"
-                                    @click.stop
-                                ><v-icon icon="mdi-open-in-new" size="14" /></Link>
+                                <button
+                                    type="button"
+                                    class="order-ledger__details-button"
+                                    aria-haspopup="dialog"
+                                    :aria-label="`Детали заказа ${order.number || `#${order.id}`}`"
+                                    title="Детали заказа"
+                                    @click.stop="openOrder(order)"
+                                ><v-icon icon="mdi-eye-outline" size="14" /></button>
                             </td>
                         </tr>
                     </tbody>
@@ -679,7 +672,7 @@ useHead({
     text-decoration: underline;
 }
 
-.order-ledger__page-link {
+.order-ledger__details-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -689,13 +682,13 @@ useHead({
     color: #68727d;
 }
 
-.order-ledger__page-link:hover {
+.order-ledger__details-button:hover {
     background: #e7ebef;
     color: #7f1d1d;
 }
 
 .order-ledger__number:focus-visible,
-.order-ledger__page-link:focus-visible {
+.order-ledger__details-button:focus-visible {
     outline: 2px solid #7f1d1d;
     outline-offset: 2px;
 }

@@ -4,7 +4,8 @@ import axios from 'axios'
 import AvitoAutoReplies from './AvitoAutoReplies.vue'
 import AvitoMessageTemplates from './AvitoMessageTemplates.vue'
 import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
-import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
+import CompactBuildingFields from '@/Components/Geography/Buildings/CompactBuildingFields.vue'
+import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
 
 const props = defineProps({
@@ -53,6 +54,7 @@ const manualPhone = ref('')
 const buildingOpen = ref(false)
 const emptyBuildingForm = () => ({ candidate_id: null, city_id: null, building_type_id: null, address: '', postcode: '', delivery_apartment_number: '', delivery_apartment_type: 'apartment' })
 const buildingForm = reactive(emptyBuildingForm())
+const buildingErrors = ref({})
 const citySearch = ref('')
 const cityResults = ref([])
 const citySearching = ref(false)
@@ -76,6 +78,8 @@ const productForm = reactive({
 })
 
 const orderItems = ref([])
+const orderDetailsOpen = ref(false)
+const selectedOrderId = ref(null)
 const orderForm = reactive({
     order_status_id: null,
     contact_telephone_id: null,
@@ -89,6 +93,8 @@ const orderForm = reactive({
 
 let entityTimer = null
 let cityTimer = null
+let cityRequestController = null
+let cityRequestId = 0
 let goodsTimer = null
 
 const pendingPhones = computed(() => crm.value.candidates.filter((item) => item.type === 'phone' && item.status === 'pending'))
@@ -128,6 +134,8 @@ watch(entitySearch, () => {
 
 watch(citySearch, () => {
     clearTimeout(cityTimer)
+    cancelCitySearch()
+    citySearching.value = true
     cityTimer = setTimeout(searchCities, 260)
 })
 
@@ -180,15 +188,34 @@ async function searchEntities() {
     }
 }
 
+function cancelCitySearch() {
+    cityRequestId += 1
+    cityRequestController?.abort()
+    cityRequestController = null
+    citySearching.value = false
+}
+
 async function searchCities() {
+    cancelCitySearch()
+    const requestId = cityRequestId
+    const controller = new AbortController()
+    cityRequestController = controller
     citySearching.value = true
     try {
-        const { data } = await axios.get('/api/avito/messenger/crm/cities', { params: { search: citySearch.value || undefined } })
+        const { data } = await axios.get('/api/avito/messenger/crm/cities', {
+            params: { search: citySearch.value || undefined },
+            signal: controller.signal,
+        })
+        if (requestId !== cityRequestId || controller.signal.aborted) return
         cityResults.value = data.items || []
     } catch (exception) {
+        if (requestId !== cityRequestId || controller.signal.aborted) return
         fail(exception, 'Не удалось найти города.')
     } finally {
-        citySearching.value = false
+        if (requestId === cityRequestId) {
+            citySearching.value = false
+            cityRequestController = null
+        }
     }
 }
 
@@ -294,12 +321,26 @@ function prepareAddressCandidate(candidate) {
         return
     }
     buildingOpen.value = true
+    buildingErrors.value = {}
     buildingForm.candidate_id = candidate?.id || null
     buildingForm.address = candidate?.raw_value || ''
     buildingForm.postcode = ''
     buildingForm.delivery_apartment_number = ''
     buildingForm.delivery_apartment_type = 'apartment'
     addressLookupMessage.value = ''
+}
+
+function updateBuildingForm(value) {
+    for (const key of Object.keys(buildingErrors.value)) {
+        if (value[key] !== buildingForm[key]) delete buildingErrors.value[key]
+    }
+    Object.assign(buildingForm, value)
+}
+
+function openOrderDetails(order) {
+    if (!order?.id) return
+    selectedOrderId.value = order.id
+    orderDetailsOpen.value = true
 }
 
 async function lookupAddress() {
@@ -322,6 +363,11 @@ async function lookupAddress() {
 
 async function saveBuilding() {
     if (!crm.value.entity) return fail(null, 'Сначала создайте или привяжите Entity.')
+    if (saving.value) return
+    buildingErrors.value = {}
+    if (!buildingForm.city_id) buildingErrors.value.city_id = ['Выберите город из списка.']
+    if (!buildingForm.address.trim()) buildingErrors.value.address = ['Укажите адрес здания.']
+    if (Object.keys(buildingErrors.value).length) return
     saving.value = true
     try {
         const { data } = await axios.post(`/api/avito/messenger/chats/${props.chat.id}/crm/buildings`, {
@@ -336,9 +382,11 @@ async function saveBuilding() {
         notify(data.message)
         buildingOpen.value = false
         Object.assign(buildingForm, emptyBuildingForm())
+        citySearch.value = ''
         await loadCrm()
         emit('chat-updated')
     } catch (exception) {
+        buildingErrors.value = exception.response?.data?.errors || {}
         fail(exception, 'Не удалось сохранить адрес.')
     } finally {
         saving.value = false
@@ -462,6 +510,8 @@ function setOrderDefaults() {
 }
 
 function resetTransientState() {
+    clearTimeout(cityTimer)
+    cancelCitySearch()
     crm.value = { entity: null, candidates: [], orders: [] }
     activeTab.value = 'client'
     entitySearch.value = ''
@@ -472,6 +522,12 @@ function resetTransientState() {
     })
     manualPhone.value = ''
     buildingOpen.value = false
+    buildingErrors.value = {}
+    Object.assign(buildingForm, emptyBuildingForm())
+    citySearch.value = ''
+    cityResults.value = []
+    orderDetailsOpen.value = false
+    selectedOrderId.value = null
     orderItems.value = []
     orderForm.contact_telephone_id = null
     orderForm.building_ids = []
@@ -518,6 +574,7 @@ defineExpose({
 onBeforeUnmount(() => {
     clearTimeout(entityTimer)
     clearTimeout(cityTimer)
+    cancelCitySearch()
     clearTimeout(goodsTimer)
 })
 </script>
@@ -625,15 +682,27 @@ onBeforeUnmount(() => {
                 </div>
 
                 <v-btn v-if="crm.entity && !buildingOpen" block size="small" variant="text" prepend-icon="mdi-map-marker-plus-outline" @click="prepareAddressCandidate(null)">Добавить адрес вручную</v-btn>
-                <div v-if="buildingOpen" class="compact-form building-form">
-                    <div class="section-title"><span>Новый Building</span><v-btn icon="mdi-close" size="x-small" variant="text" @click="buildingOpen = false" /></div>
-                    <v-autocomplete v-model="buildingForm.city_id" v-model:search="citySearch" :items="cityResults" item-title="label" item-value="id" label="Город" density="compact" variant="outlined" hide-details clearable :loading="citySearching" no-filter />
-                    <v-textarea v-model="buildingForm.address" label="Адрес" rows="2" auto-grow density="compact" variant="outlined" hide-details />
-                    <div class="form-grid"><v-select v-model="buildingForm.building_type_id" :items="options.building_types" item-title="name" item-value="id" label="Тип" density="compact" variant="outlined" hide-details clearable /><v-text-field v-model="buildingForm.postcode" label="Индекс" density="compact" variant="outlined" hide-details /></div>
-                    <DeliveryApartmentFields v-model:number="buildingForm.delivery_apartment_number" v-model:type="buildingForm.delivery_apartment_type" :disabled="saving" />
-                    <div class="form-actions"><v-btn size="x-small" variant="text" prepend-icon="mdi-map-search-outline" :loading="addressLookupLoading" :disabled="!buildingForm.city_id || !buildingForm.address.trim()" @click="lookupAddress">Проверить DaData</v-btn><v-btn size="small" color="deep-purple-lighten-1" :loading="saving" :disabled="!buildingForm.city_id || !buildingForm.address.trim()" @click="saveBuilding">Сохранить</v-btn></div>
-                    <small v-if="addressLookupMessage" class="form-hint">{{ addressLookupMessage }}</small>
-                </div>
+                <form v-if="buildingOpen" class="compact-form building-form" @submit.prevent="saveBuilding">
+                    <div class="building-form__heading">
+                        <span><v-icon icon="mdi-map-marker-plus-outline" size="16" /> Новый адрес</span>
+                        <button type="button" class="building-form__close" aria-label="Закрыть форму здания" :disabled="saving" @click="buildingOpen = false"><v-icon icon="mdi-close" size="15" /></button>
+                    </div>
+                    <CompactBuildingFields
+                        :model-value="buildingForm"
+                        v-model:search="citySearch"
+                        :cities="cityResults"
+                        :city-loading="citySearching"
+                        :building-types="options.building_types"
+                        :errors="buildingErrors"
+                        :disabled="saving"
+                        @update:model-value="updateBuildingForm"
+                    />
+                    <div class="building-form__actions">
+                        <button type="button" class="building-form__lookup" :disabled="saving || addressLookupLoading || !buildingForm.city_id || !buildingForm.address.trim()" @click="lookupAddress"><v-icon icon="mdi-map-search-outline" size="14" />{{ addressLookupLoading ? 'Проверяем…' : 'Проверить адрес' }}</button>
+                        <button type="submit" class="building-form__save" :disabled="saving"><v-icon icon="mdi-check" size="14" />{{ saving ? 'Сохраняем…' : 'Сохранить' }}</button>
+                    </div>
+                    <small v-if="addressLookupMessage" class="building-form__hint" role="status">{{ addressLookupMessage }}</small>
+                </form>
             </section>
 
             <section v-else-if="activeTab === 'order'" class="crm-section">
@@ -641,7 +710,7 @@ onBeforeUnmount(() => {
                 <template v-else>
                     <div v-if="crm.orders?.length" class="recent-orders">
                         <div class="section-title"><span>Заказы из этого чата</span><b>{{ crm.orders.length }}</b></div>
-                        <a v-for="order in crm.orders.slice(0, 4)" :key="order.id" :href="`/Ameise/orders/${order.id}`" target="_blank"><span><strong>{{ order.number }}</strong><small>{{ order.status?.name }} · {{ order.items?.length || order.items_count || 0 }} поз.</small></span><b>{{ formatMoney(order.total_amount, order.currency_code) }}</b><v-icon icon="mdi-open-in-new" size="12" /></a>
+                        <button v-for="order in crm.orders.slice(0, 4)" :key="order.id" type="button" class="recent-orders__item" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number}`" @click="openOrderDetails(order)"><span><strong>{{ order.number }}</strong><small>{{ order.status?.name }} · {{ order.items?.length || order.items_count || 0 }} поз.</small></span><b>{{ formatMoney(order.total_amount, order.currency_code) }}</b><v-icon icon="mdi-arrow-expand" size="12" /></button>
                     </div>
 
                     <div class="section-title"><span>Новый заказ</span><v-btn size="x-small" variant="text" prepend-icon="mdi-package-variant-plus" @click="openCatalog">Добавить товары</v-btn></div>
@@ -737,6 +806,7 @@ onBeforeUnmount(() => {
                 <v-card-actions><v-btn variant="text" @click="addToOrder(selectedGood); productDialog = false">Добавить в заказ</v-btn><v-spacer /><v-btn color="deep-purple-lighten-1" prepend-icon="mdi-send" :loading="saving" @click="sendProduct">Отправить в Avito</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" theme="dark" />
     </aside>
 </template>
 
@@ -753,7 +823,23 @@ onBeforeUnmount(() => {
 .section-title { display: flex; min-height: 24px; align-items: center; justify-content: space-between; gap: 5px; color: #d9dcf0; font-size: 9px; font-weight: 700; }.section-title > span { display: flex; align-items: center; gap: 4px; }.section-title > b { min-width: 17px; padding: 2px 4px; color: #b7a7f8; font-size: 8px; text-align: center; border-radius: 10px; background: #292445; }
 .fact-group { display: grid; gap: 4px; }.fact-card { padding: 7px; border: 1px solid #343850; border-radius: 7px; background: #1b1e35; }.fact-card strong, .fact-card small, .fact-card time { display: block; }.fact-card strong { color: #eff1ff; font-size: 10px; }.fact-card small, .fact-card time { overflow: hidden; margin-top: 2px; color: #858baa; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }.fact-card footer { display: flex; justify-content: flex-end; gap: 3px; margin-top: 5px; }.candidate-matches { display: grid; gap: 3px; margin-top: 5px; }.candidate-matches button { display: flex; align-items: center; gap: 3px; padding: 4px 6px; color: #bce7d5; font-size: 8px; text-align: left; border: 1px solid rgba(87, 190, 148, .25); border-radius: 5px; background: rgba(40, 105, 78, .18); cursor: pointer; }
 .inline-add { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px; }
-.recent-orders { display: grid; gap: 4px; }.recent-orders > a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 6px 7px; color: #e7e9fb; border: 1px solid #343850; border-radius: 6px; background: #1b1e35; text-decoration: none; }.recent-orders span strong, .recent-orders span small { display: block; }.recent-orders span strong { font-size: 9px; }.recent-orders span small { color: #858baa; font-size: 7px; }.recent-orders > a > b { font-size: 8px; white-space: nowrap; }
+.recent-orders { display: grid; gap: 4px; }.recent-orders__item { width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 6px 7px; color: #e7e9fb; border: 1px solid #343850; border-radius: 6px; background: #1b1e35; text-decoration: none; }.recent-orders span strong, .recent-orders span small { display: block; }.recent-orders span strong { font-size: 9px; }.recent-orders span small { color: #858baa; font-size: 7px; }.recent-orders__item > b { font-size: 8px; white-space: nowrap; }
+.recent-orders__item:hover { border-color: #7361aa; background: #232640; }
+.recent-orders__item:focus-visible { outline: 2px solid #ab94ff; outline-offset: 2px; }
+.building-form { padding: 10px; gap: 10px; }
+.building-form__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.building-form__heading > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #e9e6fc; }
+.building-form__close { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 5px; color: #989fbe; }
+.building-form__close:hover { color: #fff; background: #2d304a; }
+.building-form__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; padding-top: 8px; border-top: 1px solid #30344e; }
+.building-form__actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; padding: 5px 9px; border: 1px solid transparent; border-radius: 6px; font: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
+.building-form__lookup { color: #b8b1d5; background: #25283e; }
+.building-form__lookup:hover { border-color: #5a527c; }
+.building-form__save { color: #fff; background: #7660c6; }
+.building-form__save:hover { background: #8771d8; }
+.building-form button:disabled { opacity: .5; cursor: default; }
+.building-form button:focus-visible { outline: 2px solid #b5a0ff; outline-offset: 2px; }
+.building-form__hint { color: #a5abc6; font-size: 10px; line-height: 1.45; }
 .order-empty { display: grid; min-height: 120px; place-items: center; align-content: center; gap: 5px; color: #858baa; text-align: center; border: 1px dashed #3a3e56; border-radius: 8px; }.order-empty span { font-size: 9px; }.order-lines { display: grid; gap: 4px; }.order-line { display: grid; min-width: 0; grid-template-columns: 38px minmax(0, 1fr) 24px; align-items: start; gap: 7px; padding: 7px; border: 1px solid #343850; border-radius: 7px; background: #1b1e35; }.order-line__media { display: grid; overflow: hidden; width: 38px; height: 38px; place-items: center; color: #686f90; border-radius: 6px; background: #111426; }.order-line__media img { width: 100%; height: 100%; object-fit: cover; }.order-line__body { min-width: 0; }.order-line__body > strong { display: block; overflow: hidden; color: #eff1ff; font-size: 9px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }.order-line__fields { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 5px; margin-top: 5px; }.order-line__fields label { display: grid; min-width: 0; gap: 2px; color: #7f86a6; font-size: 7px; line-height: 1; }.order-line__fields label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.order-line__fields input { box-sizing: border-box; min-width: 0; width: 100%; height: 24px; padding: 2px 5px; color: #e9ebff; font-size: 9px; font-variant-numeric: tabular-nums; border: 1px solid #3b405a; border-radius: 5px; outline: 0; background: #121527; }.order-line__fields input:focus { border-color: #8d75e7; box-shadow: 0 0 0 1px rgba(141, 117, 231, .2); }.order-line__remove { align-self: start; margin: -3px -3px 0 0; }.order-total { display: flex; align-items: center; justify-content: space-between; padding: 6px 7px; color: #8e94b4; font-size: 8px; border-top: 1px solid #343850; }.order-total strong { color: #e9ebff; font-size: 11px; }.order-form :deep(.v-selection-control__wrapper) { width: 28px; }.order-form :deep(.v-label) { opacity: .85; }
 .catalog-section { grid-template-rows: auto minmax(0, 1fr); min-height: 100%; }.goods-list { display: grid; align-content: start; gap: 4px; transition: opacity .15s; }.goods-list.is-loading { opacity: .55; }.goods-list article { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 5px; border: 1px solid #32364f; border-radius: 7px; background: #1b1e35; }.good-image { display: grid; overflow: hidden; width: 42px; height: 42px; place-items: center; color: #69708f; border-radius: 5px; background: #101326; }.good-image img { width: 100%; height: 100%; object-fit: cover; }.good-copy { min-width: 0; }.good-copy strong, .good-copy small, .good-copy em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.good-copy strong { font-size: 9px; }.good-copy span { display: inline-block; margin: 2px 0; padding: 1px 4px; color: #c6cbe4; font-size: 7px; border-radius: 4px; background: #2b3048; }.good-copy .stock-in_stock { color: #91dfbd; background: rgba(41, 119, 84, .25); }.good-copy .stock-out_of_stock { color: #e1a4ae; background: rgba(137, 54, 67, .22); }.good-copy small { color: #9aa0bf; font-size: 8px; }.good-copy em { color: #d3a064; font-size: 7px; font-style: normal; }.good-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
 .crm-context { display: flex; min-height: 25px; flex: 0 0 25px; align-items: center; justify-content: space-between; gap: 5px; padding: 4px 8px; color: #69708f; font-size: 7px; border-top: 1px solid #2d3149; background: #14172a; }.crm-context span { display: flex; overflow: hidden; align-items: center; gap: 3px; text-overflow: ellipsis; white-space: nowrap; }

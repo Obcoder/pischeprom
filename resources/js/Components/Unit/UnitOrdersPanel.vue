@@ -1,12 +1,27 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 
 const props = defineProps({
     unit: { type: Object, required: true },
     canViewOrders: { type: Boolean, default: false },
     canCreateOrders: { type: Boolean, default: false },
+})
+
+const orderDetailsOpen = ref(false)
+const selectedOrderId = ref(null)
+
+function openOrder(order) {
+    if (!props.canViewOrders) return
+    selectedOrderId.value = order.id
+    orderDetailsOpen.value = true
+}
+
+watch(() => [props.unit.id, props.canViewOrders], () => {
+    orderDetailsOpen.value = false
+    selectedOrderId.value = null
 })
 
 const orders = computed(() => {
@@ -53,7 +68,7 @@ function orderMoney(order) {
             <div v-if="orders.length" class="unit-orders__scroll">
                 <article v-for="order in orders" :key="order.id" class="unit-orders__item">
                     <div class="unit-orders__summary">
-                        <Link :href="route('Ameise.orders.show', order.id)" class="unit-orders__number">{{ order.number || `Заказ #${order.id}` }}</Link>
+                        <button type="button" class="unit-orders__number" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number || `#${order.id}`}`" @click="openOrder(order)">{{ order.number || `Заказ #${order.id}` }}</button>
                         <span class="unit-orders__amount">{{ orderMoney(order) }}</span>
                     </div>
                     <div class="unit-orders__details">
@@ -67,11 +82,12 @@ function orderMoney(order) {
                             <span v-else>{{ item.good_name || 'Товар' }}</span>
                             <span class="unit-orders__quantity"> × {{ formatNumber(item.quantity, 3) }}</span>
                         </div>
-                        <Link v-if="order.items.length > 3" :href="route('Ameise.orders.show', order.id)" class="unit-orders__more">Ещё {{ order.items.length - 3 }}</Link>
+                        <button v-if="order.items.length > 3" type="button" class="unit-orders__more" aria-haspopup="dialog" :aria-label="`Все товары заказа ${order.number || `#${order.id}`}`" @click="openOrder(order)">Ещё {{ order.items.length - 3 }}</button>
                     </div>
                 </article>
             </div>
             <p v-else class="unit-orders__empty">У связанных юридических лиц пока нет заказов.</p>
+            <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" />
         </template>
         <p v-else class="unit-orders__empty">Просмотр заказов недоступен.</p>
     </div>
@@ -85,7 +101,7 @@ function orderMoney(order) {
 .unit-orders__scroll { flex: 1 1 auto; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
 .unit-orders__item { display: grid; gap: 5px; padding: 10px 12px; border-top: 1px solid #e7e7e7; }
 .unit-orders__summary, .unit-orders__details { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; min-width: 0; }
-.unit-orders__number { font-weight: 600; overflow-wrap: anywhere; }
+.unit-orders__number { font-weight: 600; overflow-wrap: anywhere; text-align: left; }
 .unit-orders__amount { white-space: nowrap; font-variant-numeric: tabular-nums; color: #651c2e; }
 .unit-orders__details { color: #777; font-size: 11px; }
 .unit-orders__details > span { overflow-wrap: anywhere; min-width: 0; }
@@ -93,9 +109,9 @@ function orderMoney(order) {
 .unit-orders__status { border-left: 2px solid #352345; padding-left: 7px; font-size: 11px; }
 .unit-orders__goods { display: grid; gap: 3px; margin-top: 2px; font-size: 11px; overflow-wrap: anywhere; }
 .unit-orders__quantity { color: #666; white-space: nowrap; }
-.unit-orders__item a { color: #352345; text-decoration: none; }
-.unit-orders__item a:hover { text-decoration: underline; }
-.unit-orders__item .unit-orders__more { color: #777; }
+.unit-orders__item a, .unit-orders__number { color: #352345; text-decoration: none; }
+.unit-orders__item a:hover, .unit-orders__item button:hover { text-decoration: underline; }
+.unit-orders__item .unit-orders__more { justify-self: start; color: #777; }
 .unit-orders__empty { padding: 12px; color: #777; font-size: 12px; margin: 0; }
-.unit-orders a:focus-visible { outline: 2px solid #352345; outline-offset: 2px; }
+.unit-orders a:focus-visible, .unit-orders button:focus-visible { outline: 2px solid #352345; outline-offset: 2px; }
 </style>
