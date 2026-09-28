@@ -103,6 +103,7 @@ const selectedMonthLabel = computed(() => {
     return months.value.find((month) => month.value === filters.month)?.label || filters.month.split('-').reverse().join('.')
 })
 const dateRangeLabel = computed(() => {
+    if (filters.date_from && filters.date_from === filters.date_to) return formatDate(filters.date_from)
     if (filters.date_from && filters.date_to) return `${formatDate(filters.date_from)}–${formatDate(filters.date_to)}`
     if (filters.date_from) return `С ${formatDate(filters.date_from)}`
     if (filters.date_to) return `По ${formatDate(filters.date_to)}`
@@ -493,9 +494,32 @@ function changePageSize(event) {
 }
 
 function applyMonth(month) {
+    if (isDayFilterActive(0) || isDayFilterActive(-1)) {
+        filters.date_from = ''
+        filters.date_to = ''
+    }
     filters.month = filters.month === month ? null : month
     options.page = 1
     fetchSales()
+}
+
+function dayFilterDate(offset) {
+    const date = new Date()
+    date.setDate(date.getDate() + offset)
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+}
+
+function isDayFilterActive(offset) {
+    const date = dayFilterDate(offset)
+    return !filters.month && filters.date_from === date && filters.date_to === date
+}
+
+function applyDayFilter(offset) {
+    const date = dayFilterDate(offset)
+    filters.month = null
+    filters.date_from = date
+    filters.date_to = date
+    applyDateRange()
 }
 
 function applyDateRange() {
@@ -830,6 +854,12 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                             <v-btn type="submit" size="small" variant="flat" color="#0f766e">Применить</v-btn>
                         </form>
                     </v-menu>
+                    <button type="button" class="sales-day-trigger" :class="{ 'is-active': isDayFilterActive(0) }" :aria-pressed="isDayFilterActive(0)" @click="applyDayFilter(0)">
+                        Сегодня
+                    </button>
+                    <button type="button" class="sales-day-trigger" :class="{ 'is-active': isDayFilterActive(-1) }" :aria-pressed="isDayFilterActive(-1)" @click="applyDayFilter(-1)">
+                        Вчера
+                    </button>
                     <v-btn v-if="hasFilters" icon="mdi-filter-remove-outline" size="x-small" variant="text" title="Сбросить фильтры продаж" aria-label="Сбросить фильтры продаж" @click="resetFilters" />
                 </div>
 
@@ -1526,6 +1556,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 }
 
 .sales-month-trigger,
+.sales-day-trigger,
 .sales-date-control {
     display: flex;
     align-items: center;
@@ -1538,8 +1569,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
     font-size: 12px;
 }
 
-.sales-month-trigger { flex: 0 0 auto; padding: 0 7px; }
-.sales-month-trigger.is-active { border-color: #93cfc5; background: #f0fdfa; color: #0f766e; }
+.sales-month-trigger,
+.sales-day-trigger { flex: 0 0 auto; padding: 0 7px; }
+.sales-month-trigger.is-active,
+.sales-day-trigger.is-active { border-color: #93cfc5; background: #f0fdfa; color: #0f766e; }
 .sales-period-trigger { flex: 0 1 auto; min-width: 32px; }
 .sales-period-trigger > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sales-period-form { display: grid; gap: 10px; width: 310px; max-width: calc(100vw - 24px); padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; color: #334155; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto-Regular', sans-serif; font-size: 12px; }
@@ -1779,6 +1812,11 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 .sale-dialog__footer-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; color: #64748b; font-size: 12px; }
 .sale-dialog__footer-line strong { color: #0f766e; font-weight: 600; }
 
+@container commerce-panel (max-width: 760px) {
+    .sales-toolbar { flex-wrap: wrap; gap: 6px; }
+    .sales-toolbar__summary { flex: 1 1 0; }
+    .sales-filters { order: 1; flex: 1 0 100%; }
+}
 @container commerce-panel (max-width: 620px) {
     .sales-footer__total { display: none; }
     .sales-pagination { width: 100%; justify-content: space-between; }
@@ -1803,7 +1841,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
     .sales-month-trigger { flex: 0 0 30px; justify-content: center; width: 30px; min-width: 30px; gap: 0; padding: 0; }
     .sales-month-trigger > span,
     .sales-month-trigger > .sales-filter-chevron { display: none; }
-    .sales-filters { flex: 0 0 auto; gap: 4px; }
+    .sales-filters { gap: 4px; }
     .sales-error { max-height: 42px; margin: 3px 8px; }
 }
 @media (max-width: 600px) {
