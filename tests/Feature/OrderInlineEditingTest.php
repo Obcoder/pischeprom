@@ -190,6 +190,60 @@ class OrderInlineEditingTest extends TestCase
             ->assertOk()->assertJsonPath('data.delivery_date', '2026-10-11');
     }
 
+    public function test_dashboard_sorts_delivery_dates_first_and_keeps_submission_and_id_ties_deterministic(): void
+    {
+        $this->actingAs($this->employee());
+        $entity = Entity::query()->create(['name' => 'Покупатель']);
+        $make = fn (?string $date, string $submitted) => Order::query()->create([
+            'entity_id' => $entity->id,
+            'currency_code' => 'RUB',
+            'delivery_date' => $date,
+            'submitted_at' => $submitted,
+        ]);
+        $undatedOlder = $make(null, '2026-10-04 12:00:00');
+        $undatedNewer = $make(null, '2026-10-05 12:00:00');
+        $later = $make('2026-10-10', '2026-10-04 12:00:00');
+        $earlierOldSubmission = $make('2026-10-06', '2026-10-01 12:00:00');
+        $earlierNewSubmission = $make('2026-10-06', '2026-10-02 12:00:00');
+        $earlierHigherId = $make('2026-10-06', '2026-10-02 12:00:00');
+
+        $expectedIds = [
+            $earlierHigherId->id,
+            $earlierNewSubmission->id,
+            $earlierOldSubmission->id,
+            $later->id,
+            $undatedNewer->id,
+            $undatedOlder->id,
+        ];
+
+        $this->get('/Ameise/')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('ordersByStatus.open', 6)
+            ->where('ordersByStatus.open', fn ($orders) => $orders->pluck('id')->all() === $expectedIds));
+    }
+
+    public function test_dashboard_applies_delivery_priority_before_the_thirty_order_limit(): void
+    {
+        $this->actingAs($this->employee());
+        $entity = Entity::query()->create(['name' => 'Покупатель']);
+        $make = fn (?string $date, string $submitted) => Order::query()->create([
+            'entity_id' => $entity->id,
+            'currency_code' => 'RUB',
+            'delivery_date' => $date,
+            'submitted_at' => $submitted,
+        ]);
+        $earliest = $make('2026-10-06', '2026-09-01 12:00:00');
+        $laterIds = [];
+        for ($i = 0; $i < 31; $i++) {
+            $laterIds[] = $make('2026-10-10', '2026-10-04 12:00:00')->id;
+            $make(null, '2026-10-05 12:00:00');
+        }
+        $expectedIds = [$earliest->id, ...array_slice(array_reverse($laterIds), 0, 29)];
+
+        $this->get('/Ameise/')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->has('ordersByStatus.open', 30)
+            ->where('ordersByStatus.open', fn ($orders) => $orders->pluck('id')->all() === $expectedIds));
+    }
+
     private function employee(): User
     {
         return User::factory()->create(['type' => 'employee', 'status' => 'active']);

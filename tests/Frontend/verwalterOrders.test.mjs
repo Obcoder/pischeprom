@@ -7,16 +7,17 @@ import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.
 import { useOrderQuickEdit } from '../../resources/js/Composables/useOrderQuickEdit.js'
 import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
 
-function dashboardHarness(t, client = {}) {
+function dashboardHarness(t, client = {}, initialProps = {}) {
     const filename = 'resources/js/Pages/Ameise/Verwalter.vue'
     const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename })
     const compiled = compileScript(descriptor, { id: 'verwalter-orders' })
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'verwalter-orders', compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
+    const unmountHooks = []
     const environment = {
         ...Vue, Link: {}, VerwalterLayout: {}, AvitoWaitingList: {}, OrderDetailsDialog: {},
         useOrderQuickEdit: options => useOrderQuickEdit({ ...options, client }),
-        buildingApartmentLabel, onBeforeUnmount() {}, useHead() {}, route: (name, id) => `/${name}/${id ?? ''}`,
+        buildingApartmentLabel, onBeforeUnmount: hook => unmountHooks.push(hook), useHead() {}, route: (name, id) => `/${name}/${id ?? ''}`,
     }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
@@ -31,12 +32,59 @@ function dashboardHarness(t, client = {}) {
             }],
             deferred: [{ id: 13, order_status_id: 2, status: { code: 'deferred' }, total_amount: 20 }],
         },
+        ...initialProps,
     })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {} }))
-    t.after(() => { api.quickEdit.dispose(); scope.stop() })
-    return { api, props, render: templateRenderer(template, api, props) }
+    let unmounted = false
+    function unmount() {
+        if (unmounted) return
+        unmounted = true
+        for (const hook of unmountHooks) hook()
+        scope.stop()
+    }
+    t.after(unmount)
+    return { api, props, render: templateRenderer(template, api, props), unmount }
 }
+
+test('orders sort by delivery date with unscheduled orders last and keep submission and ID tie breakers', t => {
+    const order = (id, delivery_date, submitted_at, created_at = null) => ({
+        id, delivery_date, submitted_at, created_at, order_status_id: 1, status: { code: 'open' },
+    })
+    const orders = [
+        order(21, '2026-10-06', '2026-10-04T12:00:00Z'),
+        order(22, '2026-10-04', '2026-10-01T12:00:00Z'),
+        order(23, '2026-10-04', '2026-10-02T12:00:00Z'),
+        order(24, '2026-10-04', '2026-10-02T12:00:00Z'),
+        order(25, null, '2026-10-03T12:00:00Z'),
+        order(26, null, '2026-10-01T12:00:00Z'),
+        order(27, '', '2026-10-02T12:00:00Z'),
+        order(28, '2026-10-04', null, '2026-10-03T12:00:00Z'),
+    ]
+    const { api, props } = dashboardHarness(t, {}, { ordersByStatus: { open: orders } })
+    assert.deepEqual(api.visibleOrders.value.map(order => order.id), [28, 24, 23, 22, 21, 25, 27, 26])
+    assert.deepEqual(props.ordersByStatus.open.map(order => order.id), [21, 22, 23, 24, 25, 26, 27, 28])
+})
+
+test('inline date updates immediately reorder rows and clearing a date moves the row last', async t => {
+    const order = (id, delivery_date) => ({
+        id, delivery_date, delivery_version: 'v1', submitted_at: '2026-10-01T12:00:00Z',
+        order_status_id: 1, status: { code: 'open' }, permissions: { delivery_edit: true },
+    })
+    const { api, props, render } = dashboardHarness(t, {
+        async patch(url, data) {
+            const id = Number(url.match(/orders\/(\d+)/)[1])
+            return { data: { data: { ...props.ordersByStatus.open.find(order => order.id === id), delivery_date: data.delivery_date, delivery_version: 'v2' } } }
+        },
+    }, { ordersByStatus: { open: [order(22, '2026-10-08'), order(21, '2026-10-05'), order(23, null)] } })
+    const dateInput = id => findVNode(render(), node => node.type === 'input' && node.props['aria-label'] === `Дата доставки заказа #${id}`)
+    assert.deepEqual(api.visibleOrders.value.map(order => order.id), [21, 22, 23])
+    await dateInput(22).props.onChange({ target: { value: '2026-10-04', validity: { valid: true } } })
+    assert.deepEqual(api.visibleOrders.value.map(order => order.id), [22, 21, 23])
+    await dateInput(21).props.onChange({ target: { value: '', validity: { valid: true } } })
+    assert.deepEqual(api.visibleOrders.value.map(order => order.id), [22, 23, 21])
+    assert.equal(props.ordersByStatus.open[1].delivery_date, '2026-10-05')
+})
 
 test('dashboard saves move orders between status tabs and remove closed orders without changing the selected tab', t => {
     const { api, props, render } = dashboardHarness(t)
@@ -81,7 +129,24 @@ test('status selector includes closed statuses and moves an order without openin
             return { data: { data: { ...props.ordersByStatus.open[0], order_status_id: 3, status: props.orderStatuses[2] } } }
         },
     })
-    const select = findVNode(render(), node => node.type === 'select')
+    const tree = render()
+    const heading = findVNode(tree, node => hasClass(node, 'order-ledger__heading'))
+    assert.ok(heading)
+    assert.ok(findVNode(heading, node => hasClass(node, 'order-ledger__entity')))
+    const select = findVNode(heading, node => node.type === 'select')
+    assert.ok(select)
+    assert.equal(select, findVNode(tree, node => node.type === 'select'))
+    assert.ok(findVNode(heading, node => node.props?.icon === 'mdi-flag-outline'))
+    const selectors = []
+    findVNode(tree, node => {
+        if (node.type === 'select') selectors.push(node)
+        return false
+    })
+    assert.deepEqual(selectors, [select])
+    const tabs = findVNode(tree, node => node.props?.role === 'tablist')
+    assert.equal(findVNode(tabs, node => node.type === 'select'), null)
+    assert.ok(findVNode(tabs, node => node.props?.role === 'tab' && node.props['aria-selected'] === true))
+    assert.match(select.props['aria-label'], /Статус заказа/)
     assert.ok(findVNode(select, node => node.type === 'option' && node.props.value === 3))
     await select.props.onChange({ target: { value: '3' } })
     assert.equal(api.orderTab.value, 'open')
@@ -105,13 +170,55 @@ test('failed inline edits restore the saved input and offer refresh after a conf
     assert.equal(Boolean(findVNode(render(), node => node.type === 'select').props.disabled), false)
 })
 
-test('read-only orders display delivery date and status without editing controls', t => {
+test('read-only orders display the date and an accessible status icon in the row heading', t => {
     const { props, render } = dashboardHarness(t)
     props.ordersByStatus.open[0].permissions = { edit: false, delivery_edit: false }
     assert.equal(findVNode(render(), node => node.type === 'select'), null)
     assert.equal(findVNode(render(), node => node.type === 'input'), null)
     assert.equal(findVNode(render(), node => hasClass(node, 'order-ledger__date-label')).children, '05.10.2026')
-    assert.equal(findVNode(render(), node => hasClass(node, 'order-ledger__status-label')).children, 'Новый')
+    const heading = findVNode(render(), node => hasClass(node, 'order-ledger__heading'))
+    const status = findVNode(heading, node => node.props?.title?.includes('Новый') && node.props?.['aria-label']?.includes('Новый'))
+    assert.ok(status)
+    assert.notEqual(status.children, 'Новый')
+})
+
+test('save confirmation stays inside the header and disappears four seconds after the latest save', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { api, render } = dashboardHarness(t)
+    api.quickEdit.success = 'Заказ PP-12: дата доставки сохранена.'
+    await Vue.nextTick()
+    let tree = render()
+    const header = findVNode(tree, node => hasClass(node, 'order-summary__header'))
+    const notice = findVNode(header, node => node.props?.role === 'status')
+    assert.ok(notice)
+    assert.equal(notice, findVNode(tree, node => hasClass(node, 'order-summary__notice')))
+
+    t.mock.timers.tick(3000)
+    assert.notEqual(api.quickEdit.success, '')
+    api.quickEdit.success = 'Заказ PP-13: статус изменён.'
+    await Vue.nextTick()
+    t.mock.timers.tick(1000)
+    assert.match(api.quickEdit.success, /PP-13/)
+    t.mock.timers.tick(2999)
+    assert.match(api.quickEdit.success, /PP-13/)
+    t.mock.timers.tick(1)
+    await Vue.nextTick()
+    assert.equal(api.quickEdit.success, '')
+    tree = render()
+    assert.equal(findVNode(tree, node => hasClass(node, 'order-summary__notice')), null)
+})
+
+test('unmount clears the pending confirmation timer', async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const clear = t.mock.method(globalThis, 'clearTimeout')
+    const { api, unmount } = dashboardHarness(t)
+    api.quickEdit.success = 'Заказ PP-12: статус изменён.'
+    await Vue.nextTick()
+    const clearsBeforeUnmount = clear.mock.callCount()
+    unmount()
+    assert.equal(clear.mock.callCount(), clearsBeforeUnmount + 1)
+    t.mock.timers.tick(4000)
+    assert.equal(api.quickEdit.success, '')
 })
 
 test('inline controls stop row clicks and prevent opening stale details while saving', async t => {

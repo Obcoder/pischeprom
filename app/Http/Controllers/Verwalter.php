@@ -43,6 +43,8 @@ class Verwalter extends Controller
             ->with($this->writer->relations())
             ->withCount('items')
             ->whereHas('status', fn ($query) => $query->where('code', $status))
+            ->orderByRaw('delivery_date IS NULL')
+            ->orderBy('delivery_date')
             ->latest('submitted_at')
             ->latest('id')
             ->limit(30)

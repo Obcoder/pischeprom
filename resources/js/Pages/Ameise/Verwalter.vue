@@ -37,6 +37,7 @@ const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
 const savedOrders = ref({})
 const quickEdit = reactive(useOrderQuickEdit({ onSaved: orderSaved }))
+let notificationTimer = null
 const activeOrderStatuses = computed(() => props.orderStatuses.filter(status => !status.is_closed))
 const displayedOrdersByStatus = computed(() => {
     const groups = Object.fromEntries(activeOrderStatuses.value.map(status => [status.code, []]))
@@ -49,7 +50,12 @@ const displayedOrdersByStatus = computed(() => {
         if (groups[status]) groups[status].push(order)
     }
     for (const orders of Object.values(groups)) {
-        orders.sort((a, b) => new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0) || Number(b.id) - Number(a.id))
+        orders.sort((a, b) => {
+            if (Boolean(a.delivery_date) !== Boolean(b.delivery_date)) return a.delivery_date ? -1 : 1
+            return (a.delivery_date || '').localeCompare(b.delivery_date || '')
+                || new Date(b.submitted_at || b.created_at || 0) - new Date(a.submitted_at || a.created_at || 0)
+                || Number(b.id) - Number(a.id)
+        })
     }
     return groups
 })
@@ -91,7 +97,15 @@ async function changeStatus(order, event) {
     select.value = String((savedOrders.value[order.id] || order).order_status_id)
 }
 
-onBeforeUnmount(() => quickEdit.dispose())
+watch(() => quickEdit.success, message => {
+    clearTimeout(notificationTimer)
+    notificationTimer = message ? setTimeout(() => { quickEdit.success = '' }, 4000) : null
+})
+
+onBeforeUnmount(() => {
+    clearTimeout(notificationTimer)
+    quickEdit.dispose()
+})
 
 watch(() => activeOrderStatuses.value.map(status => status.code), codes => {
     if (!codes.includes(orderTab.value)) {
@@ -265,9 +279,16 @@ useHead({
                     <div class="summary-block__eyebrow">Работа с заказами</div>
                     <h1 id="orders-title">Заказы</h1>
                 </div>
-                <span class="summary-block__count">
-                    {{ visibleOrders.length }}
-                </span>
+                <div class="order-summary__header-actions">
+                    <span v-if="quickEdit.success" class="order-summary__notice" role="status" :title="quickEdit.success">
+                        <v-icon icon="mdi-check-circle-outline" size="14" aria-hidden="true" />
+                        <span aria-hidden="true">Готово</span>
+                        <span class="sr-only">{{ quickEdit.success }}</span>
+                    </span>
+                    <span class="summary-block__count">
+                        {{ visibleOrders.length }}
+                    </span>
+                </div>
             </header>
 
             <div v-if="activeOrderStatuses.length" class="order-summary__tabs" role="tablist" aria-label="Статусы заказов">
@@ -286,8 +307,6 @@ useHead({
                     <span>{{ displayedOrdersByStatus[status.code]?.length || 0 }}</span>
                 </button>
             </div>
-
-            <div v-if="quickEdit.success" class="order-summary__notice" role="status">{{ quickEdit.success }}</div>
 
             <div class="order-ledger">
                 <table>
@@ -308,9 +327,48 @@ useHead({
                             @click="openOrder(order)"
                         >
                             <td>
-                                <strong class="order-ledger__entity">
-                                    {{ order.entity?.name || 'Без Entity' }}
-                                </strong>
+                                <div class="order-ledger__heading">
+                                    <strong class="order-ledger__entity">
+                                        {{ order.entity?.name || 'Без Entity' }}
+                                    </strong>
+                                    <span v-if="quickEdit.saving[order.id]" class="order-ledger__saving" role="status" :aria-label="quickEdit.saving[order.id] === 'reload' ? 'Обновление…' : 'Сохранение…'">
+                                        <v-icon icon="mdi-loading" size="14" aria-hidden="true" />
+                                    </span>
+                                    <v-menu v-if="quickEdit.errors[order.id]" location="bottom end" :close-on-content-click="false" :max-width="300">
+                                        <template #activator="{ props: menuProps }">
+                                            <button v-bind="menuProps" type="button" class="order-ledger__error-toggle" :aria-label="`Ошибка изменения заказа ${order.number || `#${order.id}`}: ${quickEdit.errors[order.id]}`" :title="quickEdit.errors[order.id]" @click.stop>
+                                                <v-icon icon="mdi-alert-circle-outline" size="15" aria-hidden="true" />
+                                            </button>
+                                        </template>
+                                        <div class="order-ledger__error" role="alert" @click.stop>
+                                            {{ quickEdit.errors[order.id] }}
+                                            <button v-if="quickEdit.stale[order.id]" type="button" :disabled="!!quickEdit.saving[order.id]" @click="quickEdit.reload(order)">Обновить заказ</button>
+                                        </div>
+                                    </v-menu>
+                                    <label
+                                        v-if="order.permissions?.edit && !order.shipped_at && !order.shipped_sale_id"
+                                        class="order-ledger__status-control"
+                                        :class="{ 'is-disabled': !!quickEdit.saving[order.id] || quickEdit.stale[order.id] }"
+                                        :style="{ color: order.status?.color || '#64748b' }"
+                                        :title="`Статус: ${order.status?.name || 'Не указан'}. Изменить статус заказа`"
+                                        @click.stop
+                                    >
+                                        <v-icon icon="mdi-flag-outline" size="15" aria-hidden="true" />
+                                        <select
+                                            class="order-ledger__status-select"
+                                            :value="order.order_status_id"
+                                            :disabled="!!quickEdit.saving[order.id] || quickEdit.stale[order.id]"
+                                            :aria-label="`Статус заказа ${order.number || `#${order.id}`}`"
+                                            @click.stop
+                                            @change="changeStatus(order, $event)"
+                                        >
+                                            <option v-for="status in orderStatuses" :key="status.id" :value="status.id">{{ status.name }}</option>
+                                        </select>
+                                    </label>
+                                    <span v-else class="order-ledger__status-label" role="img" :title="order.status?.name" :aria-label="`Статус: ${order.status?.name || 'Не указан'}`" :style="{ color: order.status?.color || '#64748b' }">
+                                        <v-icon icon="mdi-flag-outline" size="15" aria-hidden="true" />
+                                    </span>
+                                </div>
                                 <button
                                     type="button"
                                     class="order-ledger__number"
@@ -321,23 +379,6 @@ useHead({
                                 <span v-if="deliveryAddress(order)" class="order-ledger__address" :title="deliveryAddress(order)">
                                     {{ deliveryAddress(order) }}
                                 </span>
-                                <select
-                                    v-if="order.permissions?.edit && !order.shipped_at && !order.shipped_sale_id"
-                                    class="order-ledger__status-select"
-                                    :value="order.order_status_id"
-                                    :disabled="!!quickEdit.saving[order.id] || quickEdit.stale[order.id]"
-                                    :aria-label="`Статус заказа ${order.number || `#${order.id}`}`"
-                                    title="Изменить статус заказа"
-                                    @click.stop
-                                    @change="changeStatus(order, $event)"
-                                >
-                                    <option v-for="status in orderStatuses" :key="status.id" :value="status.id">{{ status.name }}</option>
-                                </select>
-                                <span v-else class="order-ledger__status-label">{{ order.status?.name }}</span>
-                                <div v-if="quickEdit.errors[order.id]" class="order-ledger__error" role="alert" @click.stop>
-                                    {{ quickEdit.errors[order.id] }}
-                                    <button v-if="quickEdit.stale[order.id]" type="button" :disabled="!!quickEdit.saving[order.id]" @click="quickEdit.reload(order)">Обновить заказ</button>
-                                </div>
                             </td>
                             <td>
                                 <div class="order-ledger__goods">
@@ -368,9 +409,6 @@ useHead({
                                     @change="changeDeliveryDate(order, $event)"
                                 >
                                 <span v-else class="order-ledger__date-label">{{ formatDeliveryDate(order.delivery_date) }}</span>
-                                <span v-if="quickEdit.saving[order.id]" class="order-ledger__saving" role="status">
-                                    {{ quickEdit.saving[order.id] === 'reload' ? 'Обновление…' : 'Сохранение…' }}
-                                </span>
                             </td>
                             <td class="order-ledger__amount">
                                 {{ formatMoney(order.total_amount, order.currency_code) }}
@@ -727,10 +765,65 @@ useHead({
 }
 
 .order-summary__notice {
-    padding: 6px 10px;
-    border-bottom: 1px solid #d7dce2;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     color: #185c4b;
-    font-size: 10px;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.order-summary__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.order-ledger__heading {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    min-width: 0;
+}
+
+.order-ledger__status-control,
+.order-ledger__status-label,
+.order-ledger__error-toggle {
+    display: inline-flex;
+    flex: 0 0 24px;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+}
+
+.order-ledger__status-control {
+    position: relative;
+}
+
+.order-ledger__status-control:hover,
+.order-ledger__error-toggle:hover {
+    background: #e7ebef;
+}
+
+.order-ledger__status-control.is-disabled {
+    opacity: 0.45;
+}
+
+.order-ledger__status-select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0;
+}
+
+.order-ledger__status-select:disabled {
+    cursor: default;
 }
 
 .order-ledger__address {
@@ -742,7 +835,6 @@ useHead({
     overflow-wrap: anywhere;
 }
 
-.order-ledger__status-select,
 .order-ledger__date-input {
     width: 100%;
     min-width: 0;
@@ -757,43 +849,50 @@ useHead({
     line-height: 18px;
 }
 
-.order-ledger__status-select {
-    margin-top: 5px;
-    padding-right: 22px;
-    background-position: right 4px center;
-    background-size: 14px;
-    cursor: pointer;
-    text-overflow: ellipsis;
-}
-
-.order-ledger__status-select:focus-visible,
+.order-ledger__status-control:focus-within,
+.order-ledger__error-toggle:focus-visible,
 .order-ledger__date-input:focus-visible {
     outline: 2px solid #7f1d1d;
     outline-offset: 1px;
 }
 
-.order-ledger__status-select:disabled,
 .order-ledger__date-input:disabled {
     cursor: wait;
     opacity: 0.6;
 }
 
-.order-ledger__date-label,
-.order-ledger__status-label,
-.order-ledger__saving {
+.order-ledger__date-label {
     display: block;
     color: #737b85;
     font-size: 9px;
 }
 
 .order-ledger__saving {
-    margin-top: 3px;
+    display: inline-flex;
+    flex-shrink: 0;
+    color: #737b85;
+    animation: order-saving-spin 1s linear infinite;
+}
+
+@keyframes order-saving-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .order-ledger__saving { animation: none; }
+}
+
+.order-ledger__error-toggle {
+    color: #9f2626;
 }
 
 .order-ledger__error {
-    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid #e7caca;
+    border-radius: 6px;
+    background: #fff;
     color: #9f2626;
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1.4;
 }
 
@@ -820,7 +919,6 @@ useHead({
     background: #faf4ee;
 }
 
-.order-ledger td > strong,
 .order-ledger td > small {
     display: block;
     overflow: hidden;
@@ -828,13 +926,15 @@ useHead({
     white-space: nowrap;
 }
 
-.order-ledger td > strong {
+.order-ledger__entity {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: #20262d;
     font-size: 10px;
     font-weight: 900;
-}
-
-.order-ledger__entity {
-    color: #20262d;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .order-ledger__number {
