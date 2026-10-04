@@ -194,7 +194,6 @@ class AvitoCrmController extends Controller
             ->whereHas('avitoChats', fn (Builder $query) => $query->whereKey($chat->id))
             ->latest('submitted_at')
             ->latest('id')
-            ->limit(20)
             ->get();
 
         return response()->json([
@@ -400,6 +399,25 @@ class AvitoCrmController extends Controller
                 : 'Текст отправлен, но часть фотографий пропущена.',
             ...$result,
         ], 201);
+    }
+
+    public function sendOrderConfirmation(
+        AvitoChat $chat,
+        Order $order,
+        AvitoCrmOutboundService $outbound,
+    ): JsonResponse {
+        abort_unless($order->avitoChats()->whereKey($chat->id)->exists(), 404);
+
+        $result = $outbound->sendOrderConfirmation($chat, $order);
+
+        return response()->json([
+            'message' => $result['warnings'] === []
+                ? 'Информация о заказе отправлена в чат Avito.'
+                : ($result['sent'] > 0
+                    ? 'Информация о заказе отправлена в Avito частично.'
+                    : 'Не удалось отправить информацию о заказе в Avito.'),
+            'outbound' => $result,
+        ]);
     }
 
     private function entityPayload(Entity $entity): array

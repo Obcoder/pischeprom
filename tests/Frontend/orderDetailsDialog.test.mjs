@@ -8,7 +8,7 @@ import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartme
 import { useOrderDialogEditor } from '../../resources/js/Composables/useOrderDialogEditor.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
-function dialogHarness(initialProps = {}) {
+function dialogHarness(initialProps = {}, slots = {}) {
     const filename = fileURLToPath(new URL('../../resources/js/Components/Orders/OrderDetailsDialog.vue', import.meta.url))
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename })
     assert.deepEqual(errors, [])
@@ -41,11 +41,11 @@ function dialogHarness(initialProps = {}) {
     }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
-    const props = Vue.reactive({ modelValue: false, orderId: null, editable: true, theme: 'light', ...initialProps })
+    const props = Vue.reactive({ modelValue: false, orderId: null, editable: true, externalBusy: false, theme: 'light', ...initialProps })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose: () => {}, emit: (...args) => emitted.push(args) }))
     return {
-        api, props, requests, emitted, render: templateRenderer(template, api, props),
+        api, props, requests, emitted, render: templateRenderer(template, api, props, { $slots: slots }),
         dispose() { disposal.forEach(callback => callback()); scope.stop() },
     }
 }
@@ -233,4 +233,36 @@ test('save failure brings validation feedback into view while preserving the dra
     assert.deepEqual(harness.api.validationMessages.value, ['Дата недоступна'])
     assert.equal(harness.api.editor.dateDraft, '2026-10-03')
     assert.equal(harness.api.editor.editingDate, true)
+})
+
+test('order actions receive the saved order and stay disabled during editing and sending', async t => {
+    const harness = dialogHarness({ modelValue: true, orderId: 7 }, {
+        actions: ({ order, disabled, editing }) => [Vue.h('button', { class: 'test-order-action', disabled, 'data-editing': editing, 'data-total': order.total_amount })],
+    })
+    t.after(() => harness.dispose())
+    const { api, props, requests, render, emitted } = harness
+    requests[0].resolve({ data: { id: 7, total_amount: 150, permissions: { edit: true, delivery_edit: true } } })
+    await Vue.nextTick()
+    const action = () => findVNode(render(), node => hasClass(node, 'test-order-action'))
+    assert.equal(action().props.disabled, false)
+    assert.equal(action().props['data-total'], 150)
+    api.editor.beginDateEdit()
+    assert.equal(action().props.disabled, true)
+    assert.equal(action().props['data-editing'], true)
+    api.editor.cancelDateEdit()
+    api.editor.beginEdit()
+    assert.equal(action().props.disabled, true)
+    api.editor.cancelEdit()
+    props.externalBusy = true
+    assert.equal(action().props.disabled, true)
+    assert.equal(findVNode(render(), node => hasClass(node, 'order-details__edit')).props.disabled, true)
+    assert.equal(findVNode(render(), node => hasClass(node, 'order-details__date-edit')).props.disabled, true)
+    api.updateDialog(false)
+    assert.deepEqual(emitted, [])
+    props.externalBusy = false
+    api.order.value = { ...api.order.value, total_amount: 250 }
+    assert.equal(action().props.disabled, false)
+    assert.equal(action().props['data-total'], 250)
+    api.editor.stale = true
+    assert.equal(action().props.disabled, true)
 })

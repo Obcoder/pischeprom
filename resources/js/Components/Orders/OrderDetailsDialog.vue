@@ -9,6 +9,7 @@ const props = defineProps({
     modelValue: Boolean,
     orderId: { type: [Number, String], default: null },
     editable: { type: Boolean, default: true },
+    externalBusy: { type: Boolean, default: false },
     theme: { type: String, default: 'light' },
 })
 const emit = defineEmits(['update:modelValue', 'saved'])
@@ -26,7 +27,7 @@ const editor = reactive(useOrderDialogEditor({
     client: axios,
     onSaved: savedOrder => emit('saved', savedOrder),
 }))
-const busy = computed(() => editor.saving || editor.savingDate)
+const busy = computed(() => props.externalBusy || editor.saving || editor.savingDate)
 const validationMessages = computed(() => [...new Set(Object.values(editor.errors).flat())])
 const orderNumber = computed(() => order.value?.number || (props.orderId ? `#${props.orderId}` : ''))
 let controller = null
@@ -195,6 +196,7 @@ onBeforeUnmount(() => {
                         <div><span>Общий вес</span><strong>{{ formatNumber(editor.editing ? editor.weight : order.total_weight, 3) }} <small>кг</small></strong></div>
                         <div><span>Позиций</span><strong>{{ editor.editing ? editor.form.items.length : (order.items_count ?? order.items?.length ?? 0) }}</strong></div>
                     </div>
+                    <slot name="actions" :order="order" :disabled="busy || editor.editing || editor.editingDate || editor.stale" :editing="editor.editing || editor.editingDate" />
 
                     <OrderDialogForm v-if="editor.editing" :editor="editor" @cancel="cancelEdit" />
                     <template v-else>
@@ -222,7 +224,7 @@ onBeforeUnmount(() => {
                             </form>
                             <div v-else class="order-details__date-row">
                                 <strong>{{ order.delivery_date ? formatDate(order.delivery_date) : 'Дата не назначена' }}</strong>
-                                <button v-if="editor.canEditDelivery" type="button" class="order-details__date-edit" :disabled="editor.stale" @click="editor.beginDateEdit"><v-icon icon="mdi-calendar-edit" size="14" />{{ order.delivery_date ? 'Изменить дату' : 'Назначить дату' }}</button>
+                                <button v-if="editor.canEditDelivery" type="button" class="order-details__date-edit" :disabled="busy || editor.stale" @click="editor.beginDateEdit"><v-icon icon="mdi-calendar-edit" size="14" />{{ order.delivery_date ? 'Изменить дату' : 'Назначить дату' }}</button>
                             </div>
                             <div v-if="order.preferred_delivery_time" class="order-details__multiline">{{ order.preferred_delivery_time }}</div>
                             <div v-for="building in (order.buildings || [])" :key="building.id" class="order-details__address">

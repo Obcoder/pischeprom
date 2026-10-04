@@ -26,6 +26,7 @@ class AvitoCrmOutboundService
     public function __construct(
         private readonly AvitoMessengerService $messenger,
         private readonly GoodStockService $stock,
+        private readonly AvitoOrderTableRenderer $orderTable,
     ) {}
 
     public function prepareGood(Good $good): Good
@@ -161,12 +162,36 @@ class AvitoCrmOutboundService
      */
     public function sendOrderConfirmation(AvitoChat $chat, Order $order): array
     {
-        $order->loadMissing(['items', 'buildings.city', 'contactTelephone']);
+        $order->loadMissing(['items', 'status', 'buildings.city', 'buildings.apartments', 'contactTelephone']);
         $sent = 0;
 
         try {
             foreach ($this->textChunks($this->orderText($order)) as $chunk) {
                 $this->messenger->sendText($chat, $chunk);
+                $sent++;
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return [
+                'sent' => $sent,
+                'warnings' => [$sent > 0
+                    ? 'В Avito отправлена только часть информации о заказе. Повторная отправка может продублировать сообщения.'
+                    : 'Не удалось отправить информацию о заказе в Avito.'],
+            ];
+        }
+
+        $images = [];
+        try {
+            $images = $this->orderTable->render($order);
+            foreach ($images as $index => $path) {
+                $this->messenger->sendImage($chat, new UploadedFile(
+                    $path,
+                    Str::slug($order->number).'-'.($index + 1).'.jpg',
+                    'image/jpeg',
+                    UPLOAD_ERR_OK,
+                    true,
+                ));
                 $sent++;
             }
 
@@ -176,8 +201,14 @@ class AvitoCrmOutboundService
 
             return [
                 'sent' => $sent,
-                'warnings' => ['Заказ создан, но подтверждение не удалось отправить в Avito.'],
+                'warnings' => ['Текст заказа отправлен в Avito, но таблица отправлена не полностью. Повторная отправка может продублировать сообщения.'],
             ];
+        } finally {
+            foreach ($images as $path) {
+                if (is_file($path)) {
+                    @unlink($path);
+                }
+            }
         }
     }
 
@@ -230,34 +261,61 @@ class AvitoCrmOutboundService
 
     private function orderText(Order $order): string
     {
-        $lines = ["Заказ {$order->number} создан."];
+        $lines = ['Заказ '.$this->plainText($order->number)];
+        if ($order->status?->name) {
+            $lines[] = 'Статус: '.$this->plainText($order->status->name);
+        }
+        $lines[] = '';
+        $lines[] = 'СОСТАВ ЗАКАЗА';
+        $lines[] = 'Кол-во │ Цена │ Сумма';
 
-        foreach ($order->items as $item) {
-            $line = '• '.$item->good_name.' — '.$this->number((float) $item->quantity);
-            if ($item->price_gross !== null) {
-                $line .= ' × '.$this->number((float) $item->price_gross).' '.$item->currency_code;
+        foreach ($order->items->values() as $index => $item) {
+            $lines[] = '──────────────';
+            $lines[] = ($index + 1).' │ '.$this->plainText($item->good_name);
+            $currency = $this->plainText($item->currency_code ?: $order->currency_code);
+            $lines[] = implode(' │ ', [
+                $this->orderNumber((float) $item->quantity, 3),
+                $item->price_gross !== null ? $this->orderNumber((float) $item->price_gross, 4).' '.$currency : 'Уточняется',
+                $item->line_total !== null ? $this->orderNumber((float) $item->line_total, 2).' '.$currency : 'Уточняется',
+            ]);
+            if ($item->denominator !== null) {
+                $lines[] = 'Фасовка: '.$this->orderNumber((float) $item->denominator, 4).' кг';
             }
-            if ($item->line_total !== null) {
-                $line .= ' = '.$this->number((float) $item->line_total).' '.$item->currency_code;
-            }
-            $lines[] = $line;
         }
 
+        $lines[] = '──────────────';
         if ($order->total_amount !== null) {
-            $lines[] = 'Итого: '.$this->number((float) $order->total_amount).' '.$order->currency_code;
+            $label = $order->items->contains(fn ($item) => $item->line_total === null)
+                ? 'Итого по указанным ценам: '
+                : 'Итого: ';
+            $lines[] = $label.$this->orderNumber((float) $order->total_amount, 2).' '.$this->plainText($order->currency_code);
+        }
+        if ($order->total_weight !== null) {
+            $lines[] = 'Общий вес: '.$this->orderNumber((float) $order->total_weight, 4).' кг';
         }
         if ($order->buildings->isNotEmpty()) {
             $building = $order->buildings->first();
-            $lines[] = 'Доставка: '.implode(', ', array_filter([
+            $lines[] = 'Доставка: '.$this->plainText(implode(', ', array_filter([
                 $building->city?->name,
                 $building->address_with_apartment,
-            ]));
+            ])));
+        }
+        if ($order->delivery_date) {
+            $lines[] = 'Дата доставки: '.$order->delivery_date->format('d.m.Y');
         }
         if (filled($order->preferred_delivery_time)) {
-            $lines[] = 'Желаемое время: '.$order->preferred_delivery_time;
+            $lines[] = 'Желаемое время: '.$this->plainText($order->preferred_delivery_time);
+        }
+        if (filled($order->contactTelephone?->number)) {
+            $lines[] = 'Телефон: '.$this->plainText($order->contactTelephone->number);
         }
 
         return implode("\n", $lines);
+    }
+
+    private function orderNumber(float $value, int $precision): string
+    {
+        return rtrim(rtrim(number_format($value, $precision, ',', ' '), '0'), ',');
     }
 
     private function sendGoodImage(AvitoChat $chat, GoodMedia $media, Good $good): void

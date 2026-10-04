@@ -36,6 +36,18 @@ function panelHarness() {
     return { api, props, requests, emitted, render: templateRenderer(template, api, props), dispose() { disposal.forEach(callback => callback()); scope.stop() } }
 }
 
+async function loadChat(harness, id) {
+    harness.props.chat = { id }
+    await Vue.nextTick()
+    harness.requests.forEach(request => request.resolve(request.url.endsWith('/crm')
+        ? { entity: { id: 3 }, candidates: [], orders: [] }
+        : { items: [], order_statuses: [], currency_codes: ['RUB'] }))
+    await Vue.nextTick()
+    await Vue.nextTick()
+    harness.requests.length = 0
+    harness.emitted.length = 0
+}
+
 test('Avito opens order details without leaving the chat or clearing the order draft', t => {
     const harness = panelHarness()
     t.after(() => harness.dispose())
@@ -61,6 +73,19 @@ test('Avito opens order details without leaving the chat or clearing the order d
     api.resetTransientState()
     assert.equal(api.orderDetailsOpen.value, false)
     assert.equal(api.selectedOrderId.value, null)
+})
+
+test('saved chat orders remain available after unlinking the customer and beyond the first four', t => {
+    const harness = panelHarness()
+    t.after(() => harness.dispose())
+    harness.props.chat = { id: 7 }
+    harness.api.crm.value = { entity: null, candidates: [], orders: Array.from({ length: 5 }, (_, index) => ({ id: index + 1, number: `PP-${index + 1}` })) }
+    harness.api.activeTab.value = 'order'
+    const olderOrder = findVNode(harness.render(), node => node.props?.['aria-label'] === 'Детали заказа PP-5')
+    assert.ok(olderOrder)
+    olderOrder.props.onClick()
+    assert.equal(harness.api.selectedOrderId.value, 5)
+    assert.equal(harness.api.orderDetailsOpen.value, true)
 })
 
 test('city searches cancel and discard outdated results and unmount cancels the active request', async t => {
@@ -151,4 +176,84 @@ test('building save requires a selected city and does not submit a free-text cit
     assert.match(api.buildingErrors.value.city_id[0], /Выберите город/)
     assert.equal(requests.length, 0)
     assert.equal(api.saving.value, false)
+})
+
+test('Avito sends a saved order repeatedly and refreshes chat messages after success', async t => {
+    const harness = panelHarness()
+    t.after(() => harness.dispose())
+    const { api, props, requests, emitted, render } = harness
+    await loadChat(harness, 7)
+    api.openOrderDetails({ id: 42 })
+    const dialog = findVNode(render(), node => node.type === api.OrderDetailsDialog)
+    const sendAction = disabled => findVNode(dialog.children.actions({ order: { id: 42 }, disabled, editing: disabled }), node => node.type === 'v-btn')
+    assert.equal(sendAction(true).props.disabled, true)
+    const send = sendAction(false).props.onClick()
+    assert.equal(requests[0].url, '/api/avito/messenger/chats/7/crm/orders/42/send-confirmation')
+    assert.equal(requests[0].options, undefined)
+    assert.equal(api.orderSending.value, true)
+    assert.equal(findVNode(render(), node => node.type === api.OrderDetailsDialog).props['external-busy'], true)
+    await api.sendOrderConfirmation({ id: 42 })
+    assert.equal(requests.length, 1)
+    requests[0].resolve({ message: 'Заказ отправлен.', outbound: { sent: 1, warnings: [] } })
+    await send
+    assert.equal(api.orderSending.value, false)
+    assert.equal(api.orderSendNotice.value, 'Заказ отправлен.')
+    assert.deepEqual(emitted, [['notice', 'Заказ отправлен.'], ['refresh-messages']])
+    const repeated = api.sendOrderConfirmation({ id: 42 })
+    assert.equal(requests[1].url, requests[0].url)
+    requests[1].resolve({ message: 'Отправлено частично.', outbound: { sent: 1, warnings: ['Вторая часть не отправлена.'] } })
+    await repeated
+    assert.equal(api.orderSendNotice.value, 'Отправлено частично. Вторая часть не отправлена.')
+    api.orderSaved({ id: 42, total_amount: 999 })
+    assert.equal(api.orderSendNotice.value, '')
+})
+
+test('Avito sending preserves actionable failures and allows retrying the saved order', async t => {
+    const harness = panelHarness()
+    t.after(() => harness.dispose())
+    const { api, props, requests, emitted } = harness
+    await loadChat(harness, 7)
+    api.openOrderDetails({ id: 42 })
+    const failed = api.sendOrderConfirmation({ id: 42 })
+    requests[0].resolve({ message: 'Заказ не отправлен.', outbound: { sent: 0, warnings: ['Avito временно недоступен.', 'Повторите позже.'] } })
+    await failed
+    assert.equal(api.orderSendError.value, 'Avito временно недоступен. Повторите позже.')
+    assert.equal(api.orderSending.value, false)
+    assert.equal(api.orderSendNotice.value, '')
+    assert.deepEqual(emitted, [['error', 'Avito временно недоступен. Повторите позже.']])
+    const retry = api.sendOrderConfirmation({ id: 42 })
+    assert.equal(api.orderSendError.value, '')
+    requests[1].reject({ response: { data: { message: 'Заказ больше не связан с чатом.' } } })
+    await retry
+    assert.equal(api.orderSendError.value, 'Заказ больше не связан с чатом.')
+    assert.equal(api.orderSending.value, false)
+    assert.equal(emitted.some(event => event[0] === 'refresh-messages'), false)
+})
+
+test('a late order send cannot update another order, another chat, or an unmounted panel', async t => {
+    const harness = panelHarness()
+    t.after(() => harness.dispose())
+    const { api, props, requests, emitted } = harness
+    await loadChat(harness, 7)
+    api.openOrderDetails({ id: 42 })
+    const older = api.sendOrderConfirmation({ id: 42 })
+    api.openOrderDetails({ id: 43 })
+    const newer = api.sendOrderConfirmation({ id: 43 })
+    requests[0].resolve({ message: 'Старый заказ отправлен.', outbound: { sent: 1 } })
+    await older
+    assert.equal(api.orderSending.value, true)
+    assert.equal(api.orderSendNotice.value, '')
+    props.chat = { id: 8 }
+    requests[1].reject({ response: { data: { message: 'Ошибка старого чата.' } } })
+    await newer
+    assert.deepEqual(emitted, [])
+    await loadChat(harness, 8)
+    api.openOrderDetails({ id: 44 })
+    const last = api.sendOrderConfirmation({ id: 44 })
+    const request = requests.at(-1)
+    harness.dispose()
+    request.resolve({ message: 'Отправлено.', outbound: { sent: 1 } })
+    await last
+    assert.equal(api.orderSendNotice.value, '')
+    assert.deepEqual(emitted, [])
 })

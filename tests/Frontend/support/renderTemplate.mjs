@@ -2,17 +2,19 @@ import * as Vue from 'vue'
 
 // Render the compiled template to VNodes so tests can exercise its real event
 // bindings without a browser or replacing the component's setup logic.
-export function templateRenderer(compiledTemplate, api, props = {}) {
+export function templateRenderer(compiledTemplate, api, props = {}, context = {}) {
     const code = compiledTemplate.code
         .replace(/^import \{ (.+) \} from "vue"$/gm, (_, imports) => `const { ${imports.replace(/ as /g, ': ')} } = Vue`)
         .replace('export function render', 'return function render')
     const render = new Function('Vue', code)({
         ...Vue,
         resolveComponent: name => name,
+        // Named slots need no mounted component instance in VNode-only tests.
+        renderSlot: (slots, name, props = {}, fallback) => Vue.h(Vue.Fragment, slots[name]?.(props) || fallback?.() || []),
         // DOM directive hooks do not run during VNode-only interaction tests.
         withDirectives: vnode => vnode,
     })
-    return () => render({}, [], props, Vue.proxyRefs(api), {}, {})
+    return () => render({ $slots: {}, ...context }, [], props, Vue.proxyRefs(api), {}, {})
 }
 
 export function findVNode(root, predicate) {

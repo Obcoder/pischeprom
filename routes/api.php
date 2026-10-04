@@ -1190,6 +1190,9 @@ Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(
         Route::post('/chats/{chat}/crm/orders', [AvitoCrmController::class, 'storeOrder'])
             ->middleware('throttle:30,1,avito-crm-order:')
             ->name('chats.crm.orders.store');
+        Route::post('/chats/{chat}/crm/orders/{order}/send-confirmation', [AvitoCrmController::class, 'sendOrderConfirmation'])
+            ->middleware('throttle:30,1,avito-crm-send-order:')
+            ->name('chats.crm.orders.send-confirmation');
         Route::post('/chats/{chat}/crm/goods/{good}/send', [AvitoCrmController::class, 'sendGood'])
             ->middleware('throttle:20,1,avito-crm-send-good:')
             ->name('chats.crm.goods.send');

@@ -14,6 +14,7 @@ use App\Models\Entity;
 use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Models\GoodPriceTypeValue;
+use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\PhoneCall;
 use App\Models\PriceType;
@@ -21,6 +22,7 @@ use App\Models\Region;
 use App\Models\Telephone;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\Avito\AvitoCrmOutboundService;
 use App\Services\Telephones\TelephoneIdentityService;
 use App\Services\Telephony\BeelinePbxService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,6 +31,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Tests\TestCase;
 
 class AvitoCrmTest extends TestCase
@@ -175,17 +178,7 @@ class AvitoCrmTest extends TestCase
 
         $good = Good::query()->create(['name' => 'Тестовый товар', 'is_published' => true]);
         $status = OrderStatus::query()->where('code', OrderStatus::OPEN)->firstOrFail();
-        Http::fake([
-            'https://api.avito.ru/token' => Http::response(['access_token' => 'crm-order-token', 'expires_in' => 86400]),
-            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages' => Http::response([
-                'id' => 'order-confirmation-1',
-                'author_id' => 777,
-                'direction' => 'out',
-                'type' => 'text',
-                'created' => 1785916800,
-                'content' => ['text' => 'Подтверждение заказа'],
-            ]),
-        ]);
+        $this->fakeOrderOutbound();
         $orderResponse = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/orders", [
             'order_status_id' => $status->id,
             'currency_code' => 'RUB',
@@ -200,7 +193,7 @@ class AvitoCrmTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('order.total_amount', 700)
             ->assertJsonPath('order.buildings.0.apartment.number', '7А')
-            ->assertJsonPath('outbound.sent', 1);
+            ->assertJsonPath('outbound.sent', 2);
         $orderId = (int) $orderResponse->json('order.id');
         $orderNumber = (string) $orderResponse->json('order.number');
 
@@ -211,7 +204,7 @@ class AvitoCrmTest extends TestCase
 
             $text = (string) data_get($request->data(), 'message.text');
 
-            return str_contains($text, "Заказ {$orderNumber} создан.")
+            return str_contains($text, "Заказ {$orderNumber}")
                 && str_contains($text, 'Тестовый товар')
                 && str_contains($text, 'Итого: 700 RUB')
                 && str_contains($text, 'кв. 7А')
@@ -236,6 +229,128 @@ class AvitoCrmTest extends TestCase
             ->assertJsonPath('entity.buildings.0.building_type', 'Домашний')
             ->assertJsonPath('entity.buildings.0.apartment_id', $apartment->id)
             ->assertJsonPath('orders.0.id', $orderId);
+    }
+
+    public function test_saved_order_can_be_sent_repeatedly_with_its_current_edited_values(): void
+    {
+        [, $chat] = $this->chatFixture();
+        $this->fakeOrderOutbound();
+        $order = $this->orderFixture($chat);
+        Http::assertNothingSent();
+        $editedGood = Good::query()->create(['name' => 'Обновлённый состав заказа', 'denominator' => 5]);
+
+        $this->putJson("/api/orders/{$order->id}", [
+            'entity_id' => $order->entity_id,
+            'order_status_id' => $order->order_status_id,
+            'preferred_delivery_time' => 'После 18:00',
+            'internal_comment' => 'Внутренний комментарий сотрудника',
+            'currency_code' => 'RUB',
+            'items' => [[
+                'good_id' => $editedGood->id,
+                'quantity' => 3,
+                'unit_price' => 450,
+            ]],
+        ])->assertOk()->assertJsonPath('data.total_amount', 1350);
+
+        $url = "/api/avito/messenger/chats/{$chat->id}/crm/orders/{$order->id}/send-confirmation";
+        foreach ([1, 2] as $attempt) {
+            $this->postJson($url)
+                ->assertOk()
+                ->assertJsonPath('message', 'Информация о заказе отправлена в чат Avito.')
+                ->assertJsonPath('outbound.sent', 2)
+                ->assertJsonPath('outbound.warnings', []);
+        }
+
+        $messages = Http::recorded(fn ($request) => $request->url() ===
+            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages');
+        $this->assertCount(2, $messages);
+        foreach ($messages as [$request]) {
+            $text = (string) data_get($request->data(), 'message.text');
+            $this->assertStringContainsString($order->number, $text);
+            $this->assertStringContainsString($editedGood->name, $text);
+            $this->assertStringContainsString('450 RUB', $text);
+            $this->assertStringContainsString('1 350 RUB', $text);
+            $this->assertStringContainsString('После 18:00', $text);
+            $this->assertStringNotContainsString('Первоначальный товар', $text);
+            $this->assertStringNotContainsString('Внутренний комментарий сотрудника', $text);
+        }
+        $this->assertSame(1, Order::query()->count());
+        $this->assertDatabaseHas('avito_chat_order', ['avito_chat_id' => $chat->id, 'order_id' => $order->id]);
+    }
+
+    public function test_order_from_another_chat_cannot_be_sent_even_for_the_same_customer(): void
+    {
+        [$account, $chat] = $this->chatFixture();
+        $order = $this->orderFixture($chat);
+        $otherChat = AvitoChat::query()->create([
+            'avito_messenger_account_id' => $account->id,
+            'external_chat_id' => 'chat-unrelated',
+            'entity_id' => $order->entity_id,
+            'peer_user_id' => '999',
+        ]);
+        Http::fake();
+
+        $this->postJson("/api/avito/messenger/chats/{$otherChat->id}/crm/orders/{$order->id}/send-confirmation")
+            ->assertNotFound();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_sending_saved_order_requires_active_staff_authentication(): void
+    {
+        [, $chat] = $this->chatFixture();
+        $order = $this->orderFixture($chat);
+        $url = "/api/avito/messenger/chats/{$chat->id}/crm/orders/{$order->id}/send-confirmation";
+        Http::fake();
+        $this->app['auth']->guard()->logout();
+        $this->postJson($url)->assertUnauthorized();
+
+        foreach ([['type' => 'customer', 'status' => 'active'], ['type' => 'employee', 'status' => 'blocked']] as $attributes) {
+            $this->actingAs(User::factory()->create($attributes));
+            $this->postJson($url)->assertForbidden();
+        }
+
+        Http::assertNothingSent();
+    }
+
+    public function test_failed_saved_order_send_returns_a_clear_warning_and_keeps_the_order(): void
+    {
+        [, $chat] = $this->chatFixture();
+        $order = $this->orderFixture($chat);
+        Http::fake([
+            'https://api.avito.ru/token' => Http::response(['access_token' => 'crm-order-token', 'expires_in' => 86400]),
+            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages' => Http::response(['message' => 'Unavailable'], 503),
+        ]);
+
+        $response = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/orders/{$order->id}/send-confirmation")
+            ->assertOk()
+            ->assertJsonPath('message', 'Не удалось отправить информацию о заказе в Avito.')
+            ->assertJsonPath('outbound.sent', 0)
+            ->assertJsonCount(1, 'outbound.warnings');
+
+        $this->assertStringContainsString('Не удалось', $response->json('outbound.warnings.0'));
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'total_amount' => 250]);
+        $this->assertDatabaseHas('avito_chat_order', ['avito_chat_id' => $chat->id, 'order_id' => $order->id]);
+        $this->assertDatabaseCount('avito_messages', 0);
+    }
+
+    public function test_partial_saved_order_send_preserves_sent_count_and_warnings(): void
+    {
+        [, $chat] = $this->chatFixture();
+        $order = $this->orderFixture($chat);
+        $warning = 'Часть информации о заказе не удалось отправить в Avito.';
+        $this->mock(AvitoCrmOutboundService::class, function (Mockery\MockInterface $mock) use ($chat, $order, $warning): void {
+            $mock->shouldReceive('sendOrderConfirmation')
+                ->once()
+                ->withArgs(fn (AvitoChat $actualChat, Order $actualOrder) => $actualChat->is($chat) && $actualOrder->is($order))
+                ->andReturn(['sent' => 1, 'warnings' => [$warning]]);
+        });
+
+        $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/orders/{$order->id}/send-confirmation")
+            ->assertOk()
+            ->assertJsonPath('message', 'Информация о заказе отправлена в Avito частично.')
+            ->assertJsonPath('outbound.sent', 1)
+            ->assertJsonPath('outbound.warnings', [$warning]);
     }
 
     public function test_existing_phone_suggests_entity_and_candidate_can_be_rejected(): void
@@ -464,6 +579,40 @@ class AvitoCrmTest extends TestCase
         });
         Http::assertSent(fn ($request) => $request->url() === 'https://api.avito.ru/messenger/v1/accounts/777/uploadImages'
             && str_contains((string) $request->body(), 'image/jpeg'));
+    }
+
+    private function orderFixture(AvitoChat $chat): Order
+    {
+        $entity = Entity::query()->create(['name' => 'Покупатель заказа']);
+        $chat->update(['entity_id' => $entity->id]);
+        $good = Good::query()->create(['name' => 'Первоначальный товар']);
+        $response = $this->postJson("/api/avito/messenger/chats/{$chat->id}/crm/orders", [
+            'currency_code' => 'RUB',
+            'items' => [['good_id' => $good->id, 'quantity' => 1, 'unit_price' => 250]],
+        ])->assertCreated()->assertJsonPath('outbound.sent', 0);
+
+        return Order::query()->findOrFail($response->json('order.id'));
+    }
+
+    private function fakeOrderOutbound(): void
+    {
+        Storage::fake('avito');
+        $cdnUrl = 'https://img.k.avito.ru/chat/1280x960/order.jpg';
+        Http::fake([
+            'https://api.avito.ru/token' => Http::response(['access_token' => 'crm-order-token', 'expires_in' => 86400]),
+            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages' => Http::response([
+                'id' => 'order-confirmation-1', 'author_id' => 777, 'direction' => 'out', 'type' => 'text',
+                'created' => 1785916800, 'content' => ['text' => 'Информация о заказе'],
+            ]),
+            'https://api.avito.ru/messenger/v1/accounts/777/uploadImages' => Http::response([
+                'order-image-id' => ['1280x960' => $cdnUrl],
+            ]),
+            'https://api.avito.ru/messenger/v1/accounts/777/chats/chat-crm/messages/image' => Http::response([
+                'id' => 'order-image-1', 'author_id' => 777, 'direction' => 'out', 'type' => 'image',
+                'created' => 1785916801, 'content' => ['image' => ['sizes' => ['1280x960' => $cdnUrl]]],
+            ]),
+            $cdnUrl => Http::response('jpeg-binary', 200, ['Content-Type' => 'image/jpeg']),
+        ]);
     }
 
     private function chatFixture(): array

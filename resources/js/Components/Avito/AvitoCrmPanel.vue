@@ -81,6 +81,9 @@ const orderItems = ref([])
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
 const selectedOrderChatId = ref(null)
+const orderSending = ref(false)
+const orderSendError = ref('')
+const orderSendNotice = ref('')
 const orderForm = reactive({
     order_status_id: null,
     contact_telephone_id: null,
@@ -97,6 +100,8 @@ let cityTimer = null
 let cityRequestController = null
 let cityRequestId = 0
 let goodsTimer = null
+let orderSendRequestId = 0
+let disposed = false
 
 const pendingPhones = computed(() => crm.value.candidates.filter((item) => item.type === 'phone' && item.status === 'pending'))
 const pendingAddresses = computed(() => crm.value.candidates.filter((item) => item.type === 'address' && item.status === 'pending'))
@@ -340,6 +345,7 @@ function updateBuildingForm(value) {
 
 function openOrderDetails(order) {
     if (!order?.id) return
+    resetOrderSendState()
     selectedOrderId.value = order.id
     selectedOrderChatId.value = props.chat?.id
     orderDetailsOpen.value = true
@@ -348,9 +354,52 @@ function openOrderDetails(order) {
 function orderSaved(order) {
     if (String(order?.id) !== String(selectedOrderId.value)
         || selectedOrderChatId.value !== props.chat?.id) return
+    orderSendError.value = ''
+    orderSendNotice.value = ''
     crm.value.orders = (crm.value.orders || []).map(existing => String(existing.id) === String(order.id)
         ? { ...existing, ...order }
         : existing)
+}
+
+function resetOrderSendState() {
+    orderSendRequestId += 1
+    orderSending.value = false
+    orderSendError.value = ''
+    orderSendNotice.value = ''
+}
+
+async function sendOrderConfirmation(order) {
+    const chatId = props.chat?.id
+    const orderId = order?.id
+    if (disposed || orderSending.value || !chatId || !orderId || !orderDetailsOpen.value
+        || selectedOrderChatId.value !== chatId || String(selectedOrderId.value) !== String(orderId)) return
+
+    const requestId = ++orderSendRequestId
+    const isCurrent = () => !disposed && requestId === orderSendRequestId
+        && props.chat?.id === chatId && selectedOrderChatId.value === chatId
+        && String(selectedOrderId.value) === String(orderId)
+    orderSending.value = true
+    orderSendError.value = ''
+    orderSendNotice.value = ''
+    try {
+        const { data } = await axios.post(`/api/avito/messenger/chats/${chatId}/crm/orders/${orderId}/send-confirmation`)
+        if (!isCurrent()) return
+        const warnings = (data.outbound?.warnings || []).filter(Boolean)
+        if (data.outbound?.sent > 0) {
+            orderSendNotice.value = [data.message || 'Информация о заказе отправлена в Avito.', ...warnings].join(' ')
+            notify(orderSendNotice.value)
+            emit('refresh-messages')
+        } else {
+            orderSendError.value = warnings.join(' ') || data.message || 'Не удалось отправить заказ в чат Avito.'
+            emit('error', orderSendError.value)
+        }
+    } catch (exception) {
+        if (!isCurrent()) return
+        orderSendError.value = exception?.response?.data?.message || 'Не удалось отправить заказ в чат Avito. Попробуйте ещё раз.'
+        emit('error', orderSendError.value)
+    } finally {
+        if (isCurrent()) orderSending.value = false
+    }
 }
 
 async function lookupAddress() {
@@ -538,6 +587,8 @@ function resetTransientState() {
     cityResults.value = []
     orderDetailsOpen.value = false
     selectedOrderId.value = null
+    selectedOrderChatId.value = null
+    resetOrderSendState()
     orderItems.value = []
     orderForm.contact_telephone_id = null
     orderForm.building_ids = []
@@ -582,6 +633,8 @@ defineExpose({
 })
 
 onBeforeUnmount(() => {
+    disposed = true
+    resetOrderSendState()
     clearTimeout(entityTimer)
     clearTimeout(cityTimer)
     cancelCitySearch()
@@ -716,13 +769,12 @@ onBeforeUnmount(() => {
             </section>
 
             <section v-else-if="activeTab === 'order'" class="crm-section">
+                <div v-if="crm.orders?.length" class="recent-orders">
+                    <div class="section-title"><span>Заказы из этого чата</span><b>{{ crm.orders.length }}</b></div>
+                    <button v-for="order in crm.orders" :key="order.id" type="button" class="recent-orders__item" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number}`" @click="openOrderDetails(order)"><span><strong>{{ order.number }}</strong><small>{{ order.status?.name }} · {{ order.items?.length || order.items_count || 0 }} поз.</small></span><b>{{ formatMoney(order.total_amount, order.currency_code) }}</b><v-icon icon="mdi-arrow-expand" size="12" /></button>
+                </div>
                 <div v-if="!crm.entity" class="crm-callout"><v-icon icon="mdi-account-alert-outline" /><div><strong>Сначала свяжите клиента</strong><span>Заказ должен принадлежать Entity. Откройте вкладку «Клиент».</span></div></div>
                 <template v-else>
-                    <div v-if="crm.orders?.length" class="recent-orders">
-                        <div class="section-title"><span>Заказы из этого чата</span><b>{{ crm.orders.length }}</b></div>
-                        <button v-for="order in crm.orders.slice(0, 4)" :key="order.id" type="button" class="recent-orders__item" aria-haspopup="dialog" :aria-label="`Детали заказа ${order.number}`" @click="openOrderDetails(order)"><span><strong>{{ order.number }}</strong><small>{{ order.status?.name }} · {{ order.items?.length || order.items_count || 0 }} поз.</small></span><b>{{ formatMoney(order.total_amount, order.currency_code) }}</b><v-icon icon="mdi-arrow-expand" size="12" /></button>
-                    </div>
-
                     <div class="section-title"><span>Новый заказ</span><v-btn size="x-small" variant="text" prepend-icon="mdi-package-variant-plus" @click="openCatalog">Добавить товары</v-btn></div>
                     <div v-if="!orderItems.length" class="order-empty"><v-icon icon="mdi-cart-plus" size="28" /><span>Добавьте товары из вкладки «Товары».</span><v-btn size="x-small" variant="tonal" @click="openCatalog">Открыть каталог</v-btn></div>
                     <div v-else class="order-lines">
@@ -816,7 +868,18 @@ onBeforeUnmount(() => {
                 <v-card-actions><v-btn variant="text" @click="addToOrder(selectedGood); productDialog = false">Добавить в заказ</v-btn><v-spacer /><v-btn color="deep-purple-lighten-1" prepend-icon="mdi-send" :loading="saving" @click="sendProduct">Отправить в Avito</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
-        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" theme="dark" @saved="orderSaved" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :external-busy="orderSending" theme="dark" @saved="orderSaved">
+            <template #actions="{ order, disabled, editing }">
+                <div class="order-send">
+                    <div class="order-send__row">
+                        <div><strong>Заказ в чате Avito</strong><span>{{ editing ? 'Сохраните изменения или завершите редактирование перед отправкой.' : 'Отправьте клиенту актуальные сохранённые данные заказа.' }}</span></div>
+                        <v-btn color="deep-purple-lighten-1" variant="flat" size="small" prepend-icon="mdi-send-outline" :loading="orderSending" :disabled="disabled || orderSending" @click="sendOrderConfirmation(order)">Отправить в Avito</v-btn>
+                    </div>
+                    <p v-if="orderSendError" class="order-send__error" role="alert">{{ orderSendError }}</p>
+                    <p v-else-if="orderSendNotice" class="order-send__notice" role="status">{{ orderSendNotice }}</p>
+                </div>
+            </template>
+        </OrderDetailsDialog>
     </aside>
 </template>
 
@@ -836,6 +899,15 @@ onBeforeUnmount(() => {
 .recent-orders { display: grid; gap: 4px; }.recent-orders__item { width: 100%; text-align: left; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 5px; padding: 6px 7px; color: #e7e9fb; border: 1px solid #343850; border-radius: 6px; background: #1b1e35; text-decoration: none; }.recent-orders span strong, .recent-orders span small { display: block; }.recent-orders span strong { font-size: 9px; }.recent-orders span small { color: #858baa; font-size: 7px; }.recent-orders__item > b { font-size: 8px; white-space: nowrap; }
 .recent-orders__item:hover { border-color: #7361aa; background: #232640; }
 .recent-orders__item:focus-visible { outline: 2px solid #ab94ff; outline-offset: 2px; }
+.order-send { padding: 12px 16px; border-bottom: 1px solid #343850; background: #211e38; }
+.order-send__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.order-send__row > div { flex: 1 1 240px; }
+.order-send strong, .order-send span { display: block; }
+.order-send strong { color: #ece7ff; font-size: 12px; }
+.order-send span { margin-top: 3px; color: #aaa6c5; font-size: 11px; line-height: 1.4; }
+.order-send p { margin: 9px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.order-send__error { color: #f2a0ae; }
+.order-send__notice { color: #9bdfc3; }
 .building-form { padding: 10px; gap: 10px; }
 .building-form__heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .building-form__heading > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #e9e6fc; }
