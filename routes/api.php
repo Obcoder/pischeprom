@@ -843,6 +843,8 @@ Route::prefix('orders')
         Route::patch('/{order}/delivery-date', [OrderController::class, 'deliveryDate'])
             ->middleware(['verified', \App\Http\Middleware\EnsureOrderDeliveryMutationAllowed::class])
             ->name('delivery-date');
+        Route::patch('/{order}/status', [OrderController::class, 'status'])
+            ->name('status');
         Route::match(['put', 'patch'], '/{order}', [OrderController::class, 'update'])
             ->name('update');
         Route::delete('/{order}', [OrderController::class, 'destroy'])

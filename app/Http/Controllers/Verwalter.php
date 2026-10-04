@@ -7,11 +7,14 @@ use App\Http\Resources\OrderResource;
 use App\Models\Lead;
 use App\Models\Order;
 use App\Models\OrderStatus;
+use App\Services\Orders\OrderWriter;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class Verwalter extends Controller
 {
+    public function __construct(private readonly OrderWriter $writer) {}
+
     public function index(): Response
     {
         $activeLeads = Lead::query()
@@ -21,7 +24,6 @@ class Verwalter extends Controller
             ->orderByDesc('id')
             ->get();
         $orderStatuses = OrderStatus::query()
-            ->where('is_closed', false)
             ->ordered()
             ->get(['id', 'code', 'name', 'color', 'is_closed']);
 
@@ -30,6 +32,7 @@ class Verwalter extends Controller
             'canViewOrders' => true,
             'orderStatuses' => $orderStatuses,
             'ordersByStatus' => $orderStatuses
+                ->reject(fn (OrderStatus $status) => $status->is_closed)
                 ->mapWithKeys(fn (OrderStatus $status) => [$status->code => $this->ordersForStatus($status->code)]),
         ]);
     }
@@ -37,12 +40,7 @@ class Verwalter extends Controller
     private function ordersForStatus(string $status): array
     {
         $orders = Order::query()
-            ->with([
-                'status',
-                'entity:id,name',
-                'buildings:id,address',
-                'items.good:id,name,slug',
-            ])
+            ->with($this->writer->relations())
             ->withCount('items')
             ->whereHas('status', fn ($query) => $query->where('code', $status))
             ->latest('submitted_at')

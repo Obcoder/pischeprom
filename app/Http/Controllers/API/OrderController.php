@@ -195,6 +195,17 @@ class OrderController extends Controller
         return response()->json(['data' => (new OrderResource($order))->resolve($request)]);
     }
 
+    public function status(Request $request, Order $order): JsonResponse
+    {
+        $data = $request->validate([
+            'order_status_id' => ['required', 'integer', 'exists:order_statuses,id'],
+            'expected_order_status_id' => ['required', 'integer'],
+        ]);
+        $order = $this->writer->updateStatus($order, (int) $data['order_status_id'], (int) $data['expected_order_status_id']);
+
+        return response()->json(['data' => (new OrderResource($order))->resolve($request)]);
+    }
+
     private function validated(Request $request, ?Order $order = null): array
     {
         if ($request->exists('delivery_date')) {

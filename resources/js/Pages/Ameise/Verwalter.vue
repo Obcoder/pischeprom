@@ -2,10 +2,12 @@
 import { Link } from '@inertiajs/vue3'
 import { useHead } from '@unhead/vue'
 import { route } from 'ziggy-js'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import AvitoWaitingList from '@/Components/Avito/AvitoWaitingList.vue'
 import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
+import { useOrderQuickEdit } from '@/Composables/useOrderQuickEdit'
+import { buildingApartmentLabel } from '@/utils/buildingApartments'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -34,6 +36,7 @@ const orderTab = ref(null)
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
 const savedOrders = ref({})
+const quickEdit = reactive(useOrderQuickEdit({ onSaved: orderSaved }))
 const activeOrderStatuses = computed(() => props.orderStatuses.filter(status => !status.is_closed))
 const displayedOrdersByStatus = computed(() => {
     const groups = Object.fromEntries(activeOrderStatuses.value.map(status => [status.code, []]))
@@ -58,6 +61,37 @@ function orderSaved(order) {
     if (!props.canViewOrders || !order?.id) return
     savedOrders.value = { ...savedOrders.value, [order.id]: order }
 }
+
+function deliveryAddress(order) {
+    const buildings = order.buildings || []
+    const deliveryBuildings = buildings.filter(building => building.role === 'delivery')
+    return (deliveryBuildings.length ? deliveryBuildings : buildings)
+        .map(building => [building.city?.name, building.address, buildingApartmentLabel(building)].filter(Boolean).join(', '))
+        .filter(Boolean).join(' · ')
+}
+
+function formatDeliveryDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
+    return match ? `${match[3]}.${match[2]}.${match[1]}` : 'Не назначена'
+}
+
+async function changeDeliveryDate(order, event) {
+    const input = event.target
+    if (input.validity?.valid === false) {
+        input.reportValidity()
+        return
+    }
+    await quickEdit.saveDate(order, input.value)
+    input.value = (savedOrders.value[order.id] || order).delivery_date || ''
+}
+
+async function changeStatus(order, event) {
+    const select = event.target
+    await quickEdit.saveStatus(order, select.value)
+    select.value = String((savedOrders.value[order.id] || order).order_status_id)
+}
+
+onBeforeUnmount(() => quickEdit.dispose())
 
 watch(() => activeOrderStatuses.value.map(status => status.code), codes => {
     if (!codes.includes(orderTab.value)) {
@@ -124,6 +158,7 @@ function goodUrl(good) {
 }
 
 function openOrder(order) {
+    if (quickEdit.saving[order.id]) return
     selectedOrderId.value = order.id
     orderDetailsOpen.value = true
 }
@@ -252,12 +287,15 @@ useHead({
                 </button>
             </div>
 
+            <div v-if="quickEdit.success" class="order-summary__notice" role="status">{{ quickEdit.success }}</div>
+
             <div class="order-ledger">
                 <table>
                     <thead>
                         <tr>
                             <th scope="col">Entity / Заказ</th>
                             <th scope="col">Товары</th>
+                            <th scope="col" class="order-ledger__delivery">Дата доставки</th>
                             <th scope="col">Сумма</th>
                             <th scope="col" class="order-ledger__action"><span class="sr-only">Детали заказа</span></th>
                         </tr>
@@ -266,6 +304,7 @@ useHead({
                         <tr
                             v-for="order in visibleOrders"
                             :key="order.id"
+                            :aria-busy="!!quickEdit.saving[order.id]"
                             @click="openOrder(order)"
                         >
                             <td>
@@ -279,6 +318,26 @@ useHead({
                                     :aria-label="`Детали заказа ${order.number || `#${order.id}`}`"
                                     @click.stop="openOrder(order)"
                                 >{{ order.number || `#${order.id}` }}</button>
+                                <span v-if="deliveryAddress(order)" class="order-ledger__address" :title="deliveryAddress(order)">
+                                    {{ deliveryAddress(order) }}
+                                </span>
+                                <select
+                                    v-if="order.permissions?.edit && !order.shipped_at && !order.shipped_sale_id"
+                                    class="order-ledger__status-select"
+                                    :value="order.order_status_id"
+                                    :disabled="!!quickEdit.saving[order.id] || quickEdit.stale[order.id]"
+                                    :aria-label="`Статус заказа ${order.number || `#${order.id}`}`"
+                                    title="Изменить статус заказа"
+                                    @click.stop
+                                    @change="changeStatus(order, $event)"
+                                >
+                                    <option v-for="status in orderStatuses" :key="status.id" :value="status.id">{{ status.name }}</option>
+                                </select>
+                                <span v-else class="order-ledger__status-label">{{ order.status?.name }}</span>
+                                <div v-if="quickEdit.errors[order.id]" class="order-ledger__error" role="alert" @click.stop>
+                                    {{ quickEdit.errors[order.id] }}
+                                    <button v-if="quickEdit.stale[order.id]" type="button" :disabled="!!quickEdit.saving[order.id]" @click="quickEdit.reload(order)">Обновить заказ</button>
+                                </div>
                             </td>
                             <td>
                                 <div class="order-ledger__goods">
@@ -295,6 +354,24 @@ useHead({
                                     </small>
                                 </div>
                             </td>
+                            <td class="order-ledger__delivery" @click.stop>
+                                <input
+                                    v-if="order.permissions?.delivery_edit"
+                                    type="date"
+                                    class="order-ledger__date-input"
+                                    min="1000-01-01"
+                                    max="9999-12-31"
+                                    :value="order.delivery_date || ''"
+                                    :disabled="!!quickEdit.saving[order.id] || quickEdit.stale[order.id]"
+                                    :aria-label="`Дата доставки заказа ${order.number || `#${order.id}`}`"
+                                    title="Дата доставки — сохраняется после изменения"
+                                    @change="changeDeliveryDate(order, $event)"
+                                >
+                                <span v-else class="order-ledger__date-label">{{ formatDeliveryDate(order.delivery_date) }}</span>
+                                <span v-if="quickEdit.saving[order.id]" class="order-ledger__saving" role="status">
+                                    {{ quickEdit.saving[order.id] === 'reload' ? 'Обновление…' : 'Сохранение…' }}
+                                </span>
+                            </td>
                             <td class="order-ledger__amount">
                                 {{ formatMoney(order.total_amount, order.currency_code) }}
                             </td>
@@ -305,6 +382,7 @@ useHead({
                                     aria-haspopup="dialog"
                                     :aria-label="`Детали заказа ${order.number || `#${order.id}`}`"
                                     title="Детали заказа"
+                                    :disabled="!!quickEdit.saving[order.id]"
                                     @click.stop="openOrder(order)"
                                 ><v-icon icon="mdi-eye-outline" size="14" /></button>
                             </td>
@@ -312,7 +390,7 @@ useHead({
                     </tbody>
                     <tbody v-else>
                         <tr>
-                            <td colspan="4" class="order-ledger__empty">
+                            <td colspan="5" class="order-ledger__empty">
                                 {{ activeOrderStatuses.length ? 'В этом статусе заказов нет' : 'Активных статусов заказов нет' }}
                             </td>
                         </tr>
@@ -331,7 +409,7 @@ useHead({
     display: grid;
     align-self: stretch;
     align-content: start;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(400px, 1.7fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) minmax(340px, 1.2fr);
     gap: 18px;
     width: 100%;
     min-height: calc(100vh - 48px);
@@ -602,6 +680,7 @@ useHead({
 
 .order-ledger table {
     width: 100%;
+    min-width: 510px;
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -635,11 +714,94 @@ useHead({
 }
 
 .order-ledger th:nth-child(2) {
-    width: 40%;
+    width: 27%;
 }
 
-.order-ledger th:nth-child(3) {
+.order-ledger th:nth-child(4) {
     width: 82px;
+}
+
+.order-ledger .order-ledger__delivery {
+    width: 125px;
+    padding: 5px;
+}
+
+.order-summary__notice {
+    padding: 6px 10px;
+    border-bottom: 1px solid #d7dce2;
+    color: #185c4b;
+    font-size: 10px;
+}
+
+.order-ledger__address {
+    display: block;
+    margin-top: 3px;
+    color: #737b85;
+    font-size: 8px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.order-ledger__status-select,
+.order-ledger__date-input {
+    width: 100%;
+    min-width: 0;
+    height: 26px;
+    padding: 3px 5px;
+    border: 1px solid #d7dce2;
+    border-radius: 4px;
+    background-color: #fff;
+    color: #444e5a;
+    font-family: inherit;
+    font-size: 10px;
+    line-height: 18px;
+}
+
+.order-ledger__status-select {
+    margin-top: 5px;
+    padding-right: 22px;
+    background-position: right 4px center;
+    background-size: 14px;
+    cursor: pointer;
+    text-overflow: ellipsis;
+}
+
+.order-ledger__status-select:focus-visible,
+.order-ledger__date-input:focus-visible {
+    outline: 2px solid #7f1d1d;
+    outline-offset: 1px;
+}
+
+.order-ledger__status-select:disabled,
+.order-ledger__date-input:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.order-ledger__date-label,
+.order-ledger__status-label,
+.order-ledger__saving {
+    display: block;
+    color: #737b85;
+    font-size: 9px;
+}
+
+.order-ledger__saving {
+    margin-top: 3px;
+}
+
+.order-ledger__error {
+    margin-top: 4px;
+    color: #9f2626;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+.order-ledger__error button {
+    display: block;
+    margin-top: 3px;
+    font-weight: 700;
+    text-decoration: underline;
 }
 
 .order-ledger .order-ledger__action {
@@ -766,7 +928,7 @@ useHead({
     }
 
     .order-summary {
-        grid-column: 1;
+        grid-column: 1 / -1;
         grid-row: 2;
     }
 }

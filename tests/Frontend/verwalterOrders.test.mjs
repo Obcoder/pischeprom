@@ -3,28 +3,38 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
-import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
+import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
+import { useOrderQuickEdit } from '../../resources/js/Composables/useOrderQuickEdit.js'
+import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
 
-function dashboardHarness(t) {
+function dashboardHarness(t, client = {}) {
     const filename = 'resources/js/Pages/Ameise/Verwalter.vue'
     const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename })
     const compiled = compileScript(descriptor, { id: 'verwalter-orders' })
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'verwalter-orders', compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
-    const environment = { ...Vue, Link: {}, VerwalterLayout: {}, AvitoWaitingList: {}, OrderDetailsDialog: {}, useHead() {}, route: (name, id) => `/${name}/${id ?? ''}` }
+    const environment = {
+        ...Vue, Link: {}, VerwalterLayout: {}, AvitoWaitingList: {}, OrderDetailsDialog: {},
+        useOrderQuickEdit: options => useOrderQuickEdit({ ...options, client }),
+        buildingApartmentLabel, onBeforeUnmount() {}, useHead() {}, route: (name, id) => `/${name}/${id ?? ''}`,
+    }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
     const props = Vue.reactive({
         canViewOrders: true, activeLeads: [],
-        orderStatuses: [{ id: 1, code: 'open' }, { id: 2, code: 'deferred' }, { id: 3, code: 'closed', is_closed: true }],
+        orderStatuses: [{ id: 1, code: 'open', name: 'Новый' }, { id: 2, code: 'deferred', name: 'В работе' }, { id: 3, code: 'closed', name: 'Закрыт', is_closed: true }],
         ordersByStatus: {
-            open: [{ id: 12, order_status_id: 1, status: { code: 'open' }, total_amount: 10 }],
+            open: [{
+                id: 12, order_status_id: 1, status: { code: 'open', name: 'Новый' }, total_amount: 10,
+                delivery_date: '2026-10-05', delivery_version: 'version-1', permissions: { edit: true, delivery_edit: true },
+                buildings: [{ id: 6, role: 'delivery', city: { name: 'Москва' }, address: 'Ленина, 1', apartment: { number: '12', type: 'office' } }],
+            }],
             deferred: [{ id: 13, order_status_id: 2, status: { code: 'deferred' }, total_amount: 20 }],
         },
     })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {} }))
-    t.after(() => scope.stop())
+    t.after(() => { api.quickEdit.dispose(); scope.stop() })
     return { api, props, render: templateRenderer(template, api, props) }
 }
 
@@ -42,4 +52,84 @@ test('dashboard saves move orders between status tabs and remove closed orders w
     assert.equal(props.ordersByStatus.open[0].total_amount, 10)
     dialog.props.onSaved({ id: 12, order_status_id: 3, status: { code: 'closed', is_closed: true } })
     assert.deepEqual(api.visibleOrders.value.map(order => order.id), [13])
+})
+
+test('dashboard changes delivery date from the table and renders its complete delivery address', async t => {
+    const writes = []
+    const { api, props, render } = dashboardHarness(t, {
+        async patch(url, data) {
+            writes.push({ url, data })
+            return { data: { data: { ...props.ordersByStatus.open[0], delivery_date: data.delivery_date, delivery_version: 'version-2' } } }
+        },
+    })
+    const address = findVNode(render(), node => hasClass(node, 'order-ledger__address'))
+    assert.equal(address.children.trim(), 'Москва, Ленина, 1, офис 12')
+    const date = findVNode(render(), node => node.type === 'input' && node.props.type === 'date')
+    const target = { value: '2026-10-07', validity: { valid: true } }
+    await date.props.onChange({ target })
+    assert.deepEqual(writes, [{ url: '/api/orders/12/delivery-date', data: { delivery_date: '2026-10-07', version: 'version-1' } }])
+    assert.equal(api.visibleOrders.value[0].delivery_date, '2026-10-07')
+    assert.equal(props.ordersByStatus.open[0].delivery_date, '2026-10-05')
+    assert.equal(api.orderDetailsOpen.value, false)
+})
+
+test('status selector includes closed statuses and moves an order without opening its dialog', async t => {
+    const { api, props, render } = dashboardHarness(t, {
+        async patch(url, data) {
+            assert.equal(url, '/api/orders/12/status')
+            assert.deepEqual(data, { order_status_id: 3, expected_order_status_id: 1 })
+            return { data: { data: { ...props.ordersByStatus.open[0], order_status_id: 3, status: props.orderStatuses[2] } } }
+        },
+    })
+    const select = findVNode(render(), node => node.type === 'select')
+    assert.ok(findVNode(select, node => node.type === 'option' && node.props.value === 3))
+    await select.props.onChange({ target: { value: '3' } })
+    assert.equal(api.orderTab.value, 'open')
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.deepEqual(api.visibleOrders.value, [])
+    assert.ok(findVNode(render(), node => node.props?.role === 'status'))
+})
+
+test('failed inline edits restore the saved input and offer refresh after a conflict', async t => {
+    const { api, props, render } = dashboardHarness(t, {
+        async patch() { throw { response: { status: 409, data: {} } } },
+        async get() { return { data: { data: { ...props.ordersByStatus.open[0], delivery_date: '2026-10-08', delivery_version: 'version-2' } } } },
+    })
+    const target = { value: '2026-10-07', validity: { valid: true } }
+    await findVNode(render(), node => node.type === 'input').props.onChange({ target })
+    assert.equal(target.value, '2026-10-05')
+    assert.equal(findVNode(render(), node => node.type === 'select').props.disabled, true)
+    const error = findVNode(render(), node => node.props?.role === 'alert')
+    await findVNode(error, node => node.type === 'button').props.onClick()
+    assert.equal(api.visibleOrders.value[0].delivery_date, '2026-10-08')
+    assert.equal(Boolean(findVNode(render(), node => node.type === 'select').props.disabled), false)
+})
+
+test('read-only orders display delivery date and status without editing controls', t => {
+    const { props, render } = dashboardHarness(t)
+    props.ordersByStatus.open[0].permissions = { edit: false, delivery_edit: false }
+    assert.equal(findVNode(render(), node => node.type === 'select'), null)
+    assert.equal(findVNode(render(), node => node.type === 'input'), null)
+    assert.equal(findVNode(render(), node => hasClass(node, 'order-ledger__date-label')).children, '05.10.2026')
+    assert.equal(findVNode(render(), node => hasClass(node, 'order-ledger__status-label')).children, 'Новый')
+})
+
+test('inline controls stop row clicks and prevent opening stale details while saving', async t => {
+    let finish
+    const { api, props, render } = dashboardHarness(t, {
+        patch() { return new Promise(resolve => { finish = resolve }) },
+    })
+    const select = findVNode(render(), node => node.type === 'select')
+    let stopped = false
+    select.props.onClick({ stopPropagation() { stopped = true } })
+    assert.equal(stopped, true)
+    const pending = select.props.onChange({ target: { value: '2' } })
+    const number = findVNode(render(), node => hasClass(node, 'order-ledger__number'))
+    number.props.onClick({ stopPropagation() {} })
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.equal(findVNode(render(), node => node.type === 'input').props.disabled, true)
+    finish({ data: { data: { ...props.ordersByStatus.open[0], order_status_id: 2, status: props.orderStatuses[1] } } })
+    await pending
+    assert.equal(api.orderDetailsOpen.value, false)
+    assert.deepEqual(api.visibleOrders.value, [])
 })

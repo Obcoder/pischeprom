@@ -115,6 +115,37 @@ class OrderWriter
         ];
     }
 
+    public function updateStatus(Order $order, int $statusId, int $expectedStatusId): Order
+    {
+        return DB::transaction(function () use ($order, $statusId, $expectedStatusId): Order {
+            $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->shipped_at !== null || $locked->shipped_sale_id !== null, 409, 'Отгруженный заказ нельзя изменять.');
+            abort_unless((int) $locked->order_status_id === $expectedStatusId, 409, 'Статус заказа изменился. Обновите данные перед изменением статуса.');
+            $status = OrderStatus::query()->sharedLock()->findOrFail($statusId);
+
+            if ((int) $locked->order_status_id !== $statusId) {
+                $locked->fill([
+                    'order_status_id' => $status->id,
+                    'closed_at' => $status->is_closed ? ($locked->closed_at ?? now()) : null,
+                ]);
+
+                if ($locked->prepared_at !== null || $locked->prepared_fingerprint !== null) {
+                    $locked->forceFill([
+                        'prepared_at' => null,
+                        'prepared_fingerprint' => null,
+                        'prepared_by_user_id' => null,
+                        'fulfillment_warehouse_id' => null,
+                        'preparation_invalidated_at' => now(),
+                    ]);
+                }
+
+                $locked->save();
+            }
+
+            return $locked->fresh($this->relations())->loadCount('items');
+        }, 3);
+    }
+
     public function delete(Order $order): void
     {
         DB::transaction(function () use ($order): void {
