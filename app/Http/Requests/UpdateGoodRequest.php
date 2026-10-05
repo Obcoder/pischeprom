@@ -2,26 +2,16 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class UpdateGoodRequest extends FormRequest
+class UpdateGoodRequest extends StoreGoodRequest
 {
-    public function authorize(): bool { return true; }
-
     public function rules(): array
     {
         return [
-            'name' => ['sometimes','required','string','max:255'],
-            'denominator' => ['sometimes','nullable','string','max:50'],
-            'description' => ['sometimes','nullable','string'],
-            'is_published' => ['sometimes','nullable','boolean'],
-            'vat_rate_id' => ['nullable', 'exists:vat_rates,id'],
-            'ava_image' => ['sometimes','nullable','image','max:4096'],
-            'products' => ['sometimes','nullable','array'],
-            'products.*' => ['integer','exists:products,id'],
-
-            // опционально: удалить текущий аватар
-            'remove_ava' => ['sometimes','boolean'],
+            ...parent::rules(),
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'slug' => ['nullable', 'string', 'max:255', Rule::unique('goods', 'slug')->ignore($this->route('good'))],
         ];
     }
 }

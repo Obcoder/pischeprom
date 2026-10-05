@@ -7,7 +7,12 @@ defineProps({
     filtersCount: { type: Number, default: 0 },
 })
 
+const emit = defineEmits(['update:filtersOpen'])
 const filtersOpen = ref(false)
+function toggleFilters() {
+    filtersOpen.value = !filtersOpen.value
+    emit('update:filtersOpen', filtersOpen.value)
+}
 </script>
 
 <template>
@@ -28,7 +33,7 @@ const filtersOpen = ref(false)
                     color="#352345"
                     prepend-icon="mdi-filter-variant"
                     :aria-expanded="filtersOpen"
-                    @click="filtersOpen = !filtersOpen"
+                    @click="toggleFilters"
                 >
                     Фильтры<template v-if="filtersCount"> · {{ filtersCount }}</template>
                 </v-btn>

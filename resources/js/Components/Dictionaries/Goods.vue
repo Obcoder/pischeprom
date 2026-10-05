@@ -6,11 +6,17 @@ import { logo } from '@/Pages/Helpers/consts.js'
 import { useGoods } from '@/Composables/useGoods'
 import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
 import GoodTableAvatar from '@/Components/Goods/GoodTableAvatar.vue'
+import GoodTradeCodeFields from '@/Components/Goods/GoodTradeCodeFields.vue'
+import GoodVatCheck from '@/Components/Goods/GoodVatCheck.vue'
+import { goodTradeCodeValues } from '@/utils/goodTradeCodes'
 
 const {
     loading,
     saving,
     goods,
+    industries,
+    entityClassifications,
+    categories,
     products,
     countries,
     fields,
@@ -18,11 +24,7 @@ const {
     totalItems,
     publishLoading,
     indexGoods: fetchGoods,
-    indexProducts: fetchProducts,
-    indexCountries: fetchCountries,
-    indexFields: fetchFields,
-    indexVatRates: fetchVatRates,
-    showGood: fetchGood,
+    indexDictionaries: fetchDictionaries,
     saveGood: persistGood,
     deleteGood: destroyGood,
     toggleGoodPublish,
@@ -43,7 +45,8 @@ async function reloadGoods() {
     try {
         await fetchGoods({
             view: 'table',
-            search: search.value || null,
+            search: appliedSearch.value || null,
+            ...filters.value,
             is_published: publishedParam.value,
             page: tableOptions.value.page,
             per_page: tableOptions.value.itemsPerPage,
@@ -59,17 +62,41 @@ async function loadDictionaries() {
     if (dictionariesLoaded.value || dictionaryLoading.value) return
     dictionaryLoading.value = true
     dictionaryError.value = ''
-    const results = await Promise.allSettled([fetchProducts(), fetchCountries(), fetchFields(), fetchVatRates()])
-    dictionariesLoaded.value = results.every(result => result.status === 'fulfilled')
-    if (!dictionariesLoaded.value) dictionaryError.value = 'Не удалось загрузить справочники для редактирования.'
-    dictionaryLoading.value = false
+    try {
+        await fetchDictionaries()
+        dictionariesLoaded.value = true
+    } catch {
+        dictionaryError.value = 'Не удалось загрузить справочники.'
+    } finally {
+        dictionaryLoading.value = false
+    }
 }
 
 const search = ref('')
+const appliedSearch = ref('')
+const emptyFilters = () => ({ category_id: null, product_id: null, country_id: null, field_id: null,
+    industry_id: null, entity_classification_id: null, vat_rate_id: null, has_avatar: null, has_trade_codes: null, created_from: null, created_to: null })
+const filters = ref(emptyFilters())
+const activeFiltersCount = computed(() => Object.values(filters.value).filter(value => value !== null && value !== '').length)
+const relationFilters = computed(() => [
+    { key: 'category_id', label: 'Категория', items: categories.value, title: 'name' },
+    { key: 'product_id', label: 'Продукт', items: products.value, title: 'rus' },
+    { key: 'country_id', label: 'Страна', items: countries.value, title: 'name' },
+    { key: 'field_id', label: 'Подборка', items: fields.value, title: 'title' },
+    { key: 'vat_rate_id', label: 'Ставка НДС', items: vatRates.value, title: 'title' },
+    { key: 'industry_id', label: 'Отрасль', items: industries.value, title: 'title' },
+    { key: 'entity_classification_id', label: 'Классификация контрагентов', items: entityClassifications.value, title: 'name' },
+])
+function filterItems(filter) {
+    return [{ id: 'none', [filter.title]: 'Не указано' }, ...filter.items]
+}
+function resetFilters() {
+    filters.value = emptyFilters()
+    publishedFilter.value = 'all'
+}
 const publishedFilter = ref('all') // all | published | hidden
 const groupMode = ref('none')  // category | none
 
-const drawer = ref(false)
 const selectedGood = ref(null)
 
 const dialogForm = ref(false)
@@ -89,6 +116,7 @@ const pageCount = computed(() => {
 })
 
 const form = useForm({
+    ...goodTradeCodeValues(),
     id: null,
     name: '',
     denominator: '',
@@ -98,20 +126,22 @@ const form = useForm({
     is_published: true,
     products: [],
     fields: [],
+    avatar_source_url: null,
+    avatar_thumb_source_url: null,
     ava_image: null,     // File | null
     remove_ava: false,   // bool
 })
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '150px' },
-    { key: 'ava_image', title: '', sortable: false, width: '64px' },
+    { key: 'ava_image', title: '', sortable: false, width: '80px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'country', title: 'Страна', sortable: false, width: '132px' },
     { key: 'fields', title: 'Fields', sortable: false, width: '190px' },
     { key: 'vat_rate', title: 'НДС', sortable: false, width: '64px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '72px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '132px' },
-    { key: 'actions', title: '', sortable: false, width: '108px' },
+    { key: 'actions', title: '', sortable: false, width: '80px' },
 ]
 
 // ---------- helpers ----------
@@ -174,6 +204,8 @@ function updateTableOptions(options) {
         sortBy: options.sortBy,
     }
 
+    clearTimeout(searchTimer)
+    appliedSearch.value = (search.value || '').trim()
     reloadGoods()
 }
 
@@ -211,6 +243,7 @@ function openCreate() {
 function openEdit(g) {
     form.reset()
     form.clearErrors()
+    Object.assign(form, goodTradeCodeValues(g))
     form.id = g.id
     form.name = g.name ?? ''
     form.denominator = g.denominator ?? ''
@@ -223,15 +256,6 @@ function openEdit(g) {
     form.ava_image = null
     form.remove_ava = false
     dialogForm.value = true
-}
-
-async function showGood(id) {
-    try {
-        selectedGood.value = await fetchGood(id)
-        drawer.value = true
-    } catch (e) {
-        console.error(e)
-    }
 }
 
 async function saveGood() {
@@ -256,7 +280,6 @@ async function deleteGood() {
     try {
         await destroyGood(selectedGood.value.id)
         dialogDelete.value = false
-        drawer.value = false
         await reloadGoods()
     } catch (e) {
         console.error(e)
@@ -269,16 +292,24 @@ function askDelete(g) {
 }
 
 // ---------- watchers ----------
-let t = null
-watch([search, publishedFilter], () => {
-    clearTimeout(t)
-    t = setTimeout(() => {
-        if (tableOptions.value.page === 1) reloadGoods()
-        else tableOptions.value.page = 1
-    }, 250)
-})
+let searchTimer = null
+function applySearch() {
+    clearTimeout(searchTimer)
+    appliedSearch.value = (search.value || '').trim()
+    if (tableOptions.value.page === 1) reloadGoods()
+    else tableOptions.value.page = 1
+}
+watch(search, () => {
+    clearTimeout(searchTimer)
+    // Superseded responses must not repaint the table during the debounce interval.
+    ++reloadVersion
+    cancelGoodsRequest()
+    if (!(search.value || '').trim()) applySearch()
+    else searchTimer = setTimeout(applySearch, 400)
+}, { flush: 'sync' })
+watch([filters, publishedFilter], applySearch, { deep: true })
 
-// The table emits its initial options once; dictionaries are needed only by the editor.
+// Load the small shared dictionaries only when filters or the editor are opened.
 watch(dialogForm, (open) => { if (open) loadDictionaries() })
 
 const previewUrl = ref(null)
@@ -295,7 +326,7 @@ watch(() => form.ava_image, (file) => {
 })
 
 onBeforeUnmount(() => {
-    clearTimeout(t)
+    clearTimeout(searchTimer)
     cancelGoodsRequest()
     if (previewUrl.value) {
         URL.revokeObjectURL(previewUrl.value)
@@ -305,7 +336,7 @@ onBeforeUnmount(() => {
 
 <template>
     <v-container fluid class="goods-admin pa-0">
-        <CatalogToolbar :count="totalItems">
+        <CatalogToolbar :count="totalItems" :filters-count="activeFiltersCount" @update:filters-open="open => open && loadDictionaries()">
             <v-text-field
                 v-model="search"
                 label="Название или категория"
@@ -315,6 +346,7 @@ onBeforeUnmount(() => {
                 hide-details
                 clearable
                 class="catalog-toolbar__search"
+                @keydown.enter.prevent="applySearch"
             />
             <v-select
                 v-model="publishedFilter"
@@ -339,6 +371,28 @@ onBeforeUnmount(() => {
                 density="compact"
                 hide-details
             />
+            <template #filters>
+                <v-autocomplete
+                    v-for="filter in relationFilters" :key="filter.key"
+                    v-model="filters[filter.key]" :items="filterItems(filter)"
+                    :item-title="filter.title" item-value="id" :label="filter.label"
+                    :loading="dictionaryLoading" variant="outlined" density="compact" hide-details clearable
+                />
+                <v-select v-model="filters.has_avatar" label="Аватарка"
+                    :items="[{ title: 'Есть фото', value: true }, { title: 'Без фото', value: false }]"
+                    variant="outlined" density="compact" hide-details clearable />
+                <v-select v-model="filters.has_trade_codes" label="Торговые коды"
+                    :items="[{ title: 'Есть коды', value: true }, { title: 'Без кодов', value: false }]"
+                    variant="outlined" density="compact" hide-details clearable />
+                <v-text-field v-model="filters.created_from" label="Создан с" type="date" :max="filters.created_to || undefined"
+                    variant="outlined" density="compact" hide-details clearable />
+                <v-text-field v-model="filters.created_to" label="Создан по" type="date" :min="filters.created_from || undefined"
+                    variant="outlined" density="compact" hide-details clearable />
+                <v-btn v-if="activeFiltersCount || publishedFilter !== 'all'" variant="text" prepend-icon="mdi-filter-off-outline" @click="resetFilters">Сбросить</v-btn>
+                <div v-if="dictionaryError" class="text-error text-caption">
+                    {{ dictionaryError }} <v-btn variant="text" @click="loadDictionaries">Повторить</v-btn>
+                </div>
+            </template>
             <template #actions>
                 <v-btn icon="mdi-refresh" variant="text" :loading="loading" title="Обновить товары" aria-label="Обновить товары" @click="reloadGoods" />
                 <v-btn size="small" color="#352345" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Новый товар</v-btn>
@@ -374,7 +428,6 @@ onBeforeUnmount(() => {
                             :key="item.id"
                             :src="item.avatar_url || item.ava_thumb || item.ava_image"
                             :name="item.name"
-                            @preview="showGood(item.id)"
                         />
                     </template>
 
@@ -459,7 +512,6 @@ onBeforeUnmount(() => {
                     </template>
 
                     <template #item.actions="{ item }">
-                        <v-btn size="small" density="compact" variant="text" icon="mdi-eye-outline" title="Просмотр товара" aria-label="Просмотр товара" @click="showGood(item.id)" />
                         <v-btn size="small" density="compact" variant="text" icon="mdi-pencil-outline" title="Изменить товар" aria-label="Изменить товар" @click="openEdit(item)" />
                         <v-btn size="small" density="compact" variant="text" icon="mdi-delete-outline" title="Удалить товар" aria-label="Удалить товар" @click="askDelete(item)" />
                     </template>
@@ -496,88 +548,6 @@ onBeforeUnmount(() => {
             </v-data-table-server>
         </div>
 
-        <!-- Drawer details -->
-        <v-navigation-drawer v-model="drawer" location="right" width="420">
-            <v-toolbar title="Good" />
-            <v-container v-if="selectedGood">
-                <v-row>
-                    <v-col cols="12" class="d-flex align-center">
-                        <v-avatar size="64" class="mr-3">
-                            <v-img :src="selectedGood.ava_image || logo" cover />
-                        </v-avatar>
-                        <div>
-                            <div class="text-subtitle-1 font-weight-bold">{{ selectedGood.name }}</div>
-                            <div class="text-caption">slug: {{ selectedGood.slug }}</div>
-                        </div>
-                    </v-col>
-
-                    <v-col cols="12">
-                        <div class="text-caption mb-1">VAT</div>
-                        <div v-if="selectedGood.vatRate">
-                            {{ selectedGood.vatRate.title }} ({{ selectedGood.vatRate.rate }}%)
-                        </div>
-                        <div v-else class="text-medium-emphasis">
-                            Не указана
-                        </div>
-                    </v-col>
-
-                    <v-col cols="12">
-                        <div class="text-caption mb-1">Country</div>
-                        <div v-if="selectedGood.country" class="goods-country-cell">
-                            <v-avatar size="28" rounded="circle" class="goods-country-cell__flag">
-                                <v-img
-                                    v-if="selectedGood.country.flag"
-                                    :src="selectedGood.country.flag"
-                                    :alt="selectedGood.country.name"
-                                    cover
-                                />
-                                <span v-else>{{ selectedGood.country.name?.slice(0, 1) }}</span>
-                            </v-avatar>
-                            <span>{{ selectedGood.country.name }}</span>
-                        </div>
-                        <div v-else class="text-medium-emphasis">
-                            Не указана
-                        </div>
-                    </v-col>
-
-                    <v-col cols="12">
-                        <v-chip size="small" :color="selectedGood.is_published ? 'green' : 'grey'">
-                            {{ selectedGood.is_published ? 'published' : 'hidden' }}
-                        </v-chip>
-                    </v-col>
-
-                    <v-col cols="12">
-                        <div class="text-caption mb-1">Products</div>
-                        <v-chip
-                            v-for="p in (selectedGood.products || [])"
-                            :key="p.id"
-                            size="x-small"
-                            class="ma-1"
-                        >
-                            {{ p.rus }}
-                        </v-chip>
-                    </v-col>
-
-                    <v-col cols="12">
-                        <div class="text-caption mb-1">Fields / подборки</div>
-                        <v-chip
-                            v-for="field in (selectedGood.fields || [])"
-                            :key="field.id"
-                            size="x-small"
-                            class="ma-1"
-                            color="teal"
-                            variant="tonal"
-                        >
-                            {{ field.title || field.name }}
-                        </v-chip>
-                        <span v-if="!(selectedGood.fields || []).length" class="text-caption text-medium-emphasis">
-                            Не привязан
-                        </span>
-                    </v-col>
-                </v-row>
-            </v-container>
-        </v-navigation-drawer>
-
         <!-- Create/Edit dialog -->
         <v-dialog v-model="dialogForm" width="900">
             <v-card>
@@ -588,9 +558,9 @@ onBeforeUnmount(() => {
                     <v-btn variant="text" size="small" @click="loadDictionaries">Повторить</v-btn>
                 </v-alert>
 
-                <v-card-text>
-                    <v-row>
-                        <v-col cols="12">
+                <v-card-text class="pa-4">
+                    <v-row dense>
+                        <v-col cols="12" md="6">
                             <v-autocomplete
                                 v-model="form.products"
                                 :items="products"
@@ -602,12 +572,13 @@ onBeforeUnmount(() => {
                                 clearable
                                 closable-chips
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.products"
+                                hide-details="auto"
                             />
                         </v-col>
 
-                        <v-col cols="12">
+                        <v-col cols="12" md="6">
                             <v-autocomplete
                                 v-model="form.fields"
                                 :items="fields"
@@ -619,18 +590,20 @@ onBeforeUnmount(() => {
                                 clearable
                                 closable-chips
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.fields"
+                                hide-details="auto"
                             />
                         </v-col>
 
                         <v-col cols="12" md="8">
                             <v-text-field
                                 v-model="form.name"
-                                label="Good name"
+                                label="Название товара"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.name"
+                                hide-details="auto"
                             />
                         </v-col>
 
@@ -639,18 +612,23 @@ onBeforeUnmount(() => {
                                 v-model="form.denominator"
                                 label="Denominator"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.denominator"
+                                hide-details="auto"
                             />
                         </v-col>
 
                         <v-col cols="12">
                             <v-textarea
                                 v-model="form.description"
-                                label="Description"
+                                label="Описание"
+                                rows="3"
+                                auto-grow
+                                max-rows="6"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.description"
+                                hide-details="auto"
                             />
                         </v-col>
 
@@ -662,8 +640,9 @@ onBeforeUnmount(() => {
                                 item-value="id"
                                 label="VAT rate"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 :error-messages="form.errors.vat_rate_id"
+                                hide-details="auto"
                                 clearable
                             >
                                 <template #item="{ props, item }">
@@ -674,6 +653,8 @@ onBeforeUnmount(() => {
                                     />
                                 </template>
                             </v-select>
+                            <GoodVatCheck :draft="form" :vat-rates="vatRates" :active="dialogForm" :disabled="saving"
+                                @apply="form.vat_rate_id = $event" />
                         </v-col>
 
                         <v-col cols="12" md="6">
@@ -684,9 +665,10 @@ onBeforeUnmount(() => {
                                 item-value="id"
                                 label="Страна происхождения"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 clearable
                                 :error-messages="form.errors.country_id"
+                                hide-details="auto"
                             >
                                 <template #item="{ props, item }">
                                     <v-list-item v-bind="props">
@@ -721,27 +703,41 @@ onBeforeUnmount(() => {
                             </v-autocomplete>
                         </v-col>
 
+                        <v-col cols="12">
+                            <GoodTradeCodeFields :model-value="form" :errors="form.errors" :disabled="saving"
+                                @update:model-value="Object.assign(form, $event)" />
+                        </v-col>
                         <v-col cols="12" md="4">
-                            <v-switch v-model="form.is_published" label="Published" inset />
+                            <v-switch v-model="form.is_published" label="Опубликован" density="compact" hide-details inset />
                         </v-col>
 
                         <v-col cols="12" md="8">
                             <v-file-input
                                 v-model="form.ava_image"
-                                label="Avatar (optional)"
+                                label="Файл аватарки"
+                                :disabled="form.remove_ava || !!(form.avatar_source_url || form.avatar_thumb_source_url)"
                                 variant="outlined"
-                                density="comfortable"
+                                density="compact"
                                 accept="image/*"
                                 prepend-icon="mdi-camera"
                                 :error-messages="form.errors.ava_image"
+                                hide-details="auto"
                                 clearable
                             />
-                            <v-row>
+                            <v-text-field v-model="form.avatar_source_url" label="Аватарка CDN · URL"
+                                placeholder="https://cdn.example.com/good.jpg" :disabled="form.remove_ava || !!form.ava_image"
+                                variant="outlined" density="compact" :error-messages="form.errors.avatar_source_url"
+                                hint="Ссылка на изображение. Пустое поле сохраняет текущее фото." persistent-hint clearable />
+                            <v-text-field v-model="form.avatar_thumb_source_url" label="Миниатюра CDN · URL"
+                                placeholder="https://cdn.example.com/good-160.jpg" :disabled="form.remove_ava || !!form.ava_image"
+                                variant="outlined" density="compact" :error-messages="form.errors.avatar_thumb_source_url"
+                                hint="Небольшая версия для быстрой загрузки таблицы." persistent-hint clearable />
+                            <v-row dense>
                                 <v-col cols="12" md="4">
-                                    <div class="text-caption mb-2">Preview</div>
+                                    <div class="text-caption mb-2">Предпросмотр</div>
                                     <v-avatar size="120" rounded="lg">
                                         <v-img
-                                            :src="previewUrl || (form.id && goods.find(g => g.id === form.id)?.ava_thumb) || (form.id && goods.find(g => g.id === form.id)?.ava_image) || logo"
+                                            :src="form.remove_ava ? logo : (previewUrl || form.avatar_thumb_source_url || form.avatar_source_url || (form.id && goods.find(g => g.id === form.id)?.ava_thumb) || (form.id && goods.find(g => g.id === form.id)?.ava_image) || logo)"
                                             cover
                                         />
                                     </v-avatar>
@@ -750,7 +746,8 @@ onBeforeUnmount(() => {
                             <v-checkbox
                                 v-if="form.id"
                                 v-model="form.remove_ava"
-                                label="Remove current avatar"
+                                :disabled="!!(form.ava_image || form.avatar_source_url || form.avatar_thumb_source_url)"
+                                label="Удалить текущую аватарку"
                                 density="compact"
                             />
                         </v-col>
@@ -758,8 +755,8 @@ onBeforeUnmount(() => {
                 </v-card-text>
 
                 <v-card-actions class="justify-start">
-                    <v-btn variant="text" text="Close" @click="dialogForm = false" :disabled="saving" />
-                    <v-btn color="deep-purple-darken-1" variant="tonal" text="Save" @click="saveGood" :loading="saving" :disabled="!dictionariesLoaded || dictionaryLoading" />
+                    <v-btn variant="text" text="Закрыть" @click="dialogForm = false" :disabled="saving" />
+                    <v-btn color="deep-purple-darken-1" variant="tonal" text="Сохранить" @click="saveGood" :loading="saving" :disabled="!dictionariesLoaded || dictionaryLoading" />
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -825,7 +822,7 @@ onBeforeUnmount(() => {
 }
 
 .goods-table :deep(tbody td) {
-    height: 56px !important;
+    height: 72px !important;
     padding: 3px 8px !important;
 }
 

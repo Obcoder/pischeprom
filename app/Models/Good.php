@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,6 +25,7 @@ class Good extends Model
         'is_published',
         'vat_rate_id',
         'country_id',
+        ...GoodTradeCodes::FIELDS,
     ];
 
     protected $casts = [
@@ -35,6 +37,8 @@ class Good extends Model
     protected static function booted()
     {
         static::saving(function (Good $good) {
+            $good->forceFill(GoodTradeCodes::normalize($good->getAttributes()));
+
             if (! $good->isDirty('name') && ! $good->isDirty('slug') && filled($good->slug)) {
                 return;
             }

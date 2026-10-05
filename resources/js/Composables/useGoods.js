@@ -1,12 +1,16 @@
 import { ref } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
+import { goodTradeCodeValues } from '@/utils/goodTradeCodes'
 
 export function useGoods() {
     const loading = ref(false)
     const saving = ref(false)
 
     const goods = ref([])
+    const industries = ref([])
+    const entityClassifications = ref([])
+    const categories = ref([])
     const products = ref([])
     const countries = ref([])
     const fields = ref([])
@@ -51,59 +55,15 @@ export function useGoods() {
         loading.value = false
     }
 
-    async function indexProducts() {
-        try {
-            const { data } = await axios.get(route('products.index'))
-
-            products.value = (Array.isArray(data) ? data : (data.data || []))
-                .sort((a, b) => (a.rus || '').localeCompare(b.rus || ''))
-        } catch (e) {
-            console.error(e)
-            products.value = []
-            throw e
-        }
-    }
-
-    async function indexCountries() {
-        try {
-            const { data } = await axios.get(route('countries.index'))
-
-            countries.value = (Array.isArray(data) ? data : (data.data || []))
-                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'))
-        } catch (e) {
-            console.error(e)
-            countries.value = []
-            throw e
-        }
-    }
-
-    async function indexFields() {
-        try {
-            const { data } = await axios.get(route('fields.index'))
-
-            fields.value = (Array.isArray(data) ? data : (data.data || []))
-                .sort((a, b) => String(a.title || a.name || '').localeCompare(String(b.title || b.name || ''), 'ru'))
-        } catch (e) {
-            console.error(e)
-            fields.value = []
-            throw e
-        }
-    }
-
-    async function indexVatRates() {
-        try {
-            const { data } = await axios.get(route('api.vat-rates'))
-            vatRates.value = Array.isArray(data) ? data : (data.data || [])
-        } catch (e) {
-            console.error(e)
-            vatRates.value = []
-            throw e
-        }
-    }
-
-    async function showGood(id) {
-        const { data } = await axios.get(route('good.fetch', id))
-        return data
+    async function indexDictionaries() {
+        const { data } = await axios.get(route('goods.index'), { params: { view: 'filters' } })
+        industries.value = data.industries || []
+        entityClassifications.value = data.entity_classifications || []
+        categories.value = data.categories || []
+        products.value = data.products || []
+        countries.value = data.countries || []
+        fields.value = data.fields || []
+        vatRates.value = data.vat_rates || []
     }
 
     async function saveGood(form) {
@@ -123,6 +83,10 @@ export function useGoods() {
                 fd.append('country_id', form.country_id ?? '')
                 fd.append('is_published', form.is_published ? '1' : '0')
                 fd.append('remove_ava', form.remove_ava ? '1' : '0')
+                for (const [key, value] of Object.entries(goodTradeCodeValues(form))) fd.append(key, value ?? '')
+                // Explicit empty values let the API clear existing relations on multipart updates.
+                if (!form.products?.length) fd.append('products', '')
+                if (!form.fields?.length) fd.append('fields', '')
 
                 ;(form.products || []).forEach((id) => {
                     fd.append('products[]', String(id))
@@ -147,6 +111,9 @@ export function useGoods() {
                 }
             } else {
                 const payload = {
+                    ...goodTradeCodeValues(form),
+                    avatar_source_url: form.avatar_source_url || null,
+                    avatar_thumb_source_url: form.avatar_thumb_source_url || null,
                     name: form.name,
                     denominator: form.denominator,
                     description: form.description,
@@ -200,6 +167,9 @@ export function useGoods() {
         loading,
         saving,
         goods,
+        industries,
+        entityClassifications,
+        categories,
         products,
         countries,
         fields,
@@ -207,11 +177,7 @@ export function useGoods() {
         totalItems,
         publishLoading,
         indexGoods,
-        indexProducts,
-        indexCountries,
-        indexFields,
-        indexVatRates,
-        showGood,
+        indexDictionaries,
         saveGood,
         deleteGood,
         toggleGoodPublish,

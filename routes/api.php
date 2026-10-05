@@ -64,6 +64,7 @@ use App\Http\Controllers\API\GoodPriceCalculationController;
 use App\Http\Controllers\API\GoodPriceTypeValueController;
 use App\Http\Controllers\API\GoodSaleController;
 use App\Http\Controllers\API\GoodSeoAiController;
+use App\Http\Controllers\API\GoodVatAiController;
 use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodStockAlertAdminController;
 use App\Http\Controllers\API\GoodStockMovementController;
@@ -556,6 +557,11 @@ Route::prefix('gis')
  *  G O O D S
  * ______________________
  */
+Route::get('goods/vat-check/availability', [GoodVatAiController::class, 'availability'])
+    ->middleware(['auth:sanctum', 'verified'])->name('api.goods.vat-check.availability');
+Route::post('goods/vat-check', [GoodVatAiController::class, 'check'])
+    ->middleware(['auth:sanctum', 'verified', 'throttle:6,1,goods-vat-ai'])->name('api.goods.vat-check');
+
 Route::apiResource('goods', GoodController::class)->except(['show']);
 
 Route::prefix('goods/{good}')

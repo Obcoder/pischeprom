@@ -14,6 +14,9 @@ import GoodPriceCalculationsTab from "@/Components/Goods/GoodPriceCalculationsTa
 import GoodPriceTypesTab from "@/Components/Goods/GoodPriceTypesTab.vue";
 import GoodPriceTypeValuesTab from "@/Components/Goods/GoodPriceTypeValuesTab.vue";
 import GoodMediaTab from "@/Components/Goods/GoodMediaTab.vue";
+import GoodTradeCodeFields from "@/Components/Goods/GoodTradeCodeFields.vue";
+import GoodVatCheck from "@/Components/Goods/GoodVatCheck.vue";
+import { goodTradeCodeFields, goodTradeCodeValues } from "@/utils/goodTradeCodes.js";
 import FindBuyersLauncher from "@/Components/AiSales/FindBuyersLauncher.vue";
 
 defineOptions({
@@ -84,6 +87,7 @@ const clipboardMessage = ref("");
 const avatarFile = ref(null);
 const priceCalculationsRefreshKey = ref(0);
 const priceValuesRefreshKey = ref(0);
+let originalAvatarUrls = {};
 
 const goodForm = reactive({
     name: "",
@@ -94,7 +98,16 @@ const goodForm = reactive({
     country_id: null,
     is_published: false,
     remove_ava: false,
+    avatar_source_url: "",
+    avatar_thumb_source_url: "",
+    ...goodTradeCodeValues(),
 });
+const selectedAvatarFile = computed(() => Array.isArray(avatarFile.value) ? avatarFile.value[0] : avatarFile.value);
+const vatCheckDraft = computed(() => ({
+    ...goodForm,
+    id: goodData.value?.id,
+    product_ids: (goodData.value?.products || []).map(product => product.id),
+}));
 
 // --------------------------------------------------
 // COMPUTED
@@ -464,6 +477,13 @@ function syncGoodForm() {
     goodForm.country_id = good.country_id || good.country?.id || null;
     goodForm.is_published = !!good.is_published;
     goodForm.remove_ava = false;
+    goodForm.avatar_source_url = /^https?:\/\//i.test(good.ava_image || "") ? good.ava_image : "";
+    goodForm.avatar_thumb_source_url = /^https?:\/\//i.test(good.ava_thumb || "") ? good.ava_thumb : "";
+    originalAvatarUrls = {
+        avatar_source_url: goodForm.avatar_source_url,
+        avatar_thumb_source_url: goodForm.avatar_thumb_source_url,
+    };
+    Object.assign(goodForm, goodTradeCodeValues(good));
     avatarFile.value = null;
     goodFormErrors.value = {};
     goodFormMessage.value = "";
@@ -488,6 +508,13 @@ function openFieldsDialog() {
     fieldsDialog.value = true;
 }
 
+function updateAvatarSource(value) {
+    goodForm.avatar_source_url = value || "";
+    if (goodForm.avatar_thumb_source_url === originalAvatarUrls.avatar_thumb_source_url) {
+        goodForm.avatar_thumb_source_url = "";
+    }
+}
+
 async function saveGood() {
     if (!goodData.value?.id) {
         return;
@@ -507,13 +534,16 @@ async function saveGood() {
     payload.append("country_id", goodForm.country_id ?? "");
     payload.append("is_published", goodForm.is_published ? "1" : "0");
     payload.append("remove_ava", goodForm.remove_ava ? "1" : "0");
+    goodTradeCodeFields.forEach(({ key }) => payload.append(key, goodForm[key] || ""));
 
-    const file = Array.isArray(avatarFile.value)
-        ? avatarFile.value[0]
-        : avatarFile.value;
+    const file = selectedAvatarFile.value;
 
     if (file) {
         payload.append("ava_image", file);
+    } else if (!goodForm.remove_ava) {
+        ["avatar_source_url", "avatar_thumb_source_url"].forEach(key => {
+            if (goodForm[key] !== originalAvatarUrls[key]) payload.append(key, goodForm[key] || "");
+        });
     }
 
     try {
@@ -959,6 +989,13 @@ onMounted(() => {
                                     clearable
                                     :error-messages="goodFormErrors.vat_rate_id"
                                 />
+                                <GoodVatCheck
+                                    :draft="vatCheckDraft"
+                                    :vat-rates="vatRates"
+                                    :disabled="savingGood"
+                                    :active="editGoodDialog"
+                                    @apply="goodForm.vat_rate_id = $event"
+                                />
                             </v-col>
 
                             <v-col cols="12" md="5">
@@ -1016,6 +1053,15 @@ onMounted(() => {
                                 />
                             </v-col>
 
+                            <v-col cols="12" class="mb-2">
+                                <GoodTradeCodeFields
+                                    :model-value="goodForm"
+                                    :errors="goodFormErrors"
+                                    :disabled="savingGood"
+                                    @update:model-value="Object.assign(goodForm, $event)"
+                                />
+                            </v-col>
+
                             <v-col cols="12">
                                 <v-textarea
                                     v-model="goodForm.description"
@@ -1030,7 +1076,7 @@ onMounted(() => {
                             <v-col cols="12" md="8">
                                 <v-file-input
                                     v-model="avatarFile"
-                                    label="Заменить ava_image"
+                                    label="Загрузить аватар"
                                     accept="image/png,image/jpeg,image/webp"
                                     variant="outlined"
                                     density="compact"
@@ -1046,6 +1092,38 @@ onMounted(() => {
                                     color="red"
                                     density="compact"
                                     hide-details
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    :model-value="goodForm.avatar_source_url"
+                                    label="Аватар: URL / CDN"
+                                    placeholder="https://cdn.example.com/good.webp"
+                                    type="url"
+                                    variant="outlined"
+                                    density="compact"
+                                    :disabled="!!selectedAvatarFile || goodForm.remove_ava || savingGood"
+                                    :error-messages="goodFormErrors.avatar_source_url"
+                                    hide-details="auto"
+                                    clearable
+                                    @update:model-value="updateAvatarSource"
+                                />
+                            </v-col>
+
+                            <v-col cols="12" md="6">
+                                <v-text-field
+                                    v-model="goodForm.avatar_thumb_source_url"
+                                    label="Миниатюра: URL / CDN"
+                                    placeholder="https://cdn.example.com/good-small.webp"
+                                    type="url"
+                                    variant="outlined"
+                                    density="compact"
+                                    :disabled="!!selectedAvatarFile || goodForm.remove_ava || savingGood"
+                                    :error-messages="goodFormErrors.avatar_thumb_source_url"
+                                    hint="Небольшая версия ускоряет загрузку списка товаров"
+                                    persistent-hint
+                                    clearable
                                 />
                             </v-col>
                         </v-row>
@@ -1382,6 +1460,8 @@ onMounted(() => {
                                     </div>
 
                                     <v-divider class="my-3" />
+
+                                    <GoodTradeCodeFields :model-value="goodData" readonly class="mb-3" />
 
                                     <div class="system-fields-grid">
                                         <div class="system-field">
