@@ -69,6 +69,7 @@ use App\Http\Controllers\API\GoodStockAlertAdminController;
 use App\Http\Controllers\API\GoodStockMovementController;
 use App\Http\Controllers\API\HomeBannerAssetController;
 use App\Http\Controllers\API\HomeBannerController;
+use App\Http\Controllers\API\HomeBannerSettingController;
 use App\Http\Controllers\API\IndustryController;
 use App\Http\Controllers\API\LabelController;
 use App\Http\Controllers\API\LeadController;
@@ -822,6 +823,8 @@ Route::prefix('home-banner-assets')
     });
 Route::apiResource('home-banners', HomeBannerController::class)
     ->parameters(['home-banners' => 'homeBanner']);
+Route::get('home-banner-settings', [HomeBannerSettingController::class, 'show'])->name('api.home-banner-settings.show');
+Route::patch('home-banner-settings', [HomeBannerSettingController::class, 'update'])->name('api.home-banner-settings.update');
 Route::apiResource('labels', LabelController::class);
 Route::apiResource('measures', MeasureController::class);
 Route::apiResource('messages', MessageController::class);

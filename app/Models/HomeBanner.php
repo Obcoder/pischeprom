@@ -17,6 +17,30 @@ class HomeBanner extends Model
         'compact',
     ];
 
+    public const POSITIONS = [
+        'left top', 'center top', 'right top',
+        'left center', 'center center', 'right center',
+        'left bottom', 'center bottom', 'right bottom',
+    ];
+
+    protected $attributes = [
+        'size' => 'compact',
+        'is_published' => false,
+        'show_on_desktop' => true,
+        'show_on_mobile' => true,
+        'sort_order' => 500,
+        'content_mode' => 'image',
+        'image_fit' => 'contain',
+        'image_position' => 'center center',
+        'mobile_image_fit' => 'contain',
+        'mobile_image_position' => 'center center',
+        'text_align' => 'left',
+        'vertical_align' => 'center',
+        'open_in_new_tab' => false,
+    ];
+
+    protected $appends = ['published_status'];
+
     protected $fillable = [
         'title',
         'eyebrow',
@@ -39,6 +63,16 @@ class HomeBanner extends Model
         'accent_color',
         'starts_at',
         'ends_at',
+        'slot_number',
+        'content_mode',
+        'image_fit',
+        'image_position',
+        'mobile_image_fit',
+        'mobile_image_position',
+        'text_align',
+        'vertical_align',
+        'alt_text',
+        'open_in_new_tab',
     ];
 
     protected $casts = [
@@ -51,6 +85,8 @@ class HomeBanner extends Model
         'sort_order' => 'integer',
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
+        'slot_number' => 'integer',
+        'open_in_new_tab' => 'boolean',
     ];
 
     public function good(): BelongsTo
@@ -84,7 +120,28 @@ class HomeBanner extends Model
             ->where(function (Builder $dateQuery): void {
                 $dateQuery
                     ->whereNull('ends_at')
-                    ->orWhere('ends_at', '>=', now());
+                    ->orWhere('ends_at', '>', now());
             });
+    }
+
+    public function getPublishedStatusAttribute(): string
+    {
+        if (! $this->is_published) {
+            return 'draft';
+        }
+        if (! $this->slot_number) {
+            return 'unassigned';
+        }
+        if (! $this->show_on_desktop && ! $this->show_on_mobile) {
+            return 'hidden';
+        }
+        if ($this->ends_at && $this->ends_at->lte(now())) {
+            return 'expired';
+        }
+        if ($this->starts_at && $this->starts_at->gt(now())) {
+            return 'scheduled';
+        }
+
+        return 'active';
     }
 }

@@ -10,7 +10,7 @@ import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
 import HomeCountryCollectionsSection from '@/Components/Home/HomeCountryCollectionsSection.vue'
 import HomeFeaturedGoodsSection from '@/Components/Home/HomeFeaturedGoodsSection.vue'
-import HomeBannerGallerySection from '@/Components/Home/HomeBannerGallerySection.vue'
+import HomeBannerStrip from '@/Components/Home/HomeBannerStrip.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
 import HomeGoodsBookCard from '@/Components/Home/HomeGoodsBookCard.vue'
@@ -80,9 +80,9 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
-    homeBanners: {
-        type: Array,
-        default: () => [],
+    homeBannerFeed: {
+        type: Object,
+        default: () => ({}),
     },
 })
 
@@ -370,6 +370,8 @@ onMounted(() => {
             <v-container>
                 <HomeWelcomeBanner :fields="fields" />
 
+                <HomeBannerStrip :feed="homeBannerFeed" />
+
                 <v-row dense class="align-stretch">
                     <v-col cols="12" lg="4">
                         <HomeGoodsSearchCard
@@ -419,8 +421,6 @@ onMounted(() => {
         />
 
         <HomeFeaturedGoodsSection :goods="featuredGoods" />
-
-        <HomeBannerGallerySection :banners="homeBanners" />
 
         <section class="welcome-section">
             <v-container>

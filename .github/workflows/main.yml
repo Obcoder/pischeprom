@@ -445,6 +445,20 @@ jobs:
             tests/Unit/MailSafetyEnvironmentTest.php \
             tests/Unit/TelegramWebhookProvisionerTest.php
 
+      - name: Check homepage banner PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/HomeBannerAssetController.php \
+            app/Http/Controllers/API/HomeBannerController.php \
+            app/Http/Controllers/API/HomeBannerSettingController.php \
+            app/Http/Controllers/MainController.php \
+            app/Models/HomeBanner.php \
+            app/Models/HomeBannerSetting.php \
+            app/Rules/HomeBannerUrl.php \
+            app/Services/HomeBanners \
+            database/migrations/2026_10_05_180000_add_six_slot_home_banner_feed.php \
+            tests/Feature/HomeBannerFeedTest.php
+
       - name: Run unit, logistics, banking, AI price-list, mail, goods stock, realtime, orders, mobile, and products tests
         env:
           APP_ENV: testing
@@ -500,6 +514,7 @@ jobs:
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/HomeBannerFeedTest.php \
             tests/Feature/AmeiseCommercePageTest.php \
             tests/Feature/EntityConsumptionApiTest.php \
             tests/Feature/EntityTableActivityTest.php \

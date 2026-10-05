@@ -27,7 +27,7 @@ class HomeBannerAssetController extends Controller
             ->values();
 
         $files = collect($disk->files($path))
-            ->reject(fn (string $file) => Str::endsWith($file, '/' . self::KEEP_FILE))
+            ->reject(fn (string $file) => Str::endsWith($file, '/'.self::KEEP_FILE))
             ->map(fn (string $file) => $this->filePayload($disk, $file))
             ->sortBy(fn (array $file) => mb_strtolower($file['name']))
             ->values();
@@ -83,7 +83,7 @@ class HomeBannerAssetController extends Controller
             return response()->json(['message' => 'Folder already exists'], 422);
         }
 
-        $disk->put("{$path}/" . self::KEEP_FILE, 'created: ' . now()->toIso8601String(), ['visibility' => 'public']);
+        $disk->put("{$path}/".self::KEEP_FILE, 'created: '.now()->toIso8601String(), ['visibility' => 'public']);
 
         return response()->json([
             'message' => 'Folder created',
@@ -191,7 +191,7 @@ class HomeBannerAssetController extends Controller
         $targetFolder = $this->safeRelativeFolder($data['target_folder'] ?? '');
         $targetBase = $this->absoluteFolder($targetFolder);
         $type = $data['type'] ?? 'file';
-        $targetPath = $this->safeStoragePath($targetBase . '/' . basename($path));
+        $targetPath = $this->safeStoragePath($targetBase.'/'.basename($path));
 
         if ($path === self::ROOT) {
             return response()->json(['message' => 'Root folder cannot be moved'], 422);
@@ -202,7 +202,7 @@ class HomeBannerAssetController extends Controller
         }
 
         if ($type === 'folder') {
-            if (Str::startsWith($targetBase . '/', rtrim($path, '/') . '/')) {
+            if (Str::startsWith($targetBase.'/', rtrim($path, '/').'/')) {
                 return response()->json(['message' => 'Folder cannot be moved into itself'], 422);
             }
 
@@ -243,7 +243,7 @@ class HomeBannerAssetController extends Controller
     {
         $folder = $this->safeRelativeFolder($folder);
 
-        return $folder ? self::ROOT . '/' . $folder : self::ROOT;
+        return $folder ? self::ROOT.'/'.$folder : self::ROOT;
     }
 
     private function safeRelativeFolder(string $folder): string
@@ -254,8 +254,8 @@ class HomeBannerAssetController extends Controller
             return '';
         }
 
-        if (Str::startsWith($folder, self::ROOT . '/')) {
-            $folder = Str::after($folder, self::ROOT . '/');
+        if (Str::startsWith($folder, self::ROOT.'/')) {
+            $folder = Str::after($folder, self::ROOT.'/');
         }
 
         abort_if(Str::contains($folder, ['..', '//']), 422, 'Invalid folder');
@@ -268,7 +268,7 @@ class HomeBannerAssetController extends Controller
         $path = trim(str_replace('\\', '/', $path), '/');
 
         abort_if(Str::contains($path, ['..', '//']), 422, 'Invalid path');
-        abort_unless($path === self::ROOT || Str::startsWith($path, self::ROOT . '/'), 403, 'Invalid path');
+        abort_unless($path === self::ROOT || Str::startsWith($path, self::ROOT.'/'), 403, 'Invalid path');
 
         return $path;
     }
@@ -316,8 +316,8 @@ class HomeBannerAssetController extends Controller
     private function moveDirectory($disk, string $oldPath, string $newPath): void
     {
         foreach ($disk->allFiles($oldPath) as $file) {
-            $relative = Str::after($file, rtrim($oldPath, '/') . '/');
-            $disk->copy($file, rtrim($newPath, '/') . '/' . $relative);
+            $relative = Str::after($file, rtrim($oldPath, '/').'/');
+            $disk->copy($file, rtrim($newPath, '/').'/'.$relative);
         }
 
         $disk->deleteDirectory($oldPath);
@@ -328,7 +328,7 @@ class HomeBannerAssetController extends Controller
         $safeName = $this->sanitizeName($originalName);
 
         if (! $this->isAllowedName($safeName)) {
-            $safeName = 'banner-' . now()->format('YmdHis') . '.jpg';
+            $safeName = 'banner-'.now()->format('YmdHis').'.jpg';
         }
 
         $base = pathinfo($safeName, PATHINFO_FILENAME) ?: 'banner';
@@ -336,8 +336,8 @@ class HomeBannerAssetController extends Controller
         $candidate = $safeName;
         $counter = 1;
 
-        while ($disk->exists(rtrim($folder, '/') . '/' . $candidate)) {
-            $suffix = now()->format('YmdHis') . ($counter > 1 ? "-{$counter}" : '');
+        while ($disk->exists(rtrim($folder, '/').'/'.$candidate)) {
+            $suffix = now()->format('YmdHis').($counter > 1 ? "-{$counter}" : '');
             $candidate = $extension ? "{$base}-{$suffix}.{$extension}" : "{$base}-{$suffix}";
             $counter++;
         }
@@ -381,7 +381,9 @@ class HomeBannerAssetController extends Controller
         $baseUrl = config('filesystems.disks.yandex.url');
 
         if ($baseUrl) {
-            return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
+            $encodedPath = implode('/', array_map('rawurlencode', explode('/', ltrim($path, '/'))));
+
+            return rtrim($baseUrl, '/').'/'.$encodedPath;
         }
 
         return Storage::disk('yandex')->url($path);

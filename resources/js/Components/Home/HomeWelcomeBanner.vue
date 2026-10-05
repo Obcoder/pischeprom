@@ -53,10 +53,6 @@ function goodsLabel(count) {
                     <v-icon icon="mdi-arrow-right" size="18" aria-hidden="true" />
                 </Link>
 
-                <a href="mailto:office@180022.ru" class="home-welcome-banner__contact-link">
-                    <span>Помощь<span class="home-welcome-banner__contact-detail"> с выбором</span></span>
-                    <v-icon icon="mdi-arrow-top-right" size="16" aria-hidden="true" />
-                </a>
             </div>
         </div>
 
@@ -177,8 +173,7 @@ function goodsLabel(count) {
     margin-top: 18px;
 }
 
-.home-welcome-banner__catalog-link,
-.home-welcome-banner__contact-link {
+.home-welcome-banner__catalog-link {
     display: inline-flex;
     min-height: 40px;
     align-items: center;
@@ -202,16 +197,7 @@ function goodsLabel(count) {
     background: #630000;
 }
 
-.home-welcome-banner__contact-link {
-    color: #514b46;
-}
-
-.home-welcome-banner__contact-link:hover {
-    color: #800000;
-}
-
 .home-welcome-banner__catalog-link:focus-visible,
-.home-welcome-banner__contact-link:focus-visible,
 .home-welcome-banner__field-card:focus-visible,
 .home-welcome-banner__empty a:focus-visible {
     outline: 2px solid #800000;
@@ -427,8 +413,7 @@ function goodsLabel(count) {
         margin-top: 12px;
     }
 
-    .home-welcome-banner__catalog-link,
-    .home-welcome-banner__contact-link {
+    .home-welcome-banner__catalog-link {
         min-height: 44px;
         gap: 6px;
         font-size: 0.72rem;
@@ -488,12 +473,6 @@ function goodsLabel(count) {
 
     .home-welcome-banner__empty {
         min-height: 120px;
-    }
-}
-
-@media (max-width: 360px) {
-    .home-welcome-banner__contact-detail {
-        display: none;
     }
 }
 

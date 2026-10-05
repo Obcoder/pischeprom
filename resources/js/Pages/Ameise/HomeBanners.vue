@@ -1,7 +1,9 @@
 <script setup>
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import HomeBannerStrip from '@/Components/Home/HomeBannerStrip.vue'
+import { bannerProductionBrief, moscowDateTimeInput, moscowDateTimePayload, moveMobileSlot, validMobileOrder } from './homeBannerAdmin'
 import axios from 'axios'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useHead } from '@unhead/vue'
 
 /*
@@ -22,6 +24,63 @@ const dialogOpen = ref(false)
 const editingId = ref(null)
 const search = ref('')
 const errorMessage = ref('')
+const formErrorMessage = ref('')
+const fieldErrors = ref({})
+const successMessage = ref('')
+const settingsSaving = ref(false)
+const settingsLoading = ref(true)
+const settingsLoaded = ref(false)
+const settingsErrorMessage = ref('')
+const settingsFieldErrors = ref({})
+const actionPending = ref(null)
+const editingPending = ref(null)
+const statusFilter = ref(null)
+const slotFilter = ref(null)
+const previewDevice = ref('desktop')
+const formPreviewScroll = ref(null)
+const copiedBrief = ref(false)
+const slotNumbers = [1, 2, 3, 4, 5, 6]
+const activeFeed = reactive({ desktop: Array(6).fill(null), mobile: Array(6).fill(null) })
+const settings = reactive({
+    enabled: true, desktop_height: 96, gap: 8, mobile_enabled: true,
+    mobile_layout: 'scroll', mobile_height: 96, mobile_columns: 2,
+    mobile_hide_empty: true, mobile_order: [1, 2, 3, 4, 5, 6],
+})
+const savedSettings = ref(null)
+const settingsDirty = computed(() => JSON.stringify(settings) !== savedSettings.value)
+const slotOptions = slotNumbers.map((value) => ({ title: `Слот ${value}`, value }))
+const contentOptions = [
+    { title: 'Готовое изображение с надписями', value: 'image' },
+    { title: 'Изображение и текст поверх него', value: 'overlay' },
+    { title: 'Текст на цветном фоне', value: 'text' },
+]
+const fitOptions = [{ title: 'Вписать полностью', value: 'contain' }, { title: 'Заполнить с обрезкой', value: 'cover' }]
+const positionOptions = [
+    { title: 'Слева сверху', value: 'left top' }, { title: 'Сверху по центру', value: 'center top' }, { title: 'Справа сверху', value: 'right top' },
+    { title: 'Слева по центру', value: 'left center' }, { title: 'По центру', value: 'center center' }, { title: 'Справа по центру', value: 'right center' },
+    { title: 'Слева снизу', value: 'left bottom' }, { title: 'Снизу по центру', value: 'center bottom' }, { title: 'Справа снизу', value: 'right bottom' },
+]
+const statusOptions = [
+    { title: 'Сейчас в эфире', value: 'active', color: 'green' },
+    { title: 'Запланирован', value: 'scheduled', color: 'blue' },
+    { title: 'Срок завершён', value: 'expired', color: 'grey' },
+    { title: 'Черновик', value: 'draft', color: 'grey' },
+    { title: 'Без слота', value: 'unassigned', color: 'orange' },
+    { title: 'Скрыт на устройствах', value: 'hidden', color: 'orange' },
+]
+const filteredBanners = computed(() => banners.value.filter((banner) =>
+    (!statusFilter.value || banner.published_status === statusFilter.value) &&
+    (!slotFilter.value || banner.slot_number === slotFilter.value)))
+const currentPreviewFeed = computed(() => ({ settings: { ...settings }, ...activeFeed }))
+const formPreviewFeed = computed(() => {
+    const desktop = Array(6).fill(null)
+    const mobile = Array(6).fill(null)
+    const slot = Math.max(0, (form.slot_number || 1) - 1)
+    const banner = { ...form, id: editingId.value || 'preview' }
+    desktop[slot] = banner
+    mobile[slot] = banner
+    return { settings: { ...settings, enabled: true, mobile_enabled: true, mobile_hide_empty: false }, desktop, mobile }
+})
 
 const assetLoading = ref(false)
 const uploadingAsset = ref(false)
@@ -52,16 +111,10 @@ const moveForm = reactive({
     target_folder: '',
 })
 
-const sizeOptions = [
-    { title: 'Широкий', value: 'wide' },
-    { title: 'Стандартный', value: 'standard' },
-    { title: 'Компактный', value: 'compact' },
-]
-
 const headers = [
     { title: 'Баннер', key: 'preview', sortable: false },
-    { title: 'Публикация', key: 'is_published', width: 130 },
-    { title: 'Размер', key: 'size', width: 130 },
+    { title: 'Статус и сроки · МСК', key: 'is_published', width: 230 },
+    { title: 'Слот', key: 'slot_number', width: 85 },
     { title: 'Видимость', key: 'visibility', sortable: false, width: 150 },
     { title: 'Связи', key: 'relations', sortable: false },
     { title: 'Порядок', key: 'sort_order', width: 110 },
@@ -69,6 +122,22 @@ const headers = [
 ]
 
 const form = reactive(defaultForm())
+
+watch([dialogOpen, previewDevice, () => form.slot_number, () => settings.mobile_layout, () => settings.mobile_order.join(',')], async () => {
+    if (!dialogOpen.value) return
+    await nextTick()
+    const viewport = formPreviewScroll.value
+    if (!viewport) return
+    const slot = form.slot_number || 1
+    if (previewDevice.value === 'desktop') {
+        viewport.scrollLeft = Math.max(0, ((slot - 1) * 1200 / 6) - 16)
+    } else {
+        viewport.scrollLeft = 0
+        const track = viewport.querySelector('.home-banner-strip__track--scroll')
+        const selected = track?.querySelector(`[data-slot="${slot}"]`)
+        if (track && selected) track.scrollLeft = selected.offsetLeft - track.offsetLeft
+    }
+}, { flush: 'post' })
 
 const formTitle = computed(() => editingId.value ? 'Редактировать баннер' : 'Новый баннер')
 
@@ -134,8 +203,18 @@ function defaultForm() {
         good_id: null,
         product_id: null,
         category_id: null,
-        size: 'wide',
-        is_published: true,
+        size: 'compact',
+        slot_number: null,
+        content_mode: 'image',
+        image_fit: 'contain',
+        image_position: 'center center',
+        mobile_image_fit: 'contain',
+        mobile_image_position: 'center center',
+        text_align: 'left',
+        vertical_align: 'center',
+        alt_text: '',
+        open_in_new_tab: false,
+        is_published: false,
         show_on_desktop: true,
         show_on_mobile: true,
         sort_order: 500,
@@ -158,7 +237,90 @@ function normalizeList(response) {
 }
 
 function apiMessage(error, fallback) {
-    return error.response?.data?.message || fallback
+    const errors = error.response?.data?.errors
+    const detail = Object.values(errors || {}).flat().filter(Boolean).join(' ')
+    return detail || error.response?.data?.message || fallback
+}
+
+async function fetchSettings() {
+    settingsLoading.value = true
+    settingsErrorMessage.value = ''
+    try {
+        const { data } = await axios.get('/api/home-banner-settings')
+        Object.assign(settings, data.data)
+        settings.mobile_order = [...(data.data?.mobile_order || slotNumbers)]
+        Object.assign(activeFeed, data.feed)
+        savedSettings.value = JSON.stringify(settings)
+        settingsLoaded.value = true
+    } catch (error) {
+        settingsErrorMessage.value = apiMessage(error, 'Не удалось загрузить настройки ленты. Изменения пока недоступны.')
+    } finally {
+        settingsLoading.value = false
+    }
+}
+
+async function refreshFeed() {
+    try {
+        const { data } = await axios.get('/api/home-banner-settings')
+        Object.assign(activeFeed, data.feed)
+    } catch (error) {
+        errorMessage.value = apiMessage(error, 'Баннер сохранён, но не удалось обновить состояние слотов. Обновите страницу.')
+    }
+}
+
+async function saveSettings() {
+    if (settingsSaving.value) return
+    settingsErrorMessage.value = ''
+    successMessage.value = ''
+    settingsFieldErrors.value = {}
+    if (!validMobileOrder(settings.mobile_order)) {
+        settingsErrorMessage.value = 'Порядок мобильных слотов должен содержать каждый номер от 1 до 6 ровно один раз.'
+        return
+    }
+    settingsSaving.value = true
+    try {
+        const { data } = await axios.patch('/api/home-banner-settings', { ...settings })
+        Object.assign(settings, data.data)
+        Object.assign(activeFeed, data.feed)
+        savedSettings.value = JSON.stringify(settings)
+        successMessage.value = 'Настройки ленты сохранены.'
+    } catch (error) {
+        settingsFieldErrors.value = error.response?.data?.errors || {}
+        settingsErrorMessage.value = apiMessage(error, 'Не удалось сохранить настройки ленты.')
+    } finally {
+        settingsSaving.value = false
+    }
+}
+
+function moveSlot(index, direction) {
+    settings.mobile_order = moveMobileSlot(settings.mobile_order, index, direction)
+}
+
+function statusInfo(banner) {
+    return statusOptions.find((status) => status.value === banner.published_status) ||
+        { title: banner.is_published ? 'Опубликован' : 'Черновик', color: banner.is_published ? 'green' : 'grey' }
+}
+
+function formattedDate(value) {
+    return value ? new Date(value).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', dateStyle: 'short', timeStyle: 'short' }) : ''
+}
+
+function dateWindow(banner) {
+    return `${banner.starts_at ? `С ${formattedDate(banner.starts_at)}` : 'Начало: сразу'} · ${banner.ends_at ? `до ${formattedDate(banner.ends_at)}` : 'без окончания'}`
+}
+
+function selectedSlotCampaigns(slot) {
+    return banners.value.filter((banner) => banner.slot_number === slot)
+}
+
+async function copyProductionBrief() {
+    try {
+        await navigator.clipboard.writeText(bannerProductionBrief(form, previewDevice.value))
+        copiedBrief.value = true
+        window.setTimeout(() => { copiedBrief.value = false }, 3000)
+    } catch {
+        formErrorMessage.value = 'Не удалось скопировать ТЗ. Проверьте доступ браузера к буферу обмена.'
+    }
 }
 
 async function fetchBanners() {
@@ -166,14 +328,18 @@ async function fetchBanners() {
     errorMessage.value = ''
 
     try {
-        const { data } = await axios.get('/api/home-banners', {
-            params: {
-                search: search.value || undefined,
-                per_page: 200,
-            },
-        })
-
-        banners.value = data.data || []
+        const allBanners = []
+        let page = 1
+        let lastPage = 1
+        do {
+            const { data } = await axios.get('/api/home-banners', {
+                params: { search: search.value || undefined, per_page: 300, page },
+            })
+            allBanners.push(...(data.data || []))
+            lastPage = Number(data.last_page) || 1
+            page += 1
+        } while (page <= lastPage)
+        banners.value = allBanners
     } catch (error) {
         console.error(error)
         errorMessage.value = 'Не удалось загрузить баннеры.'
@@ -183,15 +349,17 @@ async function fetchBanners() {
 }
 
 async function fetchDictionaries() {
-    const [goodsResponse, productsResponse, categoriesResponse] = await Promise.all([
+    const results = await Promise.allSettled([
         axios.get('/api/goods', { params: { per_page: 500, sort_by: 'name' } }),
         axios.get('/api/products'),
         axios.get('/api/categories', { params: { per_page: 500, sortBy: 'name' } }),
     ])
 
-    goods.value = normalizeList(goodsResponse)
-    products.value = normalizeList(productsResponse)
-    categories.value = normalizeList(categoriesResponse)
+    const targets = [goods, products, categories]
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled') targets[index].value = normalizeList(result.value)
+        else errorMessage.value = 'Не удалось загрузить часть справочников каталога. Для баннера можно указать прямую ссылку.'
+    })
 }
 
 async function fetchAssets(folder = assetFolder.value) {
@@ -217,9 +385,13 @@ async function fetchAssets(folder = assetFolder.value) {
     }
 }
 
-function openCreateDialog() {
+function openCreateDialog(slot = null) {
     editingId.value = null
     Object.assign(form, defaultForm())
+    form.slot_number = typeof slot === 'number' ? slot : null
+    formErrorMessage.value = ''
+    fieldErrors.value = {}
+    copiedBrief.value = false
     dialogOpen.value = true
     void fetchAssets(assetFolder.value)
 }
@@ -229,11 +401,28 @@ function editBanner(banner) {
     Object.assign(form, {
         ...defaultForm(),
         ...banner,
-        starts_at: toDateTimeInput(banner.starts_at),
-        ends_at: toDateTimeInput(banner.ends_at),
+        starts_at: moscowDateTimeInput(banner.starts_at),
+        ends_at: moscowDateTimeInput(banner.ends_at),
     })
+    formErrorMessage.value = ''
+    fieldErrors.value = {}
+    copiedBrief.value = false
     dialogOpen.value = true
     void fetchAssets(assetFolder.value)
+}
+
+async function editFeedBanner(banner) {
+    if (editingPending.value !== null) return
+    editingPending.value = banner.id
+    errorMessage.value = ''
+    try {
+        const { data } = await axios.get(`/api/home-banners/${banner.id}`)
+        editBanner(data.data)
+    } catch (error) {
+        errorMessage.value = apiMessage(error, 'Не удалось открыть баннер для редактирования. Попробуйте ещё раз.')
+    } finally {
+        editingPending.value = null
+    }
 }
 
 function closeDialog() {
@@ -248,14 +437,17 @@ function payload() {
         good_id: form.good_id || null,
         product_id: form.product_id || null,
         category_id: form.category_id || null,
-        starts_at: form.starts_at || null,
-        ends_at: form.ends_at || null,
+        starts_at: moscowDateTimePayload(form.starts_at),
+        ends_at: moscowDateTimePayload(form.ends_at),
     }
 }
 
 async function saveBanner() {
+    if (saving.value) return
     saving.value = true
-    errorMessage.value = ''
+    formErrorMessage.value = ''
+    fieldErrors.value = {}
+    successMessage.value = ''
 
     try {
         if (editingId.value) {
@@ -266,29 +458,53 @@ async function saveBanner() {
 
         closeDialog()
         await fetchBanners()
+        await refreshFeed()
+        successMessage.value = 'Баннер сохранён.'
     } catch (error) {
         console.error(error)
-        errorMessage.value = apiMessage(error, 'Не удалось сохранить баннер.')
+        fieldErrors.value = error.response?.data?.errors || {}
+        formErrorMessage.value = apiMessage(error, 'Не удалось сохранить баннер.')
     } finally {
         saving.value = false
     }
 }
 
 async function togglePublished(banner) {
-    await axios.patch(`/api/home-banners/${banner.id}`, {
-        ...banner,
-        is_published: !banner.is_published,
-    })
-    await fetchBanners()
+    if (actionPending.value !== null) return
+    actionPending.value = banner.id
+    errorMessage.value = ''
+    successMessage.value = ''
+    try {
+        await axios.patch(`/api/home-banners/${banner.id}`, { is_published: !banner.is_published })
+        await fetchBanners()
+        await refreshFeed()
+        successMessage.value = banner.is_published ? 'Баннер снят с публикации.' : 'Публикация баннера включена.'
+    } catch (error) {
+        errorMessage.value = apiMessage(error, 'Не удалось изменить публикацию баннера.')
+    } finally {
+        actionPending.value = null
+    }
 }
 
 async function deleteBanner(banner) {
+    if (actionPending.value !== null) return
     if (!window.confirm(`Удалить баннер "${banner.title}"?`)) {
         return
     }
 
-    await axios.delete(`/api/home-banners/${banner.id}`)
-    await fetchBanners()
+    actionPending.value = banner.id
+    errorMessage.value = ''
+    successMessage.value = ''
+    try {
+        await axios.delete(`/api/home-banners/${banner.id}`)
+        await fetchBanners()
+        await refreshFeed()
+        successMessage.value = 'Баннер удалён.'
+    } catch (error) {
+        errorMessage.value = apiMessage(error, 'Не удалось удалить баннер.')
+    } finally {
+        actionPending.value = null
+    }
 }
 
 function openAssetFolder(folder) {
@@ -473,24 +689,6 @@ function relationLabels(banner) {
     ].filter(Boolean)
 }
 
-function sizeLabel(value) {
-    return sizeOptions.find((item) => item.value === value)?.title || value
-}
-
-function toDateTimeInput(value) {
-    if (!value) {
-        return ''
-    }
-
-    const date = new Date(value)
-
-    if (Number.isNaN(date.getTime())) {
-        return ''
-    }
-
-    return date.toISOString().slice(0, 16)
-}
-
 function assetSize(size) {
     if (!size && size !== 0) {
         return 'размер неизвестен'
@@ -517,6 +715,7 @@ function assetDate(timestamp) {
 
 onMounted(async () => {
     await Promise.all([
+        fetchSettings(),
         fetchBanners(),
         fetchDictionaries(),
         fetchAssets(),
@@ -532,12 +731,12 @@ useHead({
     <v-container fluid class="home-banners-admin">
         <div class="home-banners-admin__header">
             <div>
-                <div class="home-banners-admin__eyebrow">Ameise / Welcome</div>
-                <h1>Рекламные баннеры главной</h1>
-                <p>Управление галереей промо-блоков: публикация, порядок, размер, мобильность, S3-файлы и связи с каталогом.</p>
+                <div class="home-banners-admin__eyebrow">Ameise / Главная</div>
+                <h1>Лента баннеров</h1>
+                <p>Шесть фиксированных слотов между первым блоком главной и поиском по товарам. Управляйте предложениями, сроками и показом на телефонах.</p>
             </div>
 
-            <v-btn color="#8f1111" rounded="xl" prepend-icon="mdi-plus" @click="openCreateDialog">
+            <v-btn color="#8f1111" rounded="xl" prepend-icon="mdi-plus" @click="openCreateDialog()">
                 Новый баннер
             </v-btn>
         </div>
@@ -551,10 +750,87 @@ useHead({
             {{ errorMessage }}
         </v-alert>
 
+        <v-alert v-if="successMessage" type="success" variant="tonal" closable class="mb-4" @click:close="successMessage = ''">
+            {{ successMessage }}
+        </v-alert>
+
+        <v-card rounded="xl" elevation="1" class="mb-4">
+            <v-card-title class="admin-card-heading">
+                <span>Настройки ленты</span>
+                <v-chip :color="settings.enabled ? 'green' : 'grey'" size="small" variant="tonal">{{ settings.enabled ? 'Лента включена' : 'Лента выключена' }}</v-chip>
+            </v-card-title>
+            <v-card-text>
+                <v-progress-linear v-if="settingsLoading" indeterminate class="mb-4" />
+                <v-alert v-if="settingsErrorMessage" type="error" variant="tonal" class="mb-4">{{ settingsErrorMessage }}</v-alert>
+                <v-btn v-if="!settingsLoaded && !settingsLoading" variant="tonal" class="mb-4" @click="fetchSettings">Повторить загрузку настроек</v-btn>
+                <fieldset class="settings-fieldset" :disabled="!settingsLoaded || settingsSaving">
+                    <v-row dense>
+                        <v-col cols="12" md="3"><v-switch v-model="settings.enabled" label="Показывать ленту на главной" color="green" hide-details /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-text-field v-model.number="settings.desktop_height" type="number" min="60" max="160" label="Высота на компьютере, px" density="compact" variant="outlined" :error-messages="settingsFieldErrors.desktop_height" /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-text-field v-model.number="settings.gap" type="number" min="4" max="20" label="Расстояние между слотами, px" density="compact" variant="outlined" :error-messages="settingsFieldErrors.gap" /></v-col>
+                        <v-col cols="12" md="3"><v-switch v-model="settings.mobile_enabled" label="Показывать на телефонах" color="green" hide-details /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-select v-model="settings.mobile_layout" :items="[{ title: 'Один ряд с прокруткой', value: 'scroll' }, { title: 'Компактная сетка', value: 'grid' }]" label="Расположение на телефоне" density="compact" variant="outlined" :error-messages="settingsFieldErrors.mobile_layout" /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-text-field v-model.number="settings.mobile_height" type="number" min="60" max="160" label="Высота мобильного баннера, px" density="compact" variant="outlined" :error-messages="settingsFieldErrors.mobile_height" /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-select v-model="settings.mobile_columns" :items="[{ title: 'Один баннер', value: 1 }, { title: 'Два баннера', value: 2 }]" label="Баннеров в ряду на телефоне" density="compact" variant="outlined" :error-messages="settingsFieldErrors.mobile_columns" /></v-col>
+                        <v-col cols="12" sm="6" md="3"><v-switch v-model="settings.mobile_hide_empty" label="Скрывать пустые слоты на телефоне" color="green" hide-details /></v-col>
+                    </v-row>
+                    <div class="mobile-order-label">Порядок слотов на телефоне</div>
+                    <div class="mobile-slot-order">
+                        <div v-for="(slot, index) in settings.mobile_order" :key="slot" class="mobile-slot-order__item">
+                            <v-btn icon="mdi-chevron-left" size="x-small" variant="text" :disabled="index === 0" :aria-label="`Переместить слот ${slot} раньше`" @click="moveSlot(index, -1)" />
+                            <strong>{{ slot }}</strong>
+                            <v-btn icon="mdi-chevron-right" size="x-small" variant="text" :disabled="index === 5" :aria-label="`Переместить слот ${slot} позже`" @click="moveSlot(index, 1)" />
+                        </div>
+                    </div>
+                    <div class="settings-save-row">
+                        <span>{{ settingsDirty ? 'Изменения ещё не сохранены' : 'Все настройки сохранены' }} · На компьютере всегда 6 слотов в одном ряду.</span>
+                        <v-btn color="#8f1111" rounded="xl" :loading="settingsSaving" :disabled="!settingsLoaded || !settingsDirty" @click="saveSettings">Сохранить настройки</v-btn>
+                    </div>
+                </fieldset>
+            </v-card-text>
+        </v-card>
+
+        <v-card rounded="xl" elevation="1" class="mb-4">
+            <v-card-title class="admin-card-heading"><span>Шесть слотов · сейчас в эфире</span><v-btn size="small" variant="text" prepend-icon="mdi-refresh" @click="refreshFeed">Обновить</v-btn></v-card-title>
+            <v-card-text>
+                <p class="admin-helper">Пустой слот остаётся зарезервирован на компьютере. Для одного слота можно подготовить будущие кампании с непересекающимися сроками; показ на компьютере и телефоне планируется отдельно.</p>
+                <div class="slot-overview">
+                    <div v-for="slot in slotNumbers" :key="slot" class="slot-overview__item">
+                        <div class="slot-overview__heading"><strong>Слот {{ slot }}</strong><v-btn icon="mdi-plus" size="x-small" variant="text" :aria-label="`Создать баннер для слота ${slot}`" @click="openCreateDialog(slot)" /></div>
+                        <div v-for="device in ['desktop', 'mobile']" :key="device" class="slot-overview__device">
+                            <span><v-icon :icon="device === 'desktop' ? 'mdi-monitor' : 'mdi-cellphone'" size="14" /> {{ device === 'desktop' ? 'Компьютер' : 'Телефон' }}</span>
+                            <button v-if="activeFeed[device][slot - 1]" type="button" class="slot-overview__banner" :disabled="editingPending !== null" @click="editFeedBanner(activeFeed[device][slot - 1])">
+                                <img v-if="(device === 'mobile' && activeFeed[device][slot - 1].mobile_image_url) || activeFeed[device][slot - 1].image_url" :src="device === 'mobile' ? activeFeed[device][slot - 1].mobile_image_url || activeFeed[device][slot - 1].image_url : activeFeed[device][slot - 1].image_url" alt="">
+                                <strong>{{ activeFeed[device][slot - 1].title }}</strong>
+                            </button>
+                            <div v-else class="slot-overview__empty">Свободен</div>
+                        </div>
+                        <small>{{ selectedSlotCampaigns(slot).length }} кампаний в списке</small>
+                        <v-btn block size="small" variant="tonal" class="mt-2" @click="openCreateDialog(slot)">Запланировать</v-btn>
+                    </div>
+                </div>
+                <div class="preview-heading"><strong>Проверка отображения ленты</strong><v-btn-toggle v-model="previewDevice" mandatory density="compact" variant="outlined"><v-btn value="desktop" size="small">Компьютер</v-btn><v-btn value="mobile" size="small">Телефон</v-btn></v-btn-toggle></div>
+                <div class="strip-preview-scroll">
+                    <div class="strip-preview-frame" :class="`strip-preview-frame--${previewDevice}`">
+                        <HomeBannerStrip :feed="currentPreviewFeed" :preview-device="previewDevice" />
+                    </div>
+                </div>
+                <small class="admin-helper">Превью в реальном масштабе: ширина {{ previewDevice === 'desktop' ? '1200' : '390' }} px. Изменения общих настроек отображаются до сохранения.</small>
+            </v-card-text>
+        </v-card>
+
+        <v-expansion-panels class="mb-4" variant="accordion">
+            <v-expansion-panel title="Размеры и рекомендации для создания баннера">
+                <v-expansion-panel-text>
+                    <div class="banner-size-guide"><strong>800 × 400 px · 2:1</strong><span>Рекомендуемый исходник: 1600 × 800 px для чёткого отображения. Для компьютера и телефона можно загрузить разные изображения с тем же соотношением сторон.</span><span>WebP или PNG, рекомендуемый вес до 1 МБ. Оставьте безопасную зону 10% по краям. Используйте крупные надписи и избегайте мелких деталей: баннер показывается в невысокой ленте.</span><span>В режиме «Вписать полностью» изображение сохраняется целиком; «Заполнить с обрезкой» использует выбранную точку выравнивания. Для готового баннера выбирайте режим «Готовое изображение с надписями».</span><span>В форме каждого баннера есть кнопка «Скопировать ТЗ для ChatGPT»: она учитывает текст, цвета, слот и выбранное устройство.</span></div>
+                </v-expansion-panel-text>
+            </v-expansion-panel>
+        </v-expansion-panels>
+
         <v-card rounded="xl" elevation="1" class="mb-4">
             <v-card-text>
                 <v-row align="center" dense>
-                    <v-col cols="12" md="8">
+                    <v-col cols="12" md="5">
                         <v-text-field
                             v-model="search"
                             label="Поиск по баннерам"
@@ -566,7 +842,9 @@ useHead({
                             @keyup.enter="fetchBanners"
                         />
                     </v-col>
-                    <v-col cols="12" md="4">
+                    <v-col cols="12" md="3"><v-select v-model="statusFilter" :items="statusOptions" label="Все статусы" clearable density="compact" variant="outlined" hide-details /></v-col>
+                    <v-col cols="12" md="2"><v-select v-model="slotFilter" :items="slotOptions" label="Все слоты" clearable density="compact" variant="outlined" hide-details /></v-col>
+                    <v-col cols="12" md="2">
                         <v-btn block rounded="xl" variant="tonal" @click="fetchBanners">
                             Обновить
                         </v-btn>
@@ -578,7 +856,7 @@ useHead({
         <v-card rounded="xl" elevation="1">
             <v-data-table
                 :headers="headers"
-                :items="banners"
+                :items="filteredBanners"
                 :loading="loading"
                 item-value="id"
             >
@@ -600,13 +878,14 @@ useHead({
                 </template>
 
                 <template #item.is_published="{ item }">
-                    <v-chip :color="item.is_published ? 'green' : 'grey'" size="small" variant="tonal">
-                        {{ item.is_published ? 'Опубликован' : 'Черновик' }}
+                    <v-chip :color="statusInfo(item).color" size="small" variant="tonal">
+                        {{ statusInfo(item).title }}
                     </v-chip>
+                    <small class="banner-schedule">{{ dateWindow(item) }}</small>
                 </template>
 
-                <template #item.size="{ item }">
-                    {{ sizeLabel(item.size) }}
+                <template #item.slot_number="{ item }">
+                    <strong>{{ item.slot_number || '—' }}</strong>
                 </template>
 
                 <template #item.visibility="{ item }">
@@ -626,14 +905,17 @@ useHead({
 
                 <template #item.actions="{ item }">
                     <div class="banner-actions">
-                        <v-btn icon="mdi-pencil" size="small" variant="text" @click="editBanner(item)" />
+                        <v-btn icon="mdi-pencil" size="small" variant="text" aria-label="Редактировать баннер" :disabled="actionPending !== null" @click="editBanner(item)" />
                         <v-btn
                             :icon="item.is_published ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
                             size="small"
                             variant="text"
+                            :aria-label="item.is_published ? 'Снять с публикации' : 'Опубликовать'"
+                            :loading="actionPending === item.id"
+                            :disabled="actionPending !== null && actionPending !== item.id"
                             @click="togglePublished(item)"
                         />
-                        <v-btn icon="mdi-delete-outline" size="small" color="red" variant="text" @click="deleteBanner(item)" />
+                        <v-btn icon="mdi-delete-outline" size="small" color="red" variant="text" aria-label="Удалить баннер" :disabled="actionPending !== null" @click="deleteBanner(item)" />
                     </div>
                 </template>
             </v-data-table>
@@ -649,60 +931,76 @@ useHead({
                 <v-divider />
 
                 <v-card-text>
+                    <v-alert v-if="formErrorMessage" type="error" variant="tonal" class="mb-4">{{ formErrorMessage }}</v-alert>
                     <v-row dense>
                         <v-col cols="12" lg="6">
                             <v-row dense>
                                 <v-col cols="12" md="8">
-                                    <v-text-field v-model="form.title" label="Заголовок" variant="outlined" density="compact" />
+                                    <v-text-field v-model="form.title" label="Название / заголовок баннера" variant="outlined" density="compact" :error-messages="fieldErrors.title" />
                                 </v-col>
                                 <v-col cols="12" md="4">
                                     <v-text-field v-model.number="form.sort_order" label="Порядок" type="number" variant="outlined" density="compact" />
                                 </v-col>
                                 <v-col cols="12" md="6">
-                                    <v-text-field v-model="form.eyebrow" label="Надпись над заголовком" variant="outlined" density="compact" />
+                                    <v-select v-model="form.slot_number" :items="slotOptions" label="Фиксированный слот" clearable variant="outlined" density="compact" hint="Без слота баннер хранится в списке, но не показывается в ленте" persistent-hint :error-messages="fieldErrors.slot_number" />
                                 </v-col>
                                 <v-col cols="12" md="6">
-                                    <v-select v-model="form.size" :items="sizeOptions" label="Размер" variant="outlined" density="compact" />
+                                    <v-select v-model="form.content_mode" :items="contentOptions" label="Содержимое баннера" variant="outlined" density="compact" :error-messages="fieldErrors.content_mode" />
+                                </v-col>
+                                <v-col cols="12" v-if="form.content_mode !== 'image'">
+                                    <v-text-field v-model="form.subtitle" label="Подзаголовок" variant="outlined" density="compact" :error-messages="fieldErrors.subtitle" />
                                 </v-col>
                                 <v-col cols="12">
-                                    <v-text-field v-model="form.subtitle" label="Подзаголовок" variant="outlined" density="compact" />
-                                </v-col>
-                                <v-col cols="12">
-                                    <v-textarea v-model="form.description" label="Описание" variant="outlined" rows="3" />
+                                    <v-textarea v-model="form.description" label="Описание предложения для ТЗ" variant="outlined" rows="2" hint="Помогает подготовить задание для изображения; на сайте выводятся заголовок и подзаголовок" persistent-hint :error-messages="fieldErrors.description" />
                                 </v-col>
                                 <v-col cols="12">
                                     <v-text-field
                                         v-model="form.image_url"
-                                        label="Desktop image URL"
+                                        label="Изображение для компьютера · URL"
                                         variant="outlined"
                                         density="compact"
                                         prepend-inner-icon="mdi-monitor"
+                                        :error-messages="fieldErrors.image_url"
+                                        :disabled="form.content_mode === 'text'"
                                     />
                                 </v-col>
                                 <v-col cols="12">
                                     <v-text-field
                                         v-model="form.mobile_image_url"
-                                        label="Mobile image URL"
+                                        label="Изображение для телефона · URL"
                                         variant="outlined"
                                         density="compact"
                                         prepend-inner-icon="mdi-cellphone"
+                                        hint="Если не задано, используется изображение для компьютера"
+                                        persistent-hint
+                                        :error-messages="fieldErrors.mobile_image_url"
+                                        :disabled="form.content_mode === 'text'"
                                     />
                                 </v-col>
-                                <v-col cols="12" md="6">
-                                    <v-text-field v-model="form.cta_label" label="Текст кнопки" variant="outlined" density="compact" />
+                                <v-col cols="12" md="6"><v-select v-model="form.image_fit" :items="fitOptions" label="Компьютер: масштабирование" variant="outlined" density="compact" :disabled="form.content_mode === 'text'" :error-messages="fieldErrors.image_fit" /></v-col>
+                                <v-col cols="12" md="6"><v-select v-model="form.image_position" :items="positionOptions" label="Компьютер: выравнивание изображения" variant="outlined" density="compact" :disabled="form.content_mode === 'text'" :error-messages="fieldErrors.image_position" /></v-col>
+                                <v-col cols="12" md="6"><v-select v-model="form.mobile_image_fit" :items="fitOptions" label="Телефон: масштабирование" variant="outlined" density="compact" :disabled="form.content_mode === 'text'" :error-messages="fieldErrors.mobile_image_fit" /></v-col>
+                                <v-col cols="12" md="6"><v-select v-model="form.mobile_image_position" :items="positionOptions" label="Телефон: выравнивание изображения" variant="outlined" density="compact" :disabled="form.content_mode === 'text'" :error-messages="fieldErrors.mobile_image_position" /></v-col>
+                                <v-col cols="12" md="6" v-if="form.content_mode !== 'image'"><v-select v-model="form.text_align" :items="[{ title: 'Слева', value: 'left' }, { title: 'По центру', value: 'center' }, { title: 'Справа', value: 'right' }]" label="Выравнивание текста" variant="outlined" density="compact" :error-messages="fieldErrors.text_align" /></v-col>
+                                <v-col cols="12" md="6" v-if="form.content_mode !== 'image'"><v-select v-model="form.vertical_align" :items="[{ title: 'Сверху', value: 'top' }, { title: 'По центру', value: 'center' }, { title: 'Снизу', value: 'bottom' }]" label="Текст по вертикали" variant="outlined" density="compact" :error-messages="fieldErrors.vertical_align" /></v-col>
+                                <v-col cols="12"><v-text-field v-model="form.alt_text" label="Альтернативный текст изображения" variant="outlined" density="compact" hint="Кратко опишите предложение для людей, использующих озвучивание страницы" :error-messages="fieldErrors.alt_text" /></v-col>
+                                <v-col cols="12">
+                                    <v-text-field v-model="form.cta_url" label="Ссылка при нажатии" variant="outlined" density="compact" hint="Если пусто, используется связанный товар / категория или каталог" persistent-hint :error-messages="fieldErrors.cta_url" />
                                 </v-col>
-                                <v-col cols="12" md="6">
-                                    <v-text-field v-model="form.cta_url" label="CTA URL" variant="outlined" density="compact" hint="Если пусто, ссылка строится по связанной сущности" persistent-hint />
-                                </v-col>
+                                <v-col cols="12"><v-switch v-model="form.open_in_new_tab" label="Открывать ссылку в новой вкладке" color="green" hide-details :error-messages="fieldErrors.open_in_new_tab" /></v-col>
                             </v-row>
 
                             <v-card rounded="xl" variant="tonal" class="mt-2">
-                                <v-card-title class="text-subtitle-1">Превью</v-card-title>
+                                <v-card-title class="admin-card-heading"><span class="text-subtitle-1">Превью в ленте</span><v-btn-toggle v-model="previewDevice" mandatory density="compact" variant="outlined"><v-btn value="desktop" size="small">Компьютер</v-btn><v-btn value="mobile" size="small">Телефон</v-btn></v-btn-toggle></v-card-title>
                                 <v-card-text>
-                                    <div class="banner-form-preview">
-                                        <img v-if="form.image_url || form.mobile_image_url" :src="form.image_url || form.mobile_image_url" :alt="form.title || 'Баннер'">
-                                        <div v-else class="banner-form-preview__empty">Выберите изображение из S3</div>
+                                    <div ref="formPreviewScroll" class="strip-preview-scroll">
+                                        <div class="strip-preview-frame" :class="`strip-preview-frame--${previewDevice}`">
+                                            <HomeBannerStrip :feed="formPreviewFeed" :preview-device="previewDevice" />
+                                        </div>
                                     </div>
+                                    <small class="admin-helper">Слот {{ form.slot_number || '1 (пример; слот не выбран)' }} · превью показывает оформление независимо от публикации и дат.</small>
+                                    <div class="banner-size-guide mt-4"><strong>Исходник: 800 × 400 px, рекомендуется 1600 × 800 px</strong><span>Соотношение 2:1 · WebP / PNG · до 1 МБ · безопасная зона 10% · крупные читаемые надписи.</span></div>
+                                    <v-btn class="mt-3" block variant="tonal" prepend-icon="mdi-content-copy" @click="copyProductionBrief">{{ copiedBrief ? 'ТЗ скопировано' : `Скопировать ТЗ для ChatGPT · ${previewDevice === 'desktop' ? 'компьютер' : 'телефон'}` }}</v-btn>
                                 </v-card-text>
                             </v-card>
                         </v-col>
@@ -830,30 +1128,33 @@ useHead({
                                                 :items="goods"
                                                 :item-title="goodTitle"
                                                 item-value="id"
-                                                label="Good"
+                                                label="Товар"
                                                 variant="outlined"
                                                 density="compact"
                                                 clearable
+                                                :error-messages="fieldErrors.good_id"
                                             />
                                             <v-autocomplete
                                                 v-model="form.product_id"
                                                 :items="products"
                                                 :item-title="productTitle"
                                                 item-value="id"
-                                                label="Product"
+                                                label="Продукт"
                                                 variant="outlined"
                                                 density="compact"
                                                 clearable
+                                                :error-messages="fieldErrors.product_id"
                                             />
                                             <v-autocomplete
                                                 v-model="form.category_id"
                                                 :items="categories"
                                                 :item-title="categoryTitle"
                                                 item-value="id"
-                                                label="Category"
+                                                label="Категория"
                                                 variant="outlined"
                                                 density="compact"
                                                 clearable
+                                                :error-messages="fieldErrors.category_id"
                                             />
                                         </v-card-text>
                                     </v-card>
@@ -861,13 +1162,15 @@ useHead({
 
                                 <v-col cols="12" md="6">
                                     <v-card rounded="xl" variant="tonal" class="h-100">
-                                        <v-card-title class="text-subtitle-1">Показ</v-card-title>
+                                        <v-card-title class="text-subtitle-1">Публикация и сроки</v-card-title>
                                         <v-card-text>
                                             <v-switch v-model="form.is_published" color="green" label="Опубликован" hide-details />
-                                            <v-switch v-model="form.show_on_desktop" color="green" label="Desktop" hide-details />
-                                            <v-switch v-model="form.show_on_mobile" color="green" label="Mobile" hide-details />
-                                            <v-text-field v-model="form.starts_at" label="Начало показа" type="datetime-local" variant="outlined" density="compact" class="mt-3" />
-                                            <v-text-field v-model="form.ends_at" label="Конец показа" type="datetime-local" variant="outlined" density="compact" />
+                                            <v-switch v-model="form.show_on_desktop" color="green" label="Показывать на компьютере" hide-details />
+                                            <v-switch v-model="form.show_on_mobile" color="green" label="Показывать на телефоне" hide-details />
+                                            <div class="admin-helper mt-3">Все даты по Москве · UTC+03:00. Пустое начало — сразу, пустое окончание — бессрочно.</div>
+                                            <v-text-field v-model="form.starts_at" label="Начало показа · МСК" type="datetime-local" variant="outlined" density="compact" class="mt-3" clearable :error-messages="fieldErrors.starts_at" />
+                                            <v-text-field v-model="form.ends_at" label="Окончание показа · МСК" type="datetime-local" variant="outlined" density="compact" clearable :error-messages="fieldErrors.ends_at" />
+                                            <div class="admin-helper">Система проверяет пересечения сроков в выбранном слоте и на выбранных устройствах. Будущая кампания начнётся автоматически.</div>
                                         </v-card-text>
                                     </v-card>
                                 </v-col>
@@ -878,13 +1181,13 @@ useHead({
                                         <v-card-text>
                                             <v-row dense>
                                                 <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.background_color" label="Фон" variant="outlined" density="compact" />
+                                                    <v-text-field v-model="form.background_color" label="Фон" variant="outlined" density="compact" :error-messages="fieldErrors.background_color" />
                                                 </v-col>
                                                 <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.text_color" label="Текст" variant="outlined" density="compact" />
+                                                    <v-text-field v-model="form.text_color" label="Текст" variant="outlined" density="compact" :error-messages="fieldErrors.text_color" />
                                                 </v-col>
                                                 <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.accent_color" label="Акцент" variant="outlined" density="compact" />
+                                                    <v-text-field v-model="form.accent_color" label="Акцент" variant="outlined" density="compact" :error-messages="fieldErrors.accent_color" />
                                                 </v-col>
                                             </v-row>
                                         </v-card-text>
@@ -980,6 +1283,195 @@ useHead({
 </template>
 
 <style scoped>
+.settings-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.admin-card-heading,
+.preview-heading,
+.settings-save-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.admin-card-heading {
+    padding: 18px 24px 8px;
+    font-weight: 750;
+    white-space: normal;
+}
+
+.admin-helper,
+.banner-schedule {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.banner-schedule {
+    margin-top: 6px;
+    max-width: 235px;
+}
+
+.mobile-order-label {
+    margin: 4px 0 10px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.mobile-slot-order {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mobile-slot-order__item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.settings-save-row {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.settings-save-row span {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.slot-overview {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.slot-overview__item {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.slot-overview__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 8px;
+    color: #334155;
+    font-size: 13px;
+}
+
+.slot-overview__device > span,
+.slot-overview__item > small {
+    display: block;
+    margin: 8px 0 5px;
+    color: #64748b;
+    font-size: 10px;
+}
+
+.slot-overview__banner,
+.slot-overview__empty {
+    display: flex;
+    width: 100%;
+    height: 60px;
+    overflow: hidden;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #475569;
+    text-align: left;
+    font-size: 11px;
+}
+
+.slot-overview__banner img {
+    width: 44%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.slot-overview__banner strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.slot-overview__empty {
+    justify-content: center;
+    border-style: dashed;
+    color: #94a3b8;
+}
+
+.preview-heading {
+    margin: 24px 0 12px;
+    font-size: 13px;
+}
+
+.strip-preview-scroll {
+    max-width: 100%;
+    overflow: auto;
+    margin-bottom: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.strip-preview-frame--desktop {
+    width: 1200px;
+}
+
+.strip-preview-frame--mobile {
+    width: 390px;
+}
+
+.strip-preview-frame :deep(a) {
+    pointer-events: none;
+}
+
+.banner-size-guide {
+    display: grid;
+    gap: 8px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.banner-size-guide strong {
+    color: #334155;
+}
+
+@media (max-width: 1200px) {
+    .slot-overview {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .slot-overview {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
 .home-banners-admin {
     min-height: 100vh;
     background: #f8fafc;

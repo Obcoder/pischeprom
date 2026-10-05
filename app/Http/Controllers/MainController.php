@@ -6,18 +6,18 @@ use App\Models\Category;
 use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
-use App\Models\HomeBanner;
 use App\Models\Product;
 use App\Services\Goods\HomeGoodsModuleService;
-use Illuminate\Support\Carbon;
+use App\Services\HomeBanners\HomeBannerFeedService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class MainController extends Controller
 {
-    public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService): Response
+    public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService, HomeBannerFeedService $homeBannerFeed): Response
     {
         $categoriesQuery = Category::query()
             ->where('is_published', true)
@@ -62,7 +62,7 @@ class MainController extends Controller
             'homeGoodsModule' => $homeGoodsModuleService->build($request->user()),
             'countryCollections' => $this->countryCollections(),
             'featuredGoods' => $this->featuredGoods(),
-            'homeBanners' => $this->homeBanners(),
+            'homeBannerFeed' => $homeBannerFeed->build(),
         ]);
     }
 
@@ -169,28 +169,6 @@ class MainController extends Controller
             && Schema::hasColumn('fields', 'sort_order');
     }
 
-    private function homeBanners(): array
-    {
-        if (! Schema::hasTable('home_banners')) {
-            return [];
-        }
-
-        return HomeBanner::query()
-            ->published()
-            ->active()
-            ->with([
-                'good:' . implode(',', $this->goodImageColumns(['id', 'name', 'slug'])),
-                'product:id,rus,eng,category_id',
-                'product.category:id,name,slug',
-                'category:id,name,slug',
-            ])
-            ->orderBy('sort_order')
-            ->orderByDesc('id')
-            ->limit(10)
-            ->get()
-            ->all();
-    }
-
     private function countryCollections(): array
     {
         if (! Schema::hasColumn('goods', 'country_id')) {
@@ -263,9 +241,9 @@ class MainController extends Controller
 
         return GoodOfTheDay::query()
             ->create([
-                         'good_id' => $randomGood->id,
-                         'date' => $today,
-                     ])
+                'good_id' => $randomGood->id,
+                'date' => $today,
+            ])
             ->load('good');
     }
 }
