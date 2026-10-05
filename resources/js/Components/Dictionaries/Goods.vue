@@ -104,7 +104,7 @@ const form = useForm({
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '150px' },
-    { key: 'ava_image', title: '', sortable: false, width: '56px' },
+    { key: 'ava_image', title: '', sortable: false, width: '64px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'country', title: 'Страна', sortable: false, width: '132px' },
     { key: 'fields', title: 'Fields', sortable: false, width: '190px' },
@@ -825,7 +825,7 @@ onBeforeUnmount(() => {
 }
 
 .goods-table :deep(tbody td) {
-    height: 48px !important;
+    height: 56px !important;
     padding: 3px 8px !important;
 }
 
