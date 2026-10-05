@@ -39,6 +39,7 @@ class OrderResource extends JsonResource
             'permissions' => [
                 'edit' => app(StaffAccess::class)->allows($user) && ! $this->shipped_at && ! $this->shipped_sale_id,
                 'delivery_edit' => OrderDeliveryAccess::allowed($user),
+                'delete' => app(StaffAccess::class)->allows($user) && ! $this->shipped_sale_id,
             ],
 
             'status' => $this->whenLoaded('status', fn () => $this->status ? [

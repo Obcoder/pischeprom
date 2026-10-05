@@ -26,7 +26,8 @@ class OrderResourcePermissionsTest extends TestCase
 
         $this->getJson('/api/orders/'.$order->id)->assertOk()
             ->assertJsonPath('data.permissions.edit', true)
-            ->assertJsonPath('data.permissions.delivery_edit', false);
+            ->assertJsonPath('data.permissions.delivery_edit', false)
+            ->assertJsonPath('data.permissions.delete', true);
 
         $employee->givePermissionTo(Permission::findOrCreate('warehouse.move', 'crm'));
         $this->getJson('/api/orders/'.$order->id)->assertOk()
@@ -47,7 +48,8 @@ class OrderResourcePermissionsTest extends TestCase
 
         $this->getJson('/api/orders/'.$this->order()->id)->assertOk()
             ->assertJsonPath('data.permissions.edit', true)
-            ->assertJsonPath('data.permissions.delivery_edit', true);
+            ->assertJsonPath('data.permissions.delivery_edit', true)
+            ->assertJsonPath('data.permissions.delete', true);
     }
 
     public function test_resource_permissions_default_to_false_and_honor_staff_status_and_verification(): void
@@ -59,23 +61,23 @@ class OrderResourcePermissionsTest extends TestCase
 
             return (new OrderResource($order))->resolve($request)['permissions'];
         };
-        $this->assertSame(['edit' => false, 'delivery_edit' => false], $resolve(null));
+        $this->assertSame(['edit' => false, 'delivery_edit' => false, 'delete' => false], $resolve(null));
         $customer = User::factory()->create(['type' => 'customer', 'status' => 'active']);
-        $this->assertSame(['edit' => false, 'delivery_edit' => false], $resolve($customer));
+        $this->assertSame(['edit' => false, 'delivery_edit' => false, 'delete' => false], $resolve($customer));
 
         $employee = User::factory()->create(['type' => 'employee', 'status' => 'active', 'email_verified_at' => null]);
         $employee->givePermissionTo(Permission::findOrCreate('orders.edit', 'crm'));
-        $this->assertSame(['edit' => true, 'delivery_edit' => false], $resolve($employee));
+        $this->assertSame(['edit' => true, 'delivery_edit' => false, 'delete' => true], $resolve($employee));
         $employee->status = 'inactive';
-        $this->assertSame(['edit' => false, 'delivery_edit' => false], $resolve($employee));
+        $this->assertSame(['edit' => false, 'delivery_edit' => false, 'delete' => false], $resolve($employee));
 
         $customer->assignRole(Role::findOrCreate('manager', 'crm'));
-        $this->assertSame(['edit' => true, 'delivery_edit' => false], $resolve($customer));
+        $this->assertSame(['edit' => true, 'delivery_edit' => false, 'delete' => true], $resolve($customer));
         $customer->assignRole(Role::findOrCreate('admin', 'crm'));
-        $this->assertSame(['edit' => true, 'delivery_edit' => true], $resolve($customer));
+        $this->assertSame(['edit' => true, 'delivery_edit' => true, 'delete' => true], $resolve($customer));
 
         $order->shipped_sale_id = 1;
-        $this->assertSame(['edit' => false, 'delivery_edit' => true], $resolve($customer));
+        $this->assertSame(['edit' => false, 'delivery_edit' => true, 'delete' => false], $resolve($customer));
     }
 
     private function order(): Order

@@ -11,7 +11,7 @@ import OrderStatusesDialog from '@/Components/Orders/OrderStatusesDialog.vue'
 import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 
 defineOptions({ layout: VerwalterLayout })
-defineProps({
+const props = defineProps({
     permissions: {
         type: Object,
         default: () => ({ view: false, create: false, edit: false, delete: false }),
@@ -26,15 +26,19 @@ const filterMenuOpen = ref(false)
 const statusesOpen = ref(false)
 const orderDetailsOpen = ref(false)
 const selectedOrderId = ref(null)
+const orderToDelete = ref(null)
+const deleting = ref(false)
+const deleteError = ref('')
+const ledgerScroll = ref(null)
 const options = reactive({ statuses: [], entities: [], buildings: [], goods: [] })
-const meta = reactive({ current_page: 1, last_page: 1, per_page: 25, total: 0 })
+const meta = reactive({ current_page: 1, last_page: 1, per_page: 100, total: 0 })
 const emptyFilters = () => ({
     status_id: null, entity_id: null, building_id: null, good_id: null,
     date_from: '', date_to: '', delivery_date: '', delivery_unscheduled: false,
     total_from: '', total_to: '',
 })
 const filters = reactive({
-    search: '', ...emptyFilters(), sort_by: 'submitted_at', sort_direction: 'desc', page: 1, per_page: 25,
+    search: '', ...emptyFilters(), sort_by: 'submitted_at', sort_direction: 'desc', page: 1, per_page: 100,
 })
 const draftFilters = reactive(emptyFilters())
 let requestController = null
@@ -109,6 +113,12 @@ async function fetchOrders() {
         if (disposed || controller.signal.aborted) return
         orders.value = data.data || []
         Object.assign(meta, data.meta || {})
+        if (meta.current_page > meta.last_page) {
+            filters.page = Math.max(meta.last_page, 1)
+            await fetchOrders()
+            return
+        }
+        if (ledgerScroll.value) ledgerScroll.value.scrollTop = 0
     } catch (error) {
         if (!disposed && !controller.signal.aborted && !axios.isCancel(error)) {
             errorMessage.value = 'Не удалось загрузить заказы.'
@@ -163,6 +173,39 @@ function openOrder(order) {
     selectedOrderId.value = order.id
     orderDetailsOpen.value = true
 }
+function canDeleteOrder(order) {
+    return Boolean(props.permissions.delete && order?.id && order.permissions?.delete !== false && !order.shipped_sale_id)
+}
+function requestDeleteOrder(order) {
+    if (disposed || deleting.value || loading.value || !canDeleteOrder(order)) return
+    orderToDelete.value = order
+    deleteError.value = ''
+}
+function cancelDeleteOrder() {
+    if (deleting.value) return
+    orderToDelete.value = null
+    deleteError.value = ''
+}
+async function deleteOrder() {
+    const order = orderToDelete.value
+    if (disposed || deleting.value || !canDeleteOrder(order)) return
+    deleting.value = true
+    deleteError.value = ''
+    try {
+        await axios.delete(`/api/orders/${order.id}`)
+        if (disposed) return
+        orderToDelete.value = null
+        if (String(selectedOrderId.value) === String(order.id)) {
+            orderDetailsOpen.value = false
+            selectedOrderId.value = null
+        }
+        await fetchOrders()
+    } catch (error) {
+        if (!disposed) deleteError.value = error.response?.data?.message || 'Не удалось удалить заказ. Попробуйте ещё раз.'
+    } finally {
+        if (!disposed) deleting.value = false
+    }
+}
 function formatDate(value) {
     if (!value) return '—'
     const date = new Date(value)
@@ -209,7 +252,6 @@ const debouncedSearch = useDebounceFn(() => {
     fetchOrders()
 }, 350)
 watch(() => filters.search, debouncedSearch)
-watch(() => filters.per_page, () => { filters.page = 1; fetchOrders() })
 watch(filterMenuOpen, open => {
     if (open) for (const key of Object.keys(draftFilters)) draftFilters[key] = filters[key]
 })
@@ -293,13 +335,14 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                 <button type="button" :disabled="loading" title="Обновить заказы" aria-label="Обновить заказы" @click="fetchOrders"><v-icon icon="mdi-refresh" size="17" /></button>
             </div>
             <div class="orders-ledger__progress"><v-progress-linear v-if="loading" indeterminate color="#7f1d1d" height="2" /></div>
-            <div class="orders-ledger__scroll">
+            <div ref="ledgerScroll" class="orders-ledger__scroll">
                 <table aria-label="Заказы">
-                    <colgroup><col class="col-number"><col class="col-status"><col class="col-entity"><col class="col-items"><col class="col-amount"><col class="col-date"><col class="col-delivery"></colgroup>
+                    <colgroup><col class="col-number"><col class="col-status"><col class="col-entity"><col class="col-items"><col class="col-amount"><col class="col-date"><col class="col-delivery"><col v-if="permissions.delete" class="col-actions"></colgroup>
                     <thead><tr>
                         <th v-for="header in headers" :key="header.key" scope="col" :aria-sort="filters.sort_by === header.key ? (filters.sort_direction === 'asc' ? 'ascending' : 'descending') : 'none'">
                             <button type="button" @click="toggleSort(header.key)">{{ header.title }}<v-icon v-if="filters.sort_by === header.key" :icon="sortIcon" size="12" /></button>
                         </th>
+                        <th v-if="permissions.delete" scope="col" aria-label="Действия" />
                     </tr></thead>
                     <tbody v-if="orders.length" :class="{ 'is-loading': loading }">
                         <tr v-for="order in orders" :key="order.id" tabindex="0" @click="openOrder(order)" @keydown.enter.self.prevent="openOrder(order)" @keydown.space.self.prevent="openOrder(order)">
@@ -307,18 +350,18 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                             <td><span class="orders-ledger__status" :style="{ '--status-color': order.status?.color || '#64748b' }">{{ order.status?.name || '—' }}</span></td>
                             <td><strong class="orders-ledger__entity" :title="order.entity?.name">{{ order.entity?.name || 'Без контрагента' }}</strong><small v-if="order.entity?.INN">ИНН {{ order.entity.INN }}</small></td>
                             <td><div class="orders-ledger__goods">
-                                <template v-for="item in (order.items || []).slice(0, 2)" :key="item.id">
+                                <template v-for="item in (order.items || [])" :key="item.id">
                                     <Link v-if="item.good?.id" :href="goodUrl(item.good)" :title="`${item.good_name} × ${item.quantity}`" @click.stop>{{ item.good_name }} <span>× {{ item.quantity }}</span></Link>
                                     <span v-else>{{ item.good_name }} × {{ item.quantity }}</span>
                                 </template>
-                                <small v-if="(order.items || []).length > 2">ещё {{ order.items.length - 2 }} поз.</small>
                             </div></td>
                             <td class="orders-ledger__money"><strong>{{ formatMoney(order.total_amount, order.currency_code) }}</strong><small>{{ formatWeight(order.total_weight) }}</small></td>
                             <td class="orders-ledger__date">{{ formatDate(order.submitted_at || order.created_at) }}<small>{{ formatTime(order.submitted_at || order.created_at) }}</small></td>
                             <td><span class="orders-ledger__delivery" :class="{ 'is-unscheduled': !order.delivery_date }"><v-icon icon="mdi-truck-outline" size="13" />{{ formatDeliveryDate(order.delivery_date) }}</span><small v-if="buildingsLabel(order)" class="orders-ledger__building" :title="buildingsLabel(order)">{{ buildingsLabel(order) }}</small></td>
+                            <td v-if="permissions.delete" class="orders-ledger__actions"><button v-if="canDeleteOrder(order)" type="button" class="orders-ledger__delete" :disabled="loading || deleting" :aria-label="`Удалить заказ ${order.number || `#${order.id}`}`" title="Удалить заказ" aria-haspopup="dialog" @click.stop="requestDeleteOrder(order)"><v-icon icon="mdi-delete-outline" size="17" /></button></td>
                         </tr>
                     </tbody>
-                    <tbody v-else><tr><td :colspan="headers.length" class="orders-ledger__empty">
+                    <tbody v-else><tr><td :colspan="headers.length + (permissions.delete ? 1 : 0)" class="orders-ledger__empty">
                         <v-icon :icon="loading ? 'mdi-dots-horizontal' : 'mdi-package-variant'" size="28" />
                         <span>{{ loading ? 'Загружаем заказы…' : errorMessage ? 'Список заказов недоступен' : 'Заказы не найдены' }}</span>
                         <button v-if="hasActiveFilters && !loading" type="button" class="orders-retry" @click="resetFilters">Сбросить фильтры</button>
@@ -326,17 +369,37 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                 </table>
             </div>
             <footer class="orders-pagination">
-                <label><span>Строк</span><select v-model="filters.per_page" aria-label="Строк на странице"><option :value="10">10</option><option :value="25">25</option><option :value="50">50</option><option :value="100">100</option></select></label>
+                <span>100 строк на странице</span>
                 <div><button type="button" :disabled="loading || meta.current_page <= 1" aria-label="Предыдущая страница" @click="goToPage(meta.current_page - 1)"><v-icon icon="mdi-chevron-left" size="17" /></button><span>{{ meta.current_page }} / {{ meta.last_page }}</span><button type="button" :disabled="loading || meta.current_page >= meta.last_page" aria-label="Следующая страница" @click="goToPage(meta.current_page + 1)"><v-icon icon="mdi-chevron-right" size="17" /></button></div>
             </footer>
         </section>
         <OrderStatusesDialog v-model="statusesOpen" :permissions="permissions" @changed="statusesChanged" />
-        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" @saved="fetchOrders" />
+        <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" :external-busy="deleting" @saved="fetchOrders">
+            <template #actions="{ order, disabled }">
+                <button v-if="canDeleteOrder(order)" type="button" class="orders-action orders-action--danger orders-details-delete" :disabled="disabled || loading" @click="requestDeleteOrder(order)"><v-icon icon="mdi-delete-outline" size="16" />Удалить заказ</button>
+            </template>
+        </OrderDetailsDialog>
+        <v-dialog :model-value="Boolean(orderToDelete)" :persistent="deleting" max-width="440" aria-labelledby="orders-delete-title" @update:model-value="value => { if (!value) cancelDeleteOrder() }">
+            <v-card>
+                <v-card-title id="orders-delete-title" class="orders-delete-title">Удалить заказ {{ orderToDelete?.number || `#${orderToDelete?.id}` }}?</v-card-title>
+                <v-card-text>
+                    Заказ и его позиции будут удалены. Восстановить их будет невозможно.
+                    <v-alert v-if="deleteError" type="error" density="compact" variant="tonal" class="mt-3" role="alert">{{ deleteError }}</v-alert>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn :disabled="deleting" @click="cancelDeleteOrder">Отмена</v-btn>
+                    <v-btn color="error" variant="flat" :loading="deleting" :disabled="deleting" @click="deleteOrder">Удалить</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </main>
 </template>
 
 <style scoped>
-.orders-page { width: 100%; min-height: calc(100vh - 48px); padding: 12px; background: #f4f5f7; color: #252a31; }
+.orders-page { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: calc(100vh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); height: calc(100dvh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); min-height: 0; overflow: hidden; padding: 12px 12px 24px; background: #f4f5f7; color: #252a31; }
+.orders-page > :not(.orders-ledger) { flex: 0 0 auto; }
+.orders-page > .v-alert { font-size: 11px; line-height: 1.4; }
 .orders-header { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
 .orders-header__title, .orders-header__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .orders-header__title { gap: 9px; }
@@ -350,6 +413,10 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-action:hover { background: #f0f2f5; }
 .orders-action.is-active { border-color: #b88e8e; color: #7f1d1d; }
 .orders-action--primary, .orders-action--primary:hover { border-color: #7f1d1d; background: #7f1d1d; color: #fff; }
+.orders-action--danger { border-color: #e7c5c5; color: #a22f2f; }
+.orders-action--danger:hover { background: #fdf0f0; }
+.orders-details-delete { margin-bottom: 12px; }
+.orders-delete-title { white-space: normal; overflow-wrap: anywhere; }
 .orders-action__badge { display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 3px; border-radius: 4px; background: #7f1d1d; color: white; font-size: 9px; }
 .orders-filters { width: 520px; max-width: calc(100vw - 24px); overflow: auto; max-height: min(640px, calc(100dvh - 100px)); border: 1px solid #d7dce2; border-radius: 9px; background: #fff; color: #252a31; box-shadow: 0 12px 40px #202b4026; }
 .orders-filters__heading { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid #e7e9ed; font-size: 12px; }
@@ -357,28 +424,28 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-filters__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }
 .orders-filter { display: grid; min-width: 0; gap: 5px; }
 .orders-filter > span { color: #68717b; font-size: 11px; }
-.orders-filter input, .orders-filter select, .orders-pagination select { width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #cfd4da; border-radius: 5px; background-color: #fff; color: #2c3239; font-size: 11px; }
+.orders-filter input, .orders-filter select { width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #cfd4da; border-radius: 5px; background-color: #fff; color: #2c3239; font-size: 11px; }
 .orders-filter select { padding-right: 28px; text-overflow: ellipsis; }
 .orders-filter--checkbox { display: flex; align-items: center; gap: 7px; padding-top: 18px; }
 .orders-filter--checkbox input { width: 15px; height: 15px; padding: 0; accent-color: #7f1d1d; }
 .orders-filters__actions { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid #e7e9ed; background: #f8f9fb; }
-.orders-active-filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.orders-page > .orders-active-filters { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 5px; min-height: 0; max-height: min(96px, 20dvh); overflow: auto; margin-bottom: 8px; }
 .orders-active-filters button { display: inline-flex; align-items: center; gap: 5px; max-width: 250px; padding: 3px 7px; border: 1px solid #ded4d4; border-radius: 5px; background: #fcf7f7; color: #7f1d1d; font-size: 10px; }
 .orders-active-filters button span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .orders-active-filters .orders-active-filters__reset { border-color: transparent; background: transparent; color: #747d87; }
-.orders-ledger { overflow: hidden; border: 1px solid #d3d8de; border-radius: 8px; background: #fff; }
-.orders-ledger__summary { display: flex; align-items: center; gap: 12px; min-height: 31px; padding: 4px 9px; color: #747d87; font-size: 10px; }
+.orders-ledger { display: flex; flex: 1; flex-direction: column; min-height: 74px; overflow: hidden; border: 1px solid #d3d8de; border-radius: 8px; background: #fff; }
+.orders-ledger__summary { display: flex; flex-shrink: 0; align-items: center; gap: 12px; min-height: 31px; padding: 4px 9px; color: #747d87; font-size: 10px; }
 .orders-ledger__summary > span { display: inline-flex; align-items: center; gap: 6px; }
 .orders-ledger__summary .orders-ledger__totals { margin-left: auto; flex-wrap: wrap; }
 .orders-ledger__totals strong { color: #434d59; font-weight: 650; }
 .orders-ledger__summary button { display: grid; place-items: center; margin-left: auto; width: 24px; height: 24px; }
 .orders-ledger__totals + button { margin-left: 0; }
-.orders-ledger__progress { height: 2px; }
-.orders-ledger__scroll { overflow: auto; }
+.orders-ledger__progress { flex-shrink: 0; height: 2px; }
+.orders-ledger__scroll { flex: 1; min-height: 0; overflow: auto; }
 .orders-ledger table { width: 100%; min-width: 930px; border-collapse: collapse; table-layout: fixed; }
-.col-number { width: 13%; } .col-status { width: 11%; } .col-entity { width: 18%; } .col-items { width: 23%; } .col-amount { width: 12%; } .col-date { width: 8%; } .col-delivery { width: 15%; }
+.col-number { width: 12%; } .col-status { width: 10%; } .col-entity { width: 17%; } .col-items { width: 23%; } .col-amount { width: 12%; } .col-date { width: 8%; } .col-delivery { width: 14%; } .col-actions { width: 4%; }
 .orders-ledger th, .orders-ledger td { padding: 6px 9px; border-bottom: 1px solid #e6e9ed; text-align: left; vertical-align: middle; }
-.orders-ledger th { height: 29px; background: #eef0f3; color: #6c7682; font-size: 9px; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
+.orders-ledger th { position: sticky; top: 0; z-index: 1; height: 29px; background: #eef0f3; color: #6c7682; font-size: 9px; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
 .orders-ledger th button { display: inline-flex; align-items: center; gap: 3px; color: inherit; font: inherit; text-transform: inherit; }
 .orders-ledger tbody tr { cursor: pointer; }
 .orders-ledger tbody tr:hover { background: #faf6f3; }
@@ -396,7 +463,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-ledger__status { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 650; }
 .orders-ledger__status::before { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--status-color); content: ''; }
 .orders-ledger__goods { display: grid; gap: 2px; font-size: 10px; }
-.orders-ledger__goods a, .orders-ledger__goods > span { overflow: hidden; color: #7f1d1d; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.orders-ledger__goods a, .orders-ledger__goods > span { color: #7f1d1d; text-decoration: none; overflow-wrap: anywhere; }
 .orders-ledger__goods a span { color: #7b838d; }
 .orders-ledger__goods a:hover { text-decoration: underline; }
 .orders-ledger__money { text-align: right !important; white-space: nowrap; }
@@ -407,13 +474,17 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-ledger__empty { height: 150px !important; color: #929aa4; text-align: center !important; cursor: default; }
 .orders-ledger__empty > span { display: block; margin: 6px 0; }
 .orders-retry { margin-left: 5px; font-size: 11px; text-decoration: underline; }
-.orders-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 4px 9px; color: #747d87; font-size: 10px; }
-.orders-pagination label, .orders-pagination div { display: flex; align-items: center; gap: 7px; }
-.orders-pagination select { width: 60px; height: 27px; padding-right: 20px; }
+.orders-ledger__actions { padding: 6px 4px !important; text-align: center !important; }
+.orders-ledger__delete { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border-radius: 5px; color: #a22f2f; }
+.orders-ledger__delete:hover { background: #fce8e8; }
+.orders-ledger__delete:focus-visible { outline: 2px solid #9e6868; outline-offset: 1px; }
+.orders-ledger__delete:disabled { opacity: .35; }
+.orders-pagination { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 4px 9px; border-top: 1px solid #e6e9ed; color: #747d87; font-size: 10px; }
+.orders-pagination div { display: flex; align-items: center; gap: 7px; }
 .orders-pagination button { display: inline-flex; align-items: center; justify-content: center; width: 27px; height: 27px; border: 1px solid #d8dde3; border-radius: 5px; color: #526070; }
 .orders-pagination button:disabled, .orders-ledger__summary button:disabled { opacity: .35; }
 .orders-pagination div span { min-width: 45px; font-variant-numeric: tabular-nums; text-align: center; }
 @media (max-width: 1050px) { .orders-header { flex-wrap: wrap; gap: 8px; } .orders-search { flex: 1; width: auto; } .orders-header__actions { margin-left: auto; } }
-@media (max-width: 600px) { .orders-page { padding: 8px; } .orders-header__title { gap: 6px; } .orders-header h1 { font-size: 17px; } .orders-header__actions { width: 100%; } .orders-header__actions > .orders-action--primary { margin-left: auto; } .orders-header__mark { width: 30px; height: 30px; } .orders-search { min-width: 125px; } .orders-ledger__summary { gap: 6px; } .orders-ledger__summary .orders-ledger__totals { font-size: 9px; } }
+@media (max-width: 600px) { .orders-page { padding: 8px 8px 24px; } .orders-header__title { gap: 6px; } .orders-header h1 { font-size: 17px; } .orders-header__actions { width: 100%; } .orders-header__actions > .orders-action--primary { margin-left: auto; } .orders-header__mark { width: 30px; height: 30px; } .orders-search { min-width: 125px; } .orders-ledger__summary { gap: 6px; } .orders-ledger__summary .orders-ledger__totals { font-size: 9px; } }
 @media (max-width: 380px) { .orders-header__actions { gap: 4px; } .orders-header__actions .orders-action { gap: 4px; padding: 0 6px; font-size: 10px; } .orders-filters__grid { grid-template-columns: 1fr; } .orders-filter--checkbox { padding-top: 0; } .orders-action { padding: 0 7px; } }
 </style>

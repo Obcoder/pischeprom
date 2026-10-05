@@ -30,7 +30,7 @@ class OrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $deliveryFilters = $request->validate(OrderDeliveryFilter::rules($request));
-        $perPage = min(max($request->integer('per_page', 25), 1), 100);
+        $perPage = min(max($request->integer('per_page', 100), 1), 100);
         $sortBy = in_array($request->input('sort_by'), [
             'number',
             'submitted_at',
