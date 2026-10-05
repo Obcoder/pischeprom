@@ -123,6 +123,18 @@ function closeCheckout() {
     checkoutOpen.value = false
 }
 
+function clearAllItems() {
+    if (submitting.value || !hasItems.value) {
+        return
+    }
+
+    clearCart()
+    checkoutOpen.value = false
+    fieldErrors.value = {}
+    errorMessage.value = ''
+    successMessage.value = ''
+}
+
 function localValidate() {
     const errors = {}
 
@@ -260,15 +272,28 @@ function submitOrder() {
                 <small>{{ weight(totalWeight) }}</small>
             </div>
 
-            <button
-                type="button"
-                class="order-cart-strip__submit"
-                :disabled="!hasItems || submitting"
-                @click="openCheckout"
-            >
-                <v-icon icon="mdi-check-circle-outline" size="15" />
-                <span>{{ user ? 'Сделать заказ' : 'Войти и заказать' }}</span>
-            </button>
+            <div class="order-cart-strip__actions">
+                <button
+                    v-if="hasItems"
+                    type="button"
+                    class="order-cart-strip__clear"
+                    :disabled="submitting"
+                    @click="clearAllItems"
+                >
+                    <v-icon icon="mdi-delete-outline" size="15" />
+                    <span>Очистить корзину</span>
+                </button>
+
+                <button
+                    type="button"
+                    class="order-cart-strip__submit"
+                    :disabled="!hasItems || submitting"
+                    @click="openCheckout"
+                >
+                    <v-icon icon="mdi-check-circle-outline" size="15" />
+                    <span>{{ user ? 'Сделать заказ' : 'Войти и заказать' }}</span>
+                </button>
+            </div>
         </div>
 
         <div v-if="successMessage" class="order-cart-strip__success">
@@ -533,6 +558,14 @@ function submitOrder() {
     white-space: nowrap;
 }
 
+.order-cart-strip__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.order-cart-strip__clear,
 .order-cart-strip__submit {
     display: inline-flex;
     min-height: 36px;
@@ -548,6 +581,21 @@ function submitOrder() {
     font-weight: 950;
     cursor: pointer;
     white-space: nowrap;
+}
+
+.order-cart-strip__clear {
+    border: 1px solid rgba(128, 0, 0, 0.18);
+    background: #fff;
+    color: #6b1b18;
+}
+
+.order-cart-strip__clear:hover:not(:disabled) {
+    background: #fff3ed;
+}
+
+.order-cart-strip__clear:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 .order-cart-strip__submit:disabled {
@@ -771,7 +819,12 @@ function submitOrder() {
     }
 
     .order-cart-strip__summary {
+        flex-wrap: wrap;
         justify-content: space-between;
+    }
+
+    .order-cart-strip__actions {
+        flex: 1 1 auto;
     }
 
     .order-checkout__footer {

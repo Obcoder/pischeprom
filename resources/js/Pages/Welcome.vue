@@ -368,10 +368,12 @@ onMounted(() => {
     <div class="welcome-page">
         <section class="welcome-section welcome-section--soft welcome-section--top-search">
             <v-container>
-                <HomeWelcomeBanner :fields="fields" />
+                <v-row dense class="welcome-top-grid">
+                    <v-col cols="12" sm="6" lg="3">
+                        <HomeWelcomeBanner />
+                    </v-col>
 
-                <v-row dense class="align-stretch">
-                    <v-col cols="12" lg="4">
+                    <v-col cols="12" sm="6" lg="3">
                         <HomeGoodsSearchCard
                             :goods="goods"
                             :loading="goodsLoading"
@@ -379,7 +381,7 @@ onMounted(() => {
                         />
                     </v-col>
 
-                    <v-col cols="12" lg="8">
+                    <v-col cols="12" lg="6">
                         <HomeGoodsBookCard
                             :module="homeGoodsModule"
                             :limit="24"
@@ -598,8 +600,12 @@ onMounted(() => {
 }
 
 .welcome-section.welcome-section--top-search {
-    padding-top: 4px;
+    padding-top: 12px;
     padding-bottom: 24px;
+}
+
+.welcome-top-grid {
+    align-items: flex-start;
 }
 
 .for-whom-card {

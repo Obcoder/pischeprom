@@ -520,6 +520,18 @@ onBeforeUnmount(() => {
                             </div>
 
                             <div class="app-header__drawer-section">
+                                <a
+                                    v-for="contact in contacts"
+                                    :key="contact.href"
+                                    :href="contact.href"
+                                    class="app-header__drawer-link"
+                                >
+                                    <v-icon :icon="contact.icon" size="20" />
+                                    <span>{{ contact.label }}</span>
+                                </a>
+                            </div>
+
+                            <div class="app-header__drawer-section">
                                 <template v-if="user">
                                     <Link
                                         :href="profileUrl"
@@ -884,7 +896,7 @@ onBeforeUnmount(() => {
     opacity: 0;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1279px) {
     .app-header__top-inner {
         min-height: 50px;
     }
@@ -919,6 +931,26 @@ onBeforeUnmount(() => {
 @media (max-width: 600px) {
     .app-header__top-inner {
         min-height: 40px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 12px;
+    }
+
+    .app-header__brand {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .app-header__city {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-width: 0;
+        margin-left: 0;
+    }
+
+    .app-header__burger {
+        grid-column: 2;
+        grid-row: 1;
     }
 
     .app-header__main-inner {
