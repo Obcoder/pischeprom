@@ -7,7 +7,6 @@ use App\Models\Good;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -18,15 +17,6 @@ class GoodSearchTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        // SQLite's built-in LOWER is ASCII-only; mirror MySQL's Unicode LOWER.
-        if (DB::connection()->getDriverName() === 'sqlite') {
-            DB::connection()->getPdo()->sqliteCreateFunction(
-                'lower',
-                fn (?string $value): ?string => $value === null ? null : mb_strtolower($value, 'UTF-8'),
-                1,
-            );
-        }
 
         $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
     }
