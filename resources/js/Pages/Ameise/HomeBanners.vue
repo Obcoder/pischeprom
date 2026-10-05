@@ -55,6 +55,11 @@ const contentOptions = [
     { title: 'Текст на цветном фоне', value: 'text' },
 ]
 const fitOptions = [{ title: 'Вписать полностью', value: 'contain' }, { title: 'Заполнить с обрезкой', value: 'cover' }]
+const colorFields = [
+    { key: 'background_color', label: 'Фон', fallback: '#f5f2ed' },
+    { key: 'text_color', label: 'Текст', fallback: '#292624' },
+    { key: 'accent_color', label: 'Акцент', fallback: '#800000' },
+]
 const positionOptions = [
     { title: 'Слева сверху', value: 'left top' }, { title: 'Сверху по центру', value: 'center top' }, { title: 'Справа сверху', value: 'right top' },
     { title: 'Слева по центру', value: 'left center' }, { title: 'По центру', value: 'center center' }, { title: 'Справа по центру', value: 'right center' },
@@ -986,6 +991,7 @@ useHead({
                                 <v-col cols="12"><v-text-field v-model="form.alt_text" label="Альтернативный текст изображения" variant="outlined" density="compact" hint="Кратко опишите предложение для людей, использующих озвучивание страницы" :error-messages="fieldErrors.alt_text" /></v-col>
                                 <v-col cols="12">
                                     <v-text-field v-model="form.cta_url" label="Ссылка при нажатии" variant="outlined" density="compact" hint="Если пусто, используется связанный товар / категория или каталог" persistent-hint :error-messages="fieldErrors.cta_url" />
+                                    <div class="admin-helper mb-4">Поиск в каталоге: <code>/g?search=облепиха</code>. Пробелы заменяйте на <code>%20</code>: <code>/g?search=масло%20облепихи</code>.</div>
                                 </v-col>
                                 <v-col cols="12"><v-switch v-model="form.open_in_new_tab" label="Открывать ссылку в новой вкладке" color="green" hide-details :error-messages="fieldErrors.open_in_new_tab" /></v-col>
                             </v-row>
@@ -1180,14 +1186,12 @@ useHead({
                                         <v-card-title class="text-subtitle-1">Цвета</v-card-title>
                                         <v-card-text>
                                             <v-row dense>
-                                                <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.background_color" label="Фон" variant="outlined" density="compact" :error-messages="fieldErrors.background_color" />
-                                                </v-col>
-                                                <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.text_color" label="Текст" variant="outlined" density="compact" :error-messages="fieldErrors.text_color" />
-                                                </v-col>
-                                                <v-col cols="12" sm="4">
-                                                    <v-text-field v-model="form.accent_color" label="Акцент" variant="outlined" density="compact" :error-messages="fieldErrors.accent_color" />
+                                                <v-col v-for="field in colorFields" :key="field.key" cols="12" sm="4">
+                                                    <v-text-field v-model="form[field.key]" :label="field.label" variant="outlined" density="compact" :error-messages="fieldErrors[field.key]">
+                                                        <template #prepend-inner>
+                                                            <span class="banner-color-swatch" :style="{ '--color-preview': form[field.key] || field.fallback }" aria-hidden="true" />
+                                                        </template>
+                                                    </v-text-field>
                                                 </v-col>
                                             </v-row>
                                         </v-card-text>
@@ -1283,6 +1287,26 @@ useHead({
 </template>
 
 <style scoped>
+.banner-color-swatch {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 28px;
+    margin-inline-end: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    background: repeating-conic-gradient(#d9d9d9 0% 25%, #fff 0% 50%) 50% / 10px 10px;
+}
+
+.banner-color-swatch::after {
+    position: absolute;
+    inset: 0;
+    background-color: var(--color-preview);
+    content: '';
+}
+
 .settings-fieldset {
     min-width: 0;
     margin: 0;
