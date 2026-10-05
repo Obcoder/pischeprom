@@ -1,12 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import { useAppRoute } from "@/Composables/useAppRoute";
-import HeroFlyingBee from '@/Components/Home/HeroFlyingBee.vue'
-import { useHomeBeeAnimationSetting } from '@/Composables/useHomeBeeAnimationSetting'
+import { useAppRoute } from '@/Composables/useAppRoute'
 
-const { route } = useAppRoute();
-const { beeAnimationEnabled } = useHomeBeeAnimationSetting()
+const { route } = useAppRoute()
 
 const props = defineProps({
     fields: {
@@ -16,258 +13,293 @@ const props = defineProps({
 })
 
 const visibleFields = computed(() => props.fields.slice(0, 3))
+
+function goodsLabel(count) {
+    const total = Number(count) || 0
+    const lastTwo = total % 100
+    const last = total % 10
+    const word = lastTwo >= 11 && lastTwo <= 14
+        ? 'товаров'
+        : last === 1 ? 'товар' : last >= 2 && last <= 4 ? 'товара' : 'товаров'
+
+    return total + ' ' + word
+}
 </script>
 
 <template>
-    <v-card class="home-welcome-banner" rounded="xl" elevation="0">
-        <div class="home-welcome-banner__glow home-welcome-banner__glow--one" />
-        <div class="home-welcome-banner__glow home-welcome-banner__glow--two" />
-        <HeroFlyingBee v-if="beeAnimationEnabled" />
+    <section class="home-welcome-banner" aria-labelledby="home-welcome-title">
+        <div class="home-welcome-banner__content">
+            <p class="home-welcome-banner__eyebrow">
+                <span class="home-welcome-banner__eyebrow-mark" aria-hidden="true" />
+                Магазин для пищевой отрасли
+            </p>
 
-        <v-row dense class="home-welcome-banner__row">
-            <v-col cols="12" lg="6">
-                <div class="home-welcome-banner__content">
-                    <h1 class="home-welcome-banner__title">
-                        Пищевая промышленность: Сырьё, ингредиенты, добавки, продукция
-                    </h1>
+            <h1 id="home-welcome-title" class="home-welcome-banner__title">
+                Сырьё и продукты<br>
+                <span>для вашего бизнеса</span>
+            </h1>
 
-                    <p class="home-welcome-banner__text">
-                        Ресурс в помощь предприятиям пищевой промышленности,
-                        переработчикам, предприятиям общественного питания
-                        и частным заказчикам.
-                    </p>
+            <p class="home-welcome-banner__text">
+                Ингредиенты, добавки и готовая продукция
+                для производства, HoReCa и розницы.
+            </p>
 
-                    <div class="home-welcome-banner__actions">
-                        <Link :href="route('public.goods.index')">
-                            <v-btn color="#800000" rounded="xl" size="small">
-                                Перейти в каталог
-                            </v-btn>
-                        </Link>
+            <div class="home-welcome-banner__actions">
+                <Link
+                    :href="route('public.goods.index')"
+                    class="home-welcome-banner__catalog-link"
+                >
+                    Открыть каталог
+                    <v-icon icon="mdi-arrow-right" size="18" aria-hidden="true" />
+                </Link>
 
-                        <a href="mailto:office@180022.ru" class="home-welcome-banner__contact-link">
-                            <v-btn
-                                variant="outlined"
-                                color="#800000"
-                                rounded="xl"
-                                size="small"
-                            >
-                                Связаться с менеджером
-                            </v-btn>
-                        </a>
+                <a href="mailto:office@180022.ru" class="home-welcome-banner__contact-link">
+                    <span>Помощь<span class="home-welcome-banner__contact-detail"> с выбором</span></span>
+                    <v-icon icon="mdi-arrow-top-right" size="16" aria-hidden="true" />
+                </a>
+            </div>
+        </div>
+
+        <div class="home-welcome-banner__collections">
+            <div class="home-welcome-banner__collections-heading">
+                <h2 class="home-welcome-banner__collections-title">Подборки по направлениям</h2>
+                <v-icon icon="mdi-view-grid-outline" size="18" aria-hidden="true" />
+            </div>
+
+            <div class="home-welcome-banner__fields">
+                <Link
+                    v-for="(field, index) in visibleFields"
+                    :key="field.id"
+                    :href="route('public.fields.show', field.slug || field.id)"
+                    class="home-welcome-banner__field-card"
+                    :class="'home-welcome-banner__field-card--' + (index + 1)"
+                >
+                    <span class="home-welcome-banner__field-number" aria-hidden="true">
+                        0{{ index + 1 }}
+                    </span>
+
+                    <div class="home-welcome-banner__field-body">
+                        <h3 class="home-welcome-banner__field-title">
+                            {{ field.title || field.name }}
+                        </h3>
+
+                        <p class="home-welcome-banner__field-description">
+                            {{ field.description || 'Товары для вашего направления бизнеса' }}
+                        </p>
                     </div>
-                </div>
-            </v-col>
 
-            <v-col cols="12" lg="6" class="home-welcome-banner__fields-col">
-                <div class="home-welcome-banner__meta">
-                    <div class="home-welcome-banner__fields">
-                        <Link
-                            v-for="field in visibleFields"
-                            :key="field.id"
-                            :href="route('public.fields.show', field.slug || field.id)"
-                            class="home-welcome-banner__field-card"
-                        >
-                            <span class="home-welcome-banner__field-card-mark" />
+                    <div class="home-welcome-banner__field-footer">
+                        <span class="home-welcome-banner__field-count">
+                            {{ goodsLabel(field.goods_count) }}
+                        </span>
 
-                            <span class="home-welcome-banner__field-card-body">
-                                <span class="home-welcome-banner__field-eyebrow">
-                                    Подборка
-                                </span>
-
-                                <span class="home-welcome-banner__field-title">
-                                    {{ field.title || field.name }}
-                                </span>
-
-                                <span class="home-welcome-banner__field-description">
-                                    {{ field.description || 'Товары для конкретного направления производства.' }}
-                                </span>
-                            </span>
-
-                            <span class="home-welcome-banner__field-footer">
-                                <span>{{ field.goods_count || 0 }} товаров</span>
-                                <span>Открыть</span>
-                            </span>
-                        </Link>
-
-                        <div
-                            v-if="!visibleFields.length"
-                            class="home-welcome-banner__field-card home-welcome-banner__field-card--empty"
-                        >
-                            Опубликованные подборки появятся здесь
-                        </div>
+                        <span class="home-welcome-banner__field-arrow" aria-hidden="true">
+                            <v-icon icon="mdi-arrow-top-right" size="18" />
+                        </span>
                     </div>
+                </Link>
+
+                <div v-if="!visibleFields.length" class="home-welcome-banner__empty">
+                    <v-icon icon="mdi-view-grid-outline" size="28" aria-hidden="true" />
+                    <p>Подборки скоро появятся</p>
+                    <Link :href="route('public.goods.index')">Посмотреть все товары</Link>
                 </div>
-            </v-col>
-        </v-row>
-    </v-card>
+            </div>
+        </div>
+    </section>
 </template>
 
 <style scoped>
 .home-welcome-banner {
-    position: relative;
-    overflow: hidden;
-    margin-bottom: 8px;
-    padding: 14px 18px;
-    background:
-        radial-gradient(circle at 90% -20%, rgba(128, 0, 0, 0.10), transparent 28%),
-        linear-gradient(135deg, #fffaf8 0%, #ffffff 58%, #fff4ef 100%);
-    border: 1px solid rgba(128, 0, 0, 0.09);
-    box-shadow: 0 10px 24px rgba(63, 29, 29, 0.08);
-}
-
-.home-welcome-banner__glow {
-    position: absolute;
-    border-radius: 999px;
-    pointer-events: none;
-}
-
-.home-welcome-banner__glow--one {
-    right: -120px;
-    top: -120px;
-    width: 220px;
-    height: 220px;
-    background: rgba(128, 0, 0, 0.07);
-}
-
-.home-welcome-banner__glow--two {
-    left: 40%;
-    bottom: -160px;
-    width: 260px;
-    height: 260px;
-    background: rgba(245, 158, 11, 0.09);
-}
-
-.home-welcome-banner__content,
-.home-welcome-banner__meta {
-    position: relative;
-    z-index: 1;
-}
-
-.home-welcome-banner__row {
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 32px;
+    margin-bottom: 12px;
+    padding: 24px;
+    border: 1px solid #e8e5e2;
+    border-radius: 20px;
+    background: #fff;
+    color: #292624;
 }
 
 .home-welcome-banner__content {
     display: flex;
-    min-height: 232px;
-    height: 100%;
+    min-width: 0;
     flex-direction: column;
     justify-content: center;
-    padding: 8px 0;
+    align-items: flex-start;
 }
 
-.home-welcome-banner__fields-col {
+.home-welcome-banner__eyebrow {
     display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    color: #68615b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
-.home-welcome-banner__meta {
-    display: flex;
-    width: 100%;
-    min-height: 232px;
+.home-welcome-banner__eyebrow-mark {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    background: #800000;
 }
 
 .home-welcome-banner__title {
-    max-width: 820px;
-    margin: 0 0 6px;
-    color: #3f1d1d;
-    font-size: clamp(1.35rem, 2.2vw, 2.05rem);
-    line-height: 1.08;
-    font-weight: 950;
+    margin: 0;
+    font-size: clamp(1.65rem, 2.2vw, 2.2rem);
+    font-weight: 750;
+    letter-spacing: -0.035em;
+    line-height: 1.12;
+}
+
+.home-welcome-banner__title span {
+    color: #800000;
 }
 
 .home-welcome-banner__text {
-    max-width: 780px;
-    margin: 0;
-    color: #5f5753;
-    font-size: 0.92rem;
-    line-height: 1.45;
+    max-width: 410px;
+    margin: 10px 0 0;
+    color: #68615b;
+    font-size: 0.85rem;
+    line-height: 1.5;
 }
 
-.home-welcome-banner__fields,
 .home-welcome-banner__actions {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 7px;
+    gap: 10px 18px;
+    margin-top: 18px;
 }
 
-.home-welcome-banner__actions {
-    margin-top: 10px;
+.home-welcome-banner__catalog-link,
+.home-welcome-banner__contact-link {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.home-welcome-banner__catalog-link {
+    padding: 0 16px;
+    background: #800000;
+    color: #fff;
+}
+
+.home-welcome-banner__catalog-link:hover {
+    background: #630000;
 }
 
 .home-welcome-banner__contact-link {
-    text-decoration: none;
+    color: #514b46;
+}
+
+.home-welcome-banner__contact-link:hover {
+    color: #800000;
+}
+
+.home-welcome-banner__catalog-link:focus-visible,
+.home-welcome-banner__contact-link:focus-visible,
+.home-welcome-banner__field-card:focus-visible,
+.home-welcome-banner__empty a:focus-visible {
+    outline: 2px solid #800000;
+    outline-offset: 4px;
+}
+
+.home-welcome-banner__collections {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.home-welcome-banner__collections-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    color: #77706a;
+}
+
+.home-welcome-banner__collections-title {
+    margin: 0;
+    color: #514b46;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .home-welcome-banner__fields {
     display: grid;
-    width: 100%;
-    grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
-    align-items: stretch;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
 }
 
 .home-welcome-banner__field-card {
-    position: relative;
     display: flex;
-    min-height: 100%;
-    overflow: hidden;
+    min-width: 0;
     flex-direction: column;
-    justify-content: space-between;
+    align-items: flex-start;
     padding: 16px;
-    border-radius: 22px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: #f7f4ef;
+    color: inherit;
     text-decoration: none;
-    color: #3f1d1d;
-    background:
-        radial-gradient(circle at 90% 12%, rgba(220, 122, 81, 0.18), transparent 28%),
-        linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 244, 0.86));
-    border: 1px solid rgba(128, 0, 0, 0.12);
-    box-shadow: 0 18px 34px rgba(63, 29, 29, 0.10);
-    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.home-welcome-banner__field-card--2 {
+    background: #f4f1f0;
+}
+
+.home-welcome-banner__field-card--3 {
+    background: #eef4f1;
 }
 
 .home-welcome-banner__field-card:hover {
-    border-color: rgba(128, 0, 0, 0.28);
-    box-shadow: 0 24px 42px rgba(63, 29, 29, 0.14);
-    transform: translateY(-3px);
+    border-color: #bdb4aa;
+    background: #fff;
 }
 
-.home-welcome-banner__field-card-mark {
-    position: absolute;
-    right: -34px;
-    top: -42px;
-    width: 104px;
-    height: 104px;
-    border-radius: 30px;
-    background: rgba(71, 118, 90, 0.10);
-    transform: rotate(14deg);
+.home-welcome-banner__field-number {
+    display: inline-flex;
+    height: 24px;
+    align-items: center;
+    margin-bottom: 14px;
+    color: #716961;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
 }
 
-.home-welcome-banner__field-card-body,
-.home-welcome-banner__field-footer {
-    position: relative;
-    z-index: 1;
-}
-
-.home-welcome-banner__field-card-body {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-}
-
-.home-welcome-banner__field-eyebrow {
-    color: #800000;
-    font-size: 0.68rem;
-    font-weight: 950;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+.home-welcome-banner__field-body {
+    min-width: 0;
+    width: 100%;
 }
 
 .home-welcome-banner__field-title {
     display: -webkit-box;
     overflow: hidden;
-    color: #3f1d1d;
-    font-size: clamp(1rem, 1.1vw, 1.28rem);
-    font-weight: 950;
-    line-height: 1.08;
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 650;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
 }
@@ -275,66 +307,199 @@ const visibleFields = computed(() => props.fields.slice(0, 3))
 .home-welcome-banner__field-description {
     display: -webkit-box;
     overflow: hidden;
-    color: #695d57;
-    font-size: 0.82rem;
-    font-weight: 500;
-    line-height: 1.35;
+    margin: 8px 0 0;
+    color: #70675f;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
+    -webkit-line-clamp: 2;
 }
 
 .home-welcome-banner__field-footer {
     display: flex;
+    width: 100%;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    margin-top: 18px;
-    color: #47765a;
-    font-size: 0.78rem;
-    font-weight: 900;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 18px;
 }
 
-.home-welcome-banner__field-card--empty {
+.home-welcome-banner__field-count {
+    color: #514b46;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.home-welcome-banner__field-arrow {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    color: #7a6a62;
+    border: 1px solid #d8d3cb;
+    border-radius: 50%;
+    color: #514b46;
+}
+
+.home-welcome-banner__empty {
+    display: flex;
+    min-height: 182px;
+    grid-column: 1 / -1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px;
+    border: 1px dashed #d8d3cb;
+    border-radius: 14px;
+    color: #77706a;
     text-align: center;
 }
 
-@media (max-width: 960px) {
+.home-welcome-banner__empty p {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.home-welcome-banner__empty a {
+    color: #800000;
+    font-size: 0.8rem;
+    text-underline-offset: 3px;
+}
+
+@media (max-width: 1100px) {
     .home-welcome-banner {
-        padding: 14px;
-    }
-
-    .home-welcome-banner__content,
-    .home-welcome-banner__meta {
-        min-height: auto;
-    }
-
-    .home-welcome-banner__fields {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+        gap: 24px;
+        padding: 20px;
     }
 
     .home-welcome-banner__field-card {
-        min-height: 168px;
+        padding: 12px;
+    }
+}
+
+@media (max-width: 900px) {
+    .home-welcome-banner {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 20px;
+    }
+
+    .home-welcome-banner__text {
+        max-width: 520px;
+    }
+
+    .home-welcome-banner__field-number {
+        margin-bottom: 8px;
+    }
+
+    .home-welcome-banner__field-footer {
+        padding-top: 12px;
     }
 }
 
 @media (max-width: 600px) {
     .home-welcome-banner {
-        padding: 12px;
+        gap: 18px;
+        padding: 18px 16px;
+        border-radius: 16px;
+    }
+
+    .home-welcome-banner__title {
+        font-size: clamp(1.35rem, 6.2vw, 1.9rem);
+    }
+
+    .home-welcome-banner__eyebrow {
+        margin-bottom: 8px;
+    }
+
+    .home-welcome-banner__text {
+        margin-top: 8px;
+        font-size: 0.8rem;
     }
 
     .home-welcome-banner__actions {
-        flex-direction: column;
+        gap: 8px 12px;
+        margin-top: 12px;
     }
 
-    .home-welcome-banner__actions :deep(.v-btn) {
-        width: 100%;
+    .home-welcome-banner__catalog-link,
+    .home-welcome-banner__contact-link {
+        min-height: 44px;
+        gap: 6px;
+        font-size: 0.72rem;
+    }
+
+    .home-welcome-banner__catalog-link {
+        padding: 0 12px;
     }
 
     .home-welcome-banner__fields {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .home-welcome-banner__field-card {
+        display: grid;
+        grid-template-columns: 22px minmax(0, 1fr) auto;
+        min-height: 64px;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+    }
+
+    .home-welcome-banner__field-number {
+        height: auto;
+        margin: 0;
+        font-size: 0.7rem;
+    }
+
+    .home-welcome-banner__field-title {
+        font-size: 0.82rem;
+        -webkit-line-clamp: 2;
+    }
+
+    .home-welcome-banner__field-description {
+        display: none;
+    }
+
+    .home-welcome-banner__field-footer {
+        width: auto;
+        flex-direction: column-reverse;
+        gap: 4px;
+        margin: 0;
+        padding: 0;
+    }
+
+    .home-welcome-banner__field-arrow {
+        width: 22px;
+        height: 22px;
+        border: 0;
+    }
+
+    .home-welcome-banner__field-count {
+        font-size: 0.72rem;
+    }
+
+    .home-welcome-banner__empty {
+        min-height: 120px;
+    }
+}
+
+@media (max-width: 360px) {
+    .home-welcome-banner__contact-detail {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .home-welcome-banner a {
+        transition: none;
     }
 }
 </style>
