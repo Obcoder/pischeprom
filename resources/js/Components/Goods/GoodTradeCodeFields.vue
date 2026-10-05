@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { goodTradeCodeFields, goodTradeCodeValues } from '@/utils/goodTradeCodes.js'
 import GoodTradeCodesRecommend from '@/Components/Goods/GoodTradeCodesRecommend.vue'
+import GoodTradeCodesRegistry from '@/Components/Goods/GoodTradeCodesRegistry.vue'
 
 const props = defineProps({
     modelValue: { type: Object, default: () => ({}) },
@@ -105,6 +106,7 @@ function applyRecommendations(patch) {
                 />
             </v-col>
         </v-row>
+        <GoodTradeCodesRegistry :codes="modelValue" :active="active" :disabled="disabled" />
     </div>
 </template>
 

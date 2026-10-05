@@ -362,6 +362,12 @@ jobs:
             app/Services/Seo/GoodSeoAiException.php \
             app/Services/Seo/GoodSeoAiService.php \
             app/Http/Controllers/API/GoodTradeCodesAiController.php \
+            app/Http/Controllers/API/GoodTradeCodeRegistryController.php \
+            app/Http/Requests/VerifyGoodTradeCodesRequest.php \
+            app/Services/Goods/GoodTradeCodeRegistryService.php \
+            app/Services/Goods/GoodTnVedPdfCatalog.php \
+            tests/Feature/GoodTradeCodeRegistryTest.php \
+            tests/Unit/GoodTradeCodeRegistryServiceTest.php \
             app/Http/Requests/RecommendGoodTradeCodesRequest.php \
             app/Services/Goods/GoodTradeCodesAiException.php \
             app/Services/Goods/GoodTradeCodesAiService.php \
@@ -525,6 +531,8 @@ jobs:
             tests/Feature/GoodCatalogManagementTest.php \
             tests/Feature/GoodsVatAiCheckTest.php \
             tests/Feature/GoodTradeCodesAiTest.php \
+            tests/Feature/GoodTradeCodeRegistryTest.php \
+            tests/Unit/GoodTradeCodeRegistryServiceTest.php \
             tests/Feature/GoodMediaMultipleUploadTest.php \
             tests/Feature/HomeBannerFeedTest.php \
             tests/Feature/AmeiseCommercePageTest.php \

@@ -36,6 +36,7 @@ function harness({ onApply } = {}) {
     }
     const component = componentSource('resources/js/Components/Goods/GoodTradeCodesRecommend.vue', {
         ...Vue, ...tradeCodes,
+        GoodTradeCodesRegistry: {},
         onBeforeUnmount: callback => disposals.push(callback),
         axios: {
             get: (url, options) => defer(availabilityRequests, url, null, options),
@@ -311,7 +312,7 @@ test('the shared code editor applies a single filtered patch and uses current co
     })
     const emitted = []
     const scope = Vue.effectScope()
-    const component = componentSource('resources/js/Components/Goods/GoodTradeCodeFields.vue', { ...Vue, ...tradeCodes, GoodTradeCodesRecommend: {} })
+    const component = componentSource('resources/js/Components/Goods/GoodTradeCodeFields.vue', { ...Vue, ...tradeCodes, GoodTradeCodesRecommend: {}, GoodTradeCodesRegistry: {} })
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...event) => emitted.push(event) }))
     assert.equal(api.recommendationDraft.value.id, 42)
     assert.deepEqual(api.recommendationDraft.value.product_ids, [7])
@@ -326,4 +327,257 @@ test('the shared code editor applies a single filtered patch and uses current co
     api.applyRecommendations({ hs_code: '030222' })
     assert.equal(emitted.length, 1)
     scope.stop()
+})
+
+async function askClarification(h, questions = ['Каков состав?']) {
+    const pending = h.api.recommendCodes()
+    const request = h.requests.at(-1)
+    request.resolve(response(request, {
+        recommendations: request.body.requested_fields.map(field => recommendation(field, { status: 'needs_information', value: null, missing_information: questions })),
+    }))
+    await pending
+}
+
+test('shared questions are deduplicated across classifiers and answered without changing the Good description', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    const pending = h.api.recommendCodes()
+    h.requests[0].resolve(response(h.requests[0], { recommendations: [
+        recommendation('tn_ved_code', { value: null, status: 'needs_information', missing_information: [' Каков   состав? '] }),
+        recommendation('okpd2_code', { value: null, status: 'needs_information', missing_information: ['каков состав ?'] }),
+        recommendation('hs_code', { value: null, status: 'needs_information', missing_information: ['КАКОВ СОСТАВ'] }),
+    ] }))
+    await pending
+    assert.equal(h.api.currentQuestions.value.length, 1)
+    const question = h.api.currentQuestions.value[0]
+    assert.deepEqual(question.fields, ['tn_ved_code', 'okpd2_code', 'hs_code'])
+    assert.equal(question.question, 'Каков состав?')
+    assert.equal(h.api.canRefine.value, false)
+    const previousResult = h.api.result.value
+    question.answer = '  Печень трески, соль; без масла.  '
+    h.api.additionalContext.value = '  Консервы стерилизованные.  '
+    assert.equal(h.api.currentQuestions.value.length, 1, 'typing keeps the question textarea mounted')
+    assert.equal(h.api.result.value, previousResult)
+    assert.equal(h.api.resultIsCurrent.value, false)
+    assert.equal(h.api.canRefine.value, true)
+    const refinement = h.api.refineCodes()
+    assert.deepEqual(h.requests[1].body.clarifications, [{
+        fields: ['tn_ved_code', 'okpd2_code', 'hs_code'], question: 'Каков состав?', answer: 'Печень трески, соль; без масла.',
+    }])
+    assert.equal(h.requests[1].body.additional_context, 'Консервы стерилизованные.')
+    assert.equal(h.props.draft.description, 'Консервы')
+    assert.equal(h.api.result.value, previousResult, 'refinement preserves the previous response while loading')
+    h.requests[1].resolve(response(h.requests[1]))
+    await refinement
+    assert.equal(h.api.currentQuestions.value.length, 0)
+    assert.equal(h.api.answeredHistory.value.length, 1)
+    assert.equal(h.api.resultIsCurrent.value, true)
+    assert.equal(h.api.canRefine.value, false, 'the same successful answers are not offered for immediate resubmission')
+    assert.deepEqual(h.emitted, [])
+})
+
+test('later rounds resend answered history, omit blank answers and keep cleared history editable', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    h.api.currentQuestions.value[0].answer = 'Печень трески и соль'
+    let pending = h.api.refineCodes()
+    h.requests[1].resolve(response(h.requests[1], {
+        recommendations: h.requests[1].body.requested_fields.map(field => recommendation(field, { status: 'needs_information', value: null, missing_information: ['Как обработан продукт?'] })),
+    }))
+    await pending
+    assert.equal(h.api.answeredHistory.value.length, 1)
+    assert.equal(h.api.currentQuestions.value.length, 1)
+    assert.equal(h.api.answeredClarifications.value.length, 1)
+    h.api.currentQuestions.value[0].answer = 'Стерилизован'
+    pending = h.api.refineCodes()
+    assert.deepEqual(h.requests[2].body.clarifications.map(item => item.answer), ['Печень трески и соль', 'Стерилизован'])
+    h.requests[2].resolve(response(h.requests[2]))
+    await pending
+    assert.equal(h.api.answeredHistory.value.length, 2)
+    const originalQuestion = h.api.answeredHistory.value[0]
+    originalQuestion.answer = ''
+    assert.equal(h.api.answeredHistory.value.length, 2, 'clearing a history answer must not remove its editable textarea')
+    assert.equal(h.api.canRefine.value, true)
+    pending = h.api.refineCodes()
+    assert.deepEqual(h.requests[3].body.clarifications.map(item => item.answer), ['Стерилизован'])
+    h.requests[3].resolve(response(h.requests[3]))
+    await pending
+    assert.equal(h.api.answeredHistory.value.length, 2)
+})
+
+test('a failed refinement keeps questions, answers and the previous result so retry sends the same evidence', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    const originalResult = h.api.result.value
+    h.api.currentQuestions.value[0].answer = 'Без добавления масла'
+    let pending = h.api.refineCodes()
+    h.requests[1].reject({ response: { data: { message: 'Временная ошибка AI' } } })
+    await pending
+    assert.equal(h.api.error.value, 'Временная ошибка AI')
+    assert.equal(h.api.result.value, originalResult)
+    assert.equal(h.api.currentQuestions.value[0].answer, 'Без добавления масла')
+    assert.equal(h.api.canRefine.value, true)
+    pending = h.api.refineCodes()
+    assert.deepEqual(h.requests[2].body, h.requests[1].body)
+    h.requests[2].resolve(response(h.requests[2]))
+    await pending
+    assert.equal(h.api.error.value, '')
+    assert.equal(h.api.resultIsCurrent.value, true)
+})
+
+test('editing an answer aborts refinement without erasing questions and a stale response cannot finish a retry', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    const question = h.api.currentQuestions.value[0]
+    question.answer = 'Без масла'
+    const old = h.api.refineCodes()
+    question.answer = 'С маслом'
+    question.answer = 'Без масла'
+    assert.equal(h.requests[1].options.signal.aborted, true)
+    assert.equal(h.api.currentQuestions.value[0].answer, 'Без масла')
+    assert.equal(h.api.resultIsCurrent.value, false)
+    const next = h.api.refineCodes()
+    h.requests[1].resolve(response(h.requests[1]))
+    await old
+    assert.equal(h.api.loading.value, true)
+    assert.equal(h.api.result.value.recommendations[0].status, 'needs_information')
+    h.requests[2].resolve(response(h.requests[2]))
+    await next
+    assert.equal(h.api.result.value.recommendations[0].status, 'suggestion')
+})
+
+test('additional context alone supports refinement and makes previous selectable codes stale until it succeeds', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    let pending = h.api.recommendCodes()
+    h.requests[0].resolve(response(h.requests[0]))
+    await pending
+    h.api.selectedFields.value = ['hs_code']
+    h.api.additionalContext.value = 'Продукт содержит масло'
+    assert.equal(h.api.selectedCount.value, 0)
+    h.api.applySelected()
+    assert.deepEqual(h.emitted, [])
+    pending = h.api.refineCodes()
+    assert.equal(h.requests[1].body.additional_context, 'Продукт содержит масло')
+    assert.equal(Object.hasOwn(h.requests[1].body, 'clarifications'), false)
+    h.requests[1].resolve(response(h.requests[1]))
+    await pending
+    h.api.additionalContext.value = ''
+    assert.equal(h.api.canRefine.value, true, 'the user can retract previously supplied additional context')
+})
+
+test('changing requested classifiers retains answers for the same Good and sends them on the next request', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    h.api.currentQuestions.value[0].answer = 'Рыбные консервы'
+    h.api.requestedFields.value = ['hs_code']
+    assert.equal(h.api.result.value, null)
+    assert.equal(h.api.currentQuestions.value.length, 0)
+    assert.equal(h.api.answeredHistory.value[0].answer, 'Рыбные консервы')
+    const pending = h.api.recommendCodes()
+    assert.deepEqual(h.requests[1].body.requested_fields, ['hs_code'])
+    assert.equal(h.requests[1].body.clarifications[0].answer, 'Рыбные консервы')
+    h.requests[1].resolve(response(h.requests[1]))
+    await pending
+})
+
+test('product edits and closing the dialog clear clarification history and additional context', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    for (const [field, value] of [['id', 45], ['name', 'Другой товар'], ['description', 'Новый состав'], ['country_id', 2], ['products', [17]], ['hs_code', '160420']]) {
+        await askClarification(h)
+        h.api.currentQuestions.value[0].answer = 'Сохранённый ответ'
+        h.api.additionalContext.value = 'Дополнительный контекст'
+        h.props.draft[field] = value
+        assert.equal(h.api.clarificationAnswers.value.length, 0, field)
+        assert.equal(h.api.additionalContext.value, '', field)
+        assert.equal(h.api.result.value, null, field)
+    }
+    await askClarification(h)
+    h.api.currentQuestions.value[0].answer = 'Ещё один ответ'
+    h.props.active = false
+    h.props.active = true
+    assert.equal(h.api.clarificationAnswers.value.length, 0)
+    assert.equal(h.api.additionalContext.value, '')
+})
+
+test('clarification limits block oversized requests without dropping the entered answers', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    h.api.currentQuestions.value[0].answer = 'я'.repeat(2001)
+    assert.match(h.api.clarificationError.value, /2000/)
+    await h.api.refineCodes()
+    assert.equal(h.requests.length, 1)
+    h.api.currentQuestions.value[0].answer = 'Короткий ответ'
+    h.api.additionalContext.value = 'я'.repeat(4001)
+    assert.match(h.api.clarificationError.value, /4000/)
+    h.api.additionalContext.value = ''
+    h.api.clarificationAnswers.value = Array.from({ length: 9 }, (_, index) => ({ key: `q${index}`, question: `Вопрос ${index}`, fields: ['hs_code'], answer: 'я'.repeat(2000) }))
+    assert.match(h.api.clarificationError.value, /16 000/)
+    h.api.clarificationAnswers.value = Array.from({ length: 41 }, (_, index) => ({ key: `q${index}`, question: `Вопрос ${index}`, fields: ['hs_code'], answer: 'Да' }))
+    assert.match(h.api.clarificationError.value, /40/)
+    await h.api.recommendCodes()
+    assert.equal(h.requests.length, 1)
+    assert.equal(h.api.clarificationAnswers.value.length, 41)
+})
+
+test('a question answered for HS can be resubmitted when the same question later applies to TN VED', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    h.api.requestedFields.value = ['hs_code']
+    await askClarification(h)
+    h.api.currentQuestions.value[0].answer = 'Печень трески и соль'
+    let pending = h.api.refineCodes()
+    h.requests[1].resolve(response(h.requests[1]))
+    await pending
+    h.api.requestedFields.value = ['tn_ved_code']
+    await askClarification(h)
+    assert.equal(h.api.currentQuestions.value.length, 1)
+    assert.equal(h.api.currentQuestions.value[0].answer, 'Печень трески и соль')
+    assert.deepEqual(h.api.currentQuestions.value[0].fields, ['hs_code', 'tn_ved_code'])
+    assert.equal(h.api.loading.value, false, 'merging a completed response must finish loading normally')
+    assert.equal(h.requests[2].options.signal.aborted, false, 'merging classifier associations does not abort the accepted response')
+    assert.equal(h.api.resultIsCurrent.value, false)
+    assert.equal(h.api.canRefine.value, true, 'the preserved answer must now be submitted for TN VED')
+    pending = h.api.refineCodes()
+    assert.deepEqual(h.requests[3].body.clarifications[0].fields, ['hs_code', 'tn_ved_code'])
+    h.requests[3].resolve(response(h.requests[3]))
+    await pending
+    assert.equal(h.api.loading.value, false)
+    assert.equal(h.api.resultIsCurrent.value, true)
+    assert.equal(h.api.canRefine.value, false)
+})
+
+test('explicit cancellation preserves clarification inputs, history and the last visible response', async t => {
+    const h = harness()
+    t.after(h.dispose)
+    await h.ready()
+    await askClarification(h)
+    const previous = h.api.result.value
+    h.api.currentQuestions.value[0].answer = 'Печень трески'
+    h.api.additionalContext.value = 'Стерилизованные консервы'
+    const pending = h.api.refineCodes()
+    h.api.cancelRequest()
+    assert.equal(h.requests[1].options.signal.aborted, true)
+    assert.equal(h.api.currentQuestions.value[0].answer, 'Печень трески')
+    assert.equal(h.api.additionalContext.value, 'Стерилизованные консервы')
+    assert.equal(h.api.result.value, previous)
+    assert.equal(h.api.canRefine.value, true)
+    h.requests[1].resolve(response(h.requests[1]))
+    await pending
+    assert.equal(h.api.result.value, previous)
 })

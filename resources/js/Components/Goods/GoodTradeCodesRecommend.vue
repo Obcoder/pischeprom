@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import axios from 'axios'
 import { goodTradeCodeFields, goodTradeCodeValues } from '@/utils/goodTradeCodes.js'
+import GoodTradeCodesRegistry from '@/Components/Goods/GoodTradeCodesRegistry.vue'
 
 const props = defineProps({
     draft: { type: Object, required: true },
@@ -16,12 +17,19 @@ const checkingAvailability = ref(false)
 const loading = ref(false)
 const error = ref('')
 const result = ref(null)
+const clarificationAnswers = ref([])
+const additionalContext = ref('')
+const currentQuestionKeys = ref([])
+const resultAnswerContext = ref(null)
+const emptyAnswerContext = JSON.stringify({ answers: [], additional_context: '' })
+const lastSuccessfulAnswerContext = ref(emptyAnswerContext)
 let controller = null
 let availabilityController = null
 let requestVersion = 0
 let disposed = false
+let mergingResponseQuestions = false
 
-const payload = computed(() => {
+const productPayload = computed(() => {
     const selectedProducts = props.draft.product_ids ?? props.draft.products
     const products = Array.isArray(selectedProducts) ? selectedProducts : []
     return {
@@ -31,14 +39,42 @@ const payload = computed(() => {
         country_id: props.draft.country_id || null,
         product_ids: products.map(product => typeof product === 'object' ? product?.id : product)
             .filter(Boolean).sort((a, b) => Number(a) - Number(b)),
-        requested_fields: goodTradeCodeFields.filter(field => requestedFields.value.includes(field.key)).map(field => field.key),
         ...goodTradeCodeValues(props.draft),
     }
 })
+const requestedClassifiers = computed(() => goodTradeCodeFields.filter(field => requestedFields.value.includes(field.key)).map(field => field.key))
+const answeredClarifications = computed(() => clarificationAnswers.value.filter(item => item.answer.trim()).map(item => ({
+    fields: item.fields,
+    question: item.question,
+    answer: item.answer.trim(),
+})))
+const answerContext = computed(() => JSON.stringify({
+    answers: clarificationAnswers.value.filter(item => item.answer.trim())
+        .map(item => ({ key: item.key, fields: [...item.fields].sort(), answer: item.answer.trim() })).sort((a, b) => a.key.localeCompare(b.key)),
+    additional_context: additionalContext.value.trim(),
+}))
+const payload = computed(() => ({
+    ...productPayload.value,
+    requested_fields: requestedClassifiers.value,
+    ...(answeredClarifications.value.length ? { clarifications: answeredClarifications.value } : {}),
+    ...(additionalContext.value.trim() ? { additional_context: additionalContext.value.trim() } : {}),
+}))
 const context = computed(() => JSON.stringify(payload.value))
+const currentQuestions = computed(() => currentQuestionKeys.value.map(key => clarificationAnswers.value.find(item => item.key === key)).filter(Boolean))
+const answeredHistory = computed(() => clarificationAnswers.value.filter(item => (item.wasAnswered || item.answer.trim()) && !currentQuestionKeys.value.includes(item.key)))
+const clarificationError = computed(() => {
+    if (answeredClarifications.value.length > 40) return 'Оставьте не более 40 ответов в одном подборе.'
+    if (answeredClarifications.value.some(item => Array.from(item.answer).length > 2000)) return 'Сократите каждый ответ до 2000 символов.'
+    if (answeredClarifications.value.reduce((total, item) => total + Array.from(item.answer).length, 0) > 16000) return 'Общий объём ответов не должен превышать 16 000 символов.'
+    if (Array.from(additionalContext.value.trim()).length > 4000) return 'Сократите дополнительные сведения до 4000 символов.'
+    return ''
+})
 const canRecommend = computed(() => props.active && !props.disabled && !loading.value && !checkingAvailability.value
     && availability.value?.available !== false && payload.value.name.length > 0 && payload.value.name.length <= 255
-    && payload.value.requested_fields.length > 0)
+    && payload.value.requested_fields.length > 0 && !clarificationError.value)
+const canRefine = computed(() => canRecommend.value && answerContext.value !== lastSuccessfulAnswerContext.value
+    && (answerContext.value !== emptyAnswerContext || lastSuccessfulAnswerContext.value !== emptyAnswerContext))
+const resultIsCurrent = computed(() => !!result.value && resultAnswerContext.value === answerContext.value)
 const recommendations = computed(() => (result.value?.recommendations || []).map(item => ({
     ...item,
     label: goodTradeCodeFields.find(field => field.key === item.field)?.label || item.field,
@@ -46,21 +82,64 @@ const recommendations = computed(() => (result.value?.recommendations || []).map
     sources: (item.sources || []).filter(source => typeof source?.title === 'string' && /^https?:\/\//i.test(source?.url || '')),
 })))
 const applicableFields = computed(() => recommendations.value.filter(canApplyRecommendation).map(item => item.field))
-const selectedCount = computed(() => applicableFields.value.filter(field => selectedFields.value.includes(field)).length)
+const recommendationCodes = computed(() => Object.fromEntries(recommendations.value.filter(item => item.value).map(item => [item.field, item.value])))
+const selectedCount = computed(() => resultIsCurrent.value ? applicableFields.value.filter(field => selectedFields.value.includes(field)).length : 0)
+
+function questionKey(question) {
+    return question.trim().replace(/\s+/gu, ' ').toLocaleLowerCase('ru-RU').replace(/[?.!:;]+$/u, '').trim()
+}
+
+function fieldLabels(fields) {
+    return goodTradeCodeFields.filter(field => fields.includes(field.key)).map(field => field.label).join(' · ')
+}
+
+function mergeQuestions(items) {
+    const activeKeys = []
+    const updated = clarificationAnswers.value.map(item => ({ ...item, fields: [...item.fields] }))
+    for (const item of items) {
+        for (const text of item.missing_information) {
+            const question = text.trim().replace(/\s+/gu, ' ')
+            const key = questionKey(question)
+            if (!key) continue
+            let existing = updated.find(answer => answer.key === key)
+            if (!existing) {
+                existing = { key, question, fields: [], answer: '' }
+                updated.push(existing)
+            }
+            if (!existing.fields.includes(item.field)) existing.fields.push(item.field)
+            if (!activeKeys.includes(key)) activeKeys.push(key)
+        }
+    }
+    clarificationAnswers.value = updated
+    currentQuestionKeys.value = activeKeys
+}
 
 function canApplyRecommendation(item) {
     return item.status === 'suggestion' && item.field !== 'gtin' && typeof item.value === 'string'
         && item.value.trim() !== '' && String(props.draft[item.field] || '') !== item.value
 }
 
-function invalidate() {
+function cancelRequest() {
     requestVersion += 1
     controller?.abort()
     controller = null
     loading.value = false
-    result.value = null
     selectedFields.value = []
     error.value = ''
+}
+
+function clearResult() {
+    cancelRequest()
+    result.value = null
+    resultAnswerContext.value = null
+    currentQuestionKeys.value = []
+}
+
+function invalidate() {
+    clearResult()
+    clarificationAnswers.value = []
+    additionalContext.value = ''
+    lastSuccessfulAnswerContext.value = emptyAnswerContext
 }
 
 async function loadAvailability() {
@@ -102,11 +181,11 @@ async function recommendCodes() {
     if (disposed || !canRecommend.value) return
     const version = ++requestVersion
     const snapshot = context.value
+    const answersSnapshot = answerContext.value
     const body = JSON.parse(snapshot)
     const current = new AbortController()
     controller = current
     loading.value = true
-    result.value = null
     selectedFields.value = []
     error.value = ''
     try {
@@ -115,7 +194,17 @@ async function recommendCodes() {
         if (!validResponse(response.data, body.requested_fields)) {
             throw new Error('AI вернул неполный ответ. Повторите подбор кодов.')
         }
+        // A repeated question may gain another classifier. Keep the request snapshot so
+        // its existing answer can be sent for that classifier in the next refinement.
+        mergingResponseQuestions = true
+        try {
+            mergeQuestions(response.data.recommendations)
+        } finally {
+            mergingResponseQuestions = false
+        }
         result.value = response.data
+        resultAnswerContext.value = answersSnapshot
+        lastSuccessfulAnswerContext.value = answersSnapshot
     } catch (failure) {
         if (!disposed && !current.signal.aborted && version === requestVersion) {
             error.value = failure?.response?.data?.message || failure?.message || 'Не удалось подобрать коды. Повторите попытку.'
@@ -128,6 +217,11 @@ async function recommendCodes() {
     }
 }
 
+async function refineCodes() {
+    if (!canRefine.value) return
+    await recommendCodes()
+}
+
 function applySelected() {
     if (disposed || !props.active || props.disabled || loading.value || !selectedCount.value) return
     // Build one patch before reactive changes invalidate the recommendation list.
@@ -138,8 +232,13 @@ function applySelected() {
     emit('apply', patch)
 }
 
-watch(context, invalidate, { flush: 'sync' })
-watch(() => props.disabled, disabled => { if (disabled) invalidate() }, { flush: 'sync' })
+watch(() => JSON.stringify(productPayload.value), invalidate, { flush: 'sync' })
+watch(() => JSON.stringify(requestedClassifiers.value), clearResult, { flush: 'sync' })
+watch(answerContext, () => {
+    if (!mergingResponseQuestions) cancelRequest()
+    clarificationAnswers.value.forEach(item => { if (item.answer.trim()) item.wasAnswered = true })
+}, { flush: 'sync' })
+watch(() => props.disabled, disabled => { if (disabled) cancelRequest() }, { flush: 'sync' })
 watch(() => props.active, active => {
     invalidate()
     if (active) loadAvailability()
@@ -185,7 +284,7 @@ onBeforeUnmount(() => {
             >
                 AI-подбор кодов
             </v-btn>
-            <v-btn v-if="loading" size="small" variant="text" @click="invalidate">Отмена</v-btn>
+            <v-btn v-if="loading" size="small" variant="text" @click="cancelRequest">Отмена</v-btn>
         </div>
         <div class="text-caption text-medium-emphasis mt-1">
             {{ payload.name ? 'Рекомендации по описанию товара; выберите коды перед применением.' : 'Укажите название товара для подбора кодов.' }}
@@ -200,7 +299,7 @@ onBeforeUnmount(() => {
                     v-model="selectedFields"
                     :value="item.field"
                     :aria-label="`Применить ${item.label}: ${item.value || 'нет рекомендации'}`"
-                    :disabled="disabled || !canApplyRecommendation(item)"
+                    :disabled="disabled || loading || !resultIsCurrent || !canApplyRecommendation(item)"
                     density="compact"
                     hide-details
                     class="good-code-recommend__checkbox"
@@ -215,19 +314,85 @@ onBeforeUnmount(() => {
                         <span v-else-if="item.current === item.value" class="text-caption text-medium-emphasis">Уже указан</span>
                     </div>
                     <div class="text-body-2">{{ item.rationale }}</div>
-                    <div v-if="item.missing_information.length" class="text-caption mt-1">Уточните: {{ item.missing_information.join('; ') }}</div>
                     <div v-if="item.sources.length" class="d-flex flex-wrap ga-2 mt-1">
                         <a v-for="source in item.sources" :key="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="text-caption">{{ source.title }}</a>
                     </div>
                 </div>
             </div>
             <div class="good-code-recommend__footer">
-                <v-btn size="small" variant="tonal" color="deep-purple" :disabled="disabled || !selectedCount" @click="applySelected">
+                <v-btn size="small" variant="tonal" color="deep-purple" :disabled="disabled || loading || !selectedCount" @click="applySelected">
                     Применить выбранные<template v-if="selectedCount"> · {{ selectedCount }}</template>
                 </v-btn>
                 <span class="text-caption text-medium-emphasis">Коды попадут в форму. Сохраните товар, чтобы записать изменения.</span>
             </div>
+            <GoodTradeCodesRegistry
+                :codes="recommendationCodes"
+                :active="active && resultIsCurrent"
+                :disabled="disabled || loading || !resultIsCurrent"
+                label="Проверить рекомендации по реестрам"
+            />
+            <div v-if="!resultIsCurrent" class="text-caption text-medium-emphasis mt-1">Уточнения изменены. Обновите подбор перед применением кодов.</div>
             <div v-if="result.scope" class="text-caption text-medium-emphasis mt-1">{{ result.scope }}</div>
+        </div>
+        <div v-if="result || currentQuestions.length || answeredHistory.length || additionalContext" class="good-code-recommend__clarifications mt-3">
+            <div class="text-subtitle-2 mb-2">Уточнения для подбора</div>
+            <div v-for="question in currentQuestions" :key="question.key" class="good-code-recommend__question">
+                <div class="text-body-2">{{ question.question }}</div>
+                <div class="text-caption text-medium-emphasis mb-1">{{ fieldLabels(question.fields) }}</div>
+                <v-textarea
+                    v-model="question.answer"
+                    :aria-label="`Ответ: ${question.question}`"
+                    placeholder="Ваш ответ"
+                    :disabled="disabled"
+                    maxlength="2000"
+                    rows="2"
+                    max-rows="4"
+                    auto-grow
+                    density="compact"
+                    variant="outlined"
+                    hide-details="auto"
+                />
+            </div>
+            <details v-if="answeredHistory.length" class="good-code-recommend__history mb-2">
+                <summary class="text-caption">Ответы предыдущих шагов · {{ answeredHistory.length }}</summary>
+                <div v-for="question in answeredHistory" :key="question.key" class="good-code-recommend__question mt-2">
+                    <div class="text-body-2">{{ question.question }}</div>
+                    <div class="text-caption text-medium-emphasis mb-1">{{ fieldLabels(question.fields) }}</div>
+                    <v-textarea
+                        v-model="question.answer"
+                        :aria-label="`Ответ: ${question.question}`"
+                        placeholder="Ваш ответ"
+                        :disabled="disabled"
+                        maxlength="2000"
+                        rows="2"
+                        max-rows="4"
+                        auto-grow
+                        density="compact"
+                        variant="outlined"
+                        hide-details="auto"
+                    />
+                </div>
+            </details>
+            <v-textarea
+                v-model="additionalContext"
+                label="Дополнительные сведения"
+                aria-label="Дополнительные сведения"
+                :disabled="disabled"
+                maxlength="4000"
+                rows="2"
+                max-rows="4"
+                auto-grow
+                density="compact"
+                variant="outlined"
+                hide-details="auto"
+            />
+            <div v-if="clarificationError" class="text-error text-caption mt-1" role="alert">{{ clarificationError }}</div>
+            <div class="good-code-recommend__footer mt-2">
+                <v-btn size="small" variant="tonal" color="deep-purple" prepend-icon="mdi-auto-fix" :loading="loading" :disabled="!canRefine" @click="refineCodes">
+                    Уточнить подбор
+                </v-btn>
+                <span class="text-caption text-medium-emphasis">Ответы используются для подбора и не меняют описание товара.</span>
+            </div>
         </div>
     </div>
 </template>
@@ -268,5 +433,12 @@ onBeforeUnmount(() => {
 }
 .good-code-recommend__footer {
     margin-top: 4px;
+}
+.good-code-recommend__question {
+    margin-bottom: 8px;
+    overflow-wrap: anywhere;
+}
+.good-code-recommend__history summary {
+    cursor: pointer;
 }
 </style>
