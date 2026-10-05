@@ -66,7 +66,7 @@ export function useCommodities() {
 
                     search: filters.value.search || null,
                     check_id: filters.value.check_id || null,
-                    has_ava: filters.value.has_ava || 'all',
+                    has_ava: filters.value.has_ava ?? 'all',
                     created_from: filters.value.created_from || null,
                     created_to: filters.value.created_to || null,
 

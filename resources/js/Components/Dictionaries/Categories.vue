@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
+import CatalogToolbar from './CatalogToolbar.vue'
 
 const categories = ref([])
 const fields = ref([])
@@ -61,7 +62,7 @@ const form = reactive({
 })
 
 const headers = [
-    { title: '', key: 'image', sortable: false, width: 86 },
+    { title: '', key: 'image', sortable: false, width: 58 },
     { title: 'Категория', key: 'name', sortable: true },
     { title: 'Field', key: 'field', sortable: false, width: 160 },
     { title: 'SEO', key: 'seo', sortable: false, width: 150 },
@@ -516,6 +517,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+    clearTimeout(searchTimer)
     if (previewUrl.value) {
         URL.revokeObjectURL(previewUrl.value)
     }
@@ -523,27 +525,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <v-container fluid class="category-admin pa-2 pa-md-3">
-        <v-card rounded="xl" elevation="1" class="category-admin__card">
-            <v-card-title class="d-flex align-center ga-3 flex-wrap">
-                <div>
-                    <div class="text-h6 font-weight-bold">Категории</div>
-                    <div class="text-caption text-medium-emphasis">
-                        CRUD, аватары, slug и SEO-поля для публичных страниц категорий.
-                    </div>
-                </div>
-
-                <v-spacer />
-
+    <v-container fluid class="category-admin pa-0">
+        <v-card rounded="0" elevation="0" class="category-admin__card">
+            <CatalogToolbar :count="total">
                 <v-text-field
                     v-model="search"
                     label="Поиск"
                     prepend-inner-icon="mdi-magnify"
-                    variant="solo-inverted"
+                    variant="outlined"
                     density="compact"
                     hide-details
                     clearable
-                    style="max-width: 300px"
+                    class="catalog-toolbar__search"
                 />
 
                 <v-select
@@ -554,10 +547,9 @@ onBeforeUnmount(() => {
                         { title: 'Скрытые', value: 'hidden' },
                     ]"
                     label="Публикация"
-                    variant="solo-inverted"
+                    variant="outlined"
                     density="compact"
                     hide-details
-                    style="max-width: 190px"
                 />
 
                 <v-select
@@ -568,16 +560,16 @@ onBeforeUnmount(() => {
                         { title: 'Обычные', value: 'regular' },
                     ]"
                     label="Витрина"
-                    variant="solo-inverted"
+                    variant="outlined"
                     density="compact"
                     hide-details
-                    style="max-width: 170px"
                 />
-
-                <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate">
-                    Категория
-                </v-btn>
-            </v-card-title>
+                <template #actions>
+                    <v-btn color="#352345" prepend-icon="mdi-plus" size="small" variant="flat" @click="openCreate">
+                        Категория
+                    </v-btn>
+                </template>
+            </CatalogToolbar>
 
             <v-data-table-server
                 :headers="headers"
@@ -596,7 +588,7 @@ onBeforeUnmount(() => {
                 @update:options="updateOptions"
             >
                 <template #item.image="{ item }">
-                    <v-avatar size="58" rounded="lg" class="my-2">
+                    <v-avatar size="34" rounded="0" class="my-1">
                         <v-img
                             :src="item.image || '/images/placeholders/category.jpg'"
                             :alt="item.image_alt || item.name"
@@ -606,7 +598,7 @@ onBeforeUnmount(() => {
                 </template>
 
                 <template #item.name="{ item }">
-                    <div class="py-2">
+                    <div class="py-1">
                         <div class="d-flex align-center ga-2 flex-wrap">
                             <a
                                 v-if="item.public_url"
@@ -628,7 +620,7 @@ onBeforeUnmount(() => {
                             /категория/{{ categoryParam(item) }}
                         </div>
 
-                        <div v-if="item.short_description" class="text-caption category-admin__description">
+                        <div v-if="item.short_description" class="text-caption category-admin__description" :title="item.short_description">
                             {{ item.short_description }}
                         </div>
                     </div>
@@ -1159,6 +1151,7 @@ onBeforeUnmount(() => {
     min-height: 0;
     overflow: hidden;
     flex-direction: column;
+    border: 1px solid #d9d7dc;
 }
 
 .category-admin__card :deep(.v-card-title) {
@@ -1170,7 +1163,6 @@ onBeforeUnmount(() => {
     flex: 1 1 auto;
     min-height: 0;
     flex-direction: column;
-    border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .category-admin__table :deep(.v-table__wrapper) {
@@ -1183,12 +1175,12 @@ onBeforeUnmount(() => {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 1;
 }
 
 .category-admin__footer {
-    min-height: 52px;
-    padding: 4px 16px;
+    min-height: 40px;
+    padding: 2px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;

@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import axios from 'axios'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { route } from 'ziggy-js'
 import { Link, useForm } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { useGoods } from '@/Composables/useGoods'
+import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
+import GoodTableAvatar from '@/Components/Goods/GoodTableAvatar.vue'
 
 const {
     loading,
@@ -25,19 +26,43 @@ const {
     saveGood: persistGood,
     deleteGood: destroyGood,
     toggleGoodPublish,
+    cancelGoodsRequest,
 } = useGoods()
 
-async function reloadGoods() {
-    const firstSort = tableOptions.value.sortBy?.[0] || null
+const loadError = ref('')
+const dictionaryLoading = ref(false)
+const dictionaryError = ref('')
+const dictionariesLoaded = ref(false)
+let reloadVersion = 0
 
-    await fetchGoods({
-        search: search.value || null,
-        is_published: publishedParam.value,
-        page: tableOptions.value.page,
-        per_page: tableOptions.value.itemsPerPage,
-        sort_by: firstSort?.key || 'name',
-        sort_desc: firstSort?.order === 'desc',
-    })
+async function reloadGoods() {
+    const version = ++reloadVersion
+    const firstSort = tableOptions.value.sortBy?.[0] || null
+    loadError.value = ''
+
+    try {
+        await fetchGoods({
+            view: 'table',
+            search: search.value || null,
+            is_published: publishedParam.value,
+            page: tableOptions.value.page,
+            per_page: tableOptions.value.itemsPerPage,
+            sort_by: firstSort?.key || 'created_at',
+            sort_desc: firstSort?.order === 'desc',
+        })
+    } catch {
+        if (version === reloadVersion) loadError.value = 'Не удалось загрузить товары. Повторите запрос.'
+    }
+}
+
+async function loadDictionaries() {
+    if (dictionariesLoaded.value || dictionaryLoading.value) return
+    dictionaryLoading.value = true
+    dictionaryError.value = ''
+    const results = await Promise.allSettled([fetchProducts(), fetchCountries(), fetchFields(), fetchVatRates()])
+    dictionariesLoaded.value = results.every(result => result.status === 'fulfilled')
+    if (!dictionariesLoaded.value) dictionaryError.value = 'Не удалось загрузить справочники для редактирования.'
+    dictionaryLoading.value = false
 }
 
 const search = ref('')
@@ -79,11 +104,11 @@ const form = useForm({
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '150px' },
-    { key: 'ava_image', title: '', sortable: false, width: '68px' },
+    { key: 'ava_image', title: '', sortable: false, width: '48px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'country', title: 'Страна', sortable: false, width: '132px' },
     { key: 'fields', title: 'Fields', sortable: false, width: '190px' },
-    { key: 'vat_rate', title: 'НДС', sortable: false, width: '104px' },
+    { key: 'vat_rate', title: 'НДС', sortable: false, width: '64px' },
     { key: 'is_published', title: 'Pub', sortable: true, width: '72px' },
     { key: 'created_at', title: 'Создан', sortable: true, width: '132px' },
     { key: 'actions', title: '', sortable: false, width: '108px' },
@@ -91,8 +116,6 @@ const headers = [
 
 // ---------- helpers ----------
 function categoryTitleFromGood(g) {
-    // Берём 1-ю категорию из связанных products (если есть)
-    // Если у Product другая структура — скажи, подстрою
     const first = g.products?.[0]
     return first?.category?.name || 'Без категории'
 }
@@ -140,7 +163,11 @@ function formatCreatedDate(value) {
     }).format(date)
 }
 
+let lastTableOptions = ''
 function updateTableOptions(options) {
+    const key = JSON.stringify([options.page, options.itemsPerPage, options.sortBy])
+    if (key === lastTableOptions) return
+    lastTableOptions = key
     tableOptions.value = {
         page: options.page,
         itemsPerPage: options.itemsPerPage,
@@ -153,7 +180,6 @@ function updateTableOptions(options) {
 function setPage(page) {
     if (page === tableOptions.value.page) return
     tableOptions.value.page = page
-    reloadGoods()
 }
 
 function setItemsPerPage(value) {
@@ -163,7 +189,6 @@ function setItemsPerPage(value) {
 
     tableOptions.value.itemsPerPage = perPage
     tableOptions.value.page = 1
-    reloadGoods()
 }
 
 function openCreate() {
@@ -248,21 +273,13 @@ let t = null
 watch([search, publishedFilter], () => {
     clearTimeout(t)
     t = setTimeout(() => {
-        tableOptions.value.page = 1
-        reloadGoods()
+        if (tableOptions.value.page === 1) reloadGoods()
+        else tableOptions.value.page = 1
     }, 250)
 })
 
-// ---------- init ----------
-onMounted(async () => {
-    await Promise.all([
-        reloadGoods(),
-        fetchProducts(),
-        fetchCountries(),
-        fetchFields(),
-        fetchVatRates(),
-    ])
-})
+// The table emits its initial options once; dictionaries are needed only by the editor.
+watch(dialogForm, (open) => { if (open) loadDictionaries() })
 
 const previewUrl = ref(null)
 
@@ -278,6 +295,8 @@ watch(() => form.ava_image, (file) => {
 })
 
 onBeforeUnmount(() => {
+    clearTimeout(t)
+    cancelGoodsRequest()
     if (previewUrl.value) {
         URL.revokeObjectURL(previewUrl.value)
     }
@@ -285,54 +304,51 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <v-container fluid class="goods-admin pa-2 pa-md-3">
-        <v-row dense class="goods-toolbar align-center">
-            <v-col cols="12" md="4">
-                <v-text-field
-                    v-model="search"
-                    label="Поиск: товары"
-                    variant="solo-inverted"
-                    density="compact"
-                    hide-details
-                    clearable
-                />
-            </v-col>
+    <v-container fluid class="goods-admin pa-0">
+        <CatalogToolbar :count="totalItems">
+            <v-text-field
+                v-model="search"
+                label="Поиск товаров"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                density="compact"
+                hide-details
+                clearable
+                class="catalog-toolbar__search"
+            />
+            <v-select
+                v-model="publishedFilter"
+                :items="[
+                    { title: 'Все', value: 'all' },
+                    { title: 'Опубликованные', value: 'published' },
+                    { title: 'Скрытые', value: 'hidden' },
+                ]"
+                label="Публикация"
+                variant="outlined"
+                density="compact"
+                hide-details
+            />
+            <v-select
+                v-model="groupMode"
+                :items="[
+                    { title: 'По категориям', value: 'category' },
+                    { title: 'Без группировки', value: 'none' },
+                ]"
+                label="Группировка"
+                variant="outlined"
+                density="compact"
+                hide-details
+            />
+            <template #actions>
+                <v-btn icon="mdi-refresh" variant="text" :loading="loading" title="Обновить товары" aria-label="Обновить товары" @click="reloadGoods" />
+                <v-btn size="small" color="#352345" variant="flat" prepend-icon="mdi-plus" @click="openCreate">Новый товар</v-btn>
+            </template>
+        </CatalogToolbar>
 
-            <v-col cols="12" md="3">
-                <v-select
-                    v-model="publishedFilter"
-                    :items="[
-            { title: 'Все', value: 'all' },
-            { title: 'Опубликованные', value: 'published' },
-            { title: 'Скрытые', value: 'hidden' },
-          ]"
-                    label="Публикация"
-                    variant="solo-inverted"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-
-            <v-col cols="12" md="3">
-                <v-select
-                    v-model="groupMode"
-                    :items="[
-                                { title: 'Группировать по категориям', value: 'category' },
-                                { title: 'Без группировки', value: 'none' },
-                              ]"
-                    label="Группировка"
-                    variant="solo-inverted"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-
-            <v-col cols="12" md="2">
-                <v-btn block color="primary" variant="elevated" @click="openCreate">
-                    Новый товар
-                </v-btn>
-            </v-col>
-        </v-row>
+        <v-alert v-if="loadError" type="error" variant="tonal" density="compact">
+            {{ loadError }}
+            <v-btn size="small" variant="text" @click="reloadGoods">Повторить</v-btn>
+        </v-alert>
 
         <div class="goods-table-region">
             <v-data-table-server
@@ -343,25 +359,29 @@ onBeforeUnmount(() => {
                 :page="tableOptions.page"
                 :items-per-page="tableOptions.itemsPerPage"
                 :sort-by="tableOptions.sortBy"
+                :group-by="groupBy"
                 item-value="id"
                 hide-default-footer
                 fixed-header
                 fixed-footer
                 density="compact"
                 hover
-                class="border rounded goods-table"
+                class="goods-table"
                 @update:options="updateTableOptions"
             >
                     <template #item.ava_image="{ item }">
-                        <v-avatar size="44" rounded="lg" class="cursor-pointer" @click="showGood(item.id)">
-                            <v-img :src="item.ava_image || logo" cover />
-                        </v-avatar>
+                        <GoodTableAvatar
+                            :key="item.id"
+                            :src="item.avatar_url || item.ava_thumb || item.ava_image"
+                            :name="item.name"
+                            @preview="showGood(item.id)"
+                        />
                     </template>
 
                     <template #item.name="{ item }">
                         <Link
                             :href="route('Ameise.good.show', { id: item.id, slug: item.slug })"
-                            class="text-decoration-none text-primary hover:underline"
+                            class="goods-name"
                         >
                             {{ item.name }}
                         </Link>
@@ -369,7 +389,7 @@ onBeforeUnmount(() => {
 
                     <template #item.country="{ item }">
                         <div v-if="item.country" class="goods-country-cell">
-                            <v-avatar size="26" rounded="circle" class="goods-country-cell__flag">
+                            <v-avatar size="20" rounded="circle" class="goods-country-cell__flag">
                                 <v-img
                                     v-if="item.country.flag"
                                     :src="item.country.flag"
@@ -417,9 +437,9 @@ onBeforeUnmount(() => {
                             :loading="!!publishLoading[item.id]"
                             @update:model-value="() => toggleGoodPublish(item)"
                             density="compact"
-                            inset
+                            :aria-label="`Публикация: ${item.name}`"
                             hide-details
-                            color="green"
+                            color="#352345"
                         />
                     </template>
 
@@ -439,9 +459,9 @@ onBeforeUnmount(() => {
                     </template>
 
                     <template #item.actions="{ item }">
-                        <v-btn size="small" density="compact" variant="text" icon="mdi-eye" @click="showGood(item.id)" />
-                        <v-btn size="small" density="compact" variant="text" icon="mdi-pencil" @click="openEdit(item)" />
-                        <v-btn size="small" density="compact" variant="text" icon="mdi-delete" @click="askDelete(item)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-eye-outline" title="Просмотр товара" aria-label="Просмотр товара" @click="showGood(item.id)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-pencil-outline" title="Изменить товар" aria-label="Изменить товар" @click="openEdit(item)" />
+                        <v-btn size="small" density="compact" variant="text" icon="mdi-delete-outline" title="Удалить товар" aria-label="Удалить товар" @click="askDelete(item)" />
                     </template>
 
                     <template #bottom>
@@ -451,15 +471,17 @@ onBeforeUnmount(() => {
 
                                 <v-select
                                     :model-value="tableOptions.itemsPerPage"
-                                    :items="[25, 50, 100, 200]"
+                                    :items="[25, 50, 100]"
                                     variant="plain"
                                     density="compact"
                                     hide-details
                                     class="goods-table-footer__select"
+                                    aria-label="Товаров на странице"
                                     @update:model-value="setItemsPerPage"
                                 />
                             </div>
 
+                            <span class="goods-table-footer__range">{{ totalItems ? (tableOptions.page - 1) * tableOptions.itemsPerPage + 1 : 0 }}–{{ Math.min(tableOptions.page * tableOptions.itemsPerPage, totalItems) }} из {{ totalItems }}</span>
                             <v-pagination
                                 :model-value="tableOptions.page"
                                 :length="pageCount"
@@ -559,7 +581,12 @@ onBeforeUnmount(() => {
         <!-- Create/Edit dialog -->
         <v-dialog v-model="dialogForm" width="900">
             <v-card>
-                <v-toolbar :title="form.id ? 'Edit Good' : 'New Good'" />
+                <v-toolbar :title="form.id ? 'Изменить товар' : 'Новый товар'" density="compact" />
+                <v-progress-linear v-if="dictionaryLoading" indeterminate color="#352345" />
+                <v-alert v-if="dictionaryError" type="error" variant="tonal" density="compact">
+                    {{ dictionaryError }}
+                    <v-btn variant="text" size="small" @click="loadDictionaries">Повторить</v-btn>
+                </v-alert>
 
                 <v-card-text>
                     <v-row>
@@ -732,7 +759,7 @@ onBeforeUnmount(() => {
 
                 <v-card-actions class="justify-start">
                     <v-btn variant="text" text="Close" @click="dialogForm = false" :disabled="saving" />
-                    <v-btn color="deep-purple-darken-1" variant="tonal" text="Save" @click="saveGood" :loading="saving" />
+                    <v-btn color="deep-purple-darken-1" variant="tonal" text="Save" @click="saveGood" :loading="saving" :disabled="!dictionariesLoaded || dictionaryLoading" />
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -762,16 +789,6 @@ onBeforeUnmount(() => {
     flex-direction: column;
 }
 
-.goods-toolbar {
-    flex: 0 0 auto;
-    margin-bottom: 6px;
-}
-
-.goods-toolbar :deep(.v-col) {
-    padding-top: 4px;
-    padding-bottom: 4px;
-}
-
 .goods-table-region {
     display: flex;
     flex: 1 1 0;
@@ -796,16 +813,20 @@ onBeforeUnmount(() => {
     min-height: 0;
 }
 
+.goods-table :deep(table) {
+    min-width: 1080px;
+}
+
 .goods-table :deep(thead th) {
-    height: 38px !important;
+    height: 32px !important;
     font-size: 0.75rem;
-    font-weight: 800;
+    font-weight: 600;
     white-space: nowrap;
 }
 
 .goods-table :deep(tbody td) {
-    height: 52px !important;
-    padding: 4px 8px !important;
+    height: 40px !important;
+    padding: 3px 8px !important;
 }
 
 .goods-table :deep(tbody td:last-child) {
@@ -847,8 +868,8 @@ onBeforeUnmount(() => {
     gap: 7px;
     min-width: 0;
     color: inherit;
-    font-size: 0.82rem;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 500;
 }
 
 .goods-country-cell__flag {
@@ -883,5 +904,18 @@ onBeforeUnmount(() => {
 :deep(.goods-table-footer__pagination .v-pagination__next),
 :deep(.goods-table-footer__pagination .v-pagination__last) {
     margin: 0 1px;
+}
+.goods-name { color: #352345; text-decoration: none; font-weight: 600; }
+.goods-name:hover { text-decoration: underline; }
+.goods-table :deep(.v-switch .v-selection-control) { min-height: 30px; }
+.goods-table :deep(.v-switch .v-selection-control__wrapper) { width: 36px; height: 30px; }
+.goods-table :deep(.v-switch .v-selection-control__input) { width: 30px; height: 30px; }
+.goods-table :deep(.v-switch__track) { height: 12px; width: 28px; }
+.goods-table :deep(.v-switch__thumb) { height: 16px; width: 16px; }
+.goods-table-footer__range { margin-left: auto; margin-right: 12px; color: #77727b; font-size: 11px; white-space: nowrap; }
+@media (max-width: 600px) {
+    .goods-table-footer { flex-wrap: wrap; justify-content: center; gap: 4px; }
+    .goods-table-footer__left { min-width: 100px; }
+    .goods-table-footer__range { margin-right: 0; }
 }
 </style>

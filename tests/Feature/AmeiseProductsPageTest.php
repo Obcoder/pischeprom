@@ -58,8 +58,7 @@ class AmeiseProductsPageTest extends TestCase
             $this->assertStringContainsString('min-height: 0', $tableSource);
         }
 
-        $this->assertStringContainsString('<v-avatar size="44"', $goods);
-        $this->assertStringContainsString('height: 52px !important', $goods);
+        $this->assertStringContainsString('<GoodTableAvatar', $goods);
         $this->assertStringContainsString('class="goods-table-region"', $goods);
         $this->assertStringContainsString('flex: 1 1 0', $goods);
     }

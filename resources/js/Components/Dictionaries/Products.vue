@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
+import CatalogToolbar from './CatalogToolbar.vue'
 import {
     emptyProductTranslationForm,
     productLanguageFields,
@@ -272,56 +273,44 @@ onMounted(loadAll)
 </script>
 
 <template>
-    <v-container fluid class="products-shell pa-2 pa-md-3">
-        <v-card rounded="xl" class="products-card">
-            <div class="products-toolbar px-3 px-md-4 py-3">
-                <div class="d-flex align-center ga-3 flex-wrap">
-                    <div class="min-w-0">
-                        <div class="text-h6 font-weight-black text-truncate">Products</div>
-                        <div class="text-caption text-medium-emphasis">
-                            {{ filteredProducts.length }} / {{ products.length }} записей
-                        </div>
-                    </div>
+    <v-container fluid class="products-shell pa-0">
+        <v-card rounded="0" elevation="0" class="products-card">
+            <CatalogToolbar :count="filteredProducts.length" :total="products.length">
+                <v-text-field
+                    v-model="search"
+                    label="Поиск"
+                    prepend-inner-icon="mdi-magnify"
+                    variant="outlined"
+                    density="compact"
+                    hide-details
+                    clearable
+                    class="catalog-toolbar__search"
+                />
 
-                    <v-spacer />
+                <v-autocomplete
+                    v-model="categoryId"
+                    :items="categoryItems"
+                    item-title="title"
+                    item-value="value"
+                    variant="outlined"
+                    label="Категория"
+                    density="compact"
+                    hide-details
+                    clearable
+                />
 
-                    <v-text-field
-                        v-model="search"
-                        label="Поиск"
-                        prepend-inner-icon="mdi-magnify"
-                        variant="outlined"
-                        density="compact"
-                        hide-details
-                        clearable
-                        class="toolbar-field"
-                    />
-
-                    <v-autocomplete
-                        v-model="categoryId"
-                        :items="categoryItems"
-                        item-title="title"
-                        item-value="value"
-                        variant="outlined"
-                        label="Категория"
-                        density="compact"
-                        hide-details
-                        clearable
-                        class="toolbar-field toolbar-field--category"
-                    />
-
+                <template #actions>
                     <v-btn
-                        color="primary"
+                        color="#352345"
                         prepend-icon="mdi-plus"
                         size="small"
-                        class="font-weight-bold"
+                        variant="flat"
                         @click="openCreate()"
                     >
-                        Новый продукт
+                        Продукт
                     </v-btn>
-                </div>
-            </div>
-
-            <v-divider />
+                </template>
+            </CatalogToolbar>
 
             <v-card-text class="products-table-region pa-0">
                 <v-data-table
@@ -544,7 +533,7 @@ onMounted(loadAll)
 
 .products-card,
 .create-card {
-    border: 1px solid rgba(var(--v-theme-primary), 0.16);
+    border: 1px solid #d9d7dc;
     overflow: hidden;
 }
 
@@ -562,20 +551,10 @@ onMounted(loadAll)
     flex-direction: column;
 }
 
-.products-toolbar,
 .create-hero {
     background:
         radial-gradient(circle at 0 0, rgba(var(--v-theme-primary), 0.16), transparent 32%),
         linear-gradient(135deg, rgba(var(--v-theme-surface), 0.98), rgba(var(--v-theme-primary), 0.05));
-}
-
-.toolbar-field {
-    max-width: 300px;
-    min-width: 220px;
-}
-
-.toolbar-field--category {
-    max-width: 250px;
 }
 
 .products-table :deep(thead th) {
@@ -621,11 +600,4 @@ onMounted(loadAll)
     white-space: pre-line;
 }
 
-@media (max-width: 960px) {
-    .toolbar-field,
-    .toolbar-field--category {
-        max-width: none;
-        width: 100%;
-    }
-}
 </style>

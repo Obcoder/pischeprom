@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Models\GoodMediaFolder;
+use App\Services\Goods\GoodAvatarImages;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -337,6 +338,7 @@ class GoodMediaController extends Controller
 
         $disk->put($thumbPath, (string) $encoded, [
             'ContentType' => 'image/jpeg',
+            'CacheControl' => GoodAvatarImages::CACHE_CONTROL,
         ]);
 
         return GoodMedia::create([

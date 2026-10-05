@@ -661,12 +661,12 @@ onMounted(fetchWorkingLeads)
 
                 <Link
                     :href="route('Ameise.units')"
-                    class="ameise-header-control ameise-nav-link"
+                    class="ameise-header-control ameise-nav-link ameise-units-icon"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.units')) || isActiveUrl('/Ameise/unit') }"
                     title="Units"
                     aria-label="Units"
                 >
-                    <v-icon icon="mdi-office-building-marker-outline" size="19" />
+                    <v-icon icon="mdi-domain" size="22" />
                     <span class="ameise-nav-link__label">Units</span>
                 </Link>
 
@@ -814,21 +814,20 @@ onMounted(fetchWorkingLeads)
                     <v-icon icon="mdi-book-open-variant" size="19" />
                     <span class="ameise-nav-link__label">Großbuch</span>
                 </Link>
-
-                <Link
-                    :href="route('Ameise.taxi-shifts')"
-                    class="ameise-header-control ameise-nav-link"
-                    :class="{ 'is-active': isActiveUrl(route('Ameise.taxi-shifts')) }"
-                    title="Такси"
-                    aria-label="Такси"
-                >
-                    <v-icon icon="mdi-taxi" size="19" />
-                    <span class="ameise-nav-link__label">Такси</span>
-                </Link>
             </nav>
 
             <template #append>
                 <div class="ameise-header-actions">
+                    <Link
+                        :href="route('Ameise.taxi-shifts')"
+                        class="ameise-header-control ameise-header-icon"
+                        :class="{ 'is-active': isActiveUrl(route('Ameise.taxi-shifts')) }"
+                        title="Такси"
+                        aria-label="Такси"
+                    >
+                        <v-icon icon="mdi-taxi" size="21" />
+                    </Link>
+
                     <Link
                         :href="route('Ameise.botany')"
                         class="ameise-header-control ameise-header-icon"
@@ -1421,6 +1420,15 @@ onMounted(fetchWorkingLeads)
 .ameise-products-icon {
     --ameise-glow: 14 165 233;
     color: #bae6fd;
+}
+
+.ameise-units-icon {
+    --ameise-glow: 20 184 166;
+    color: #99f6e4;
+}
+
+.ameise-units-icon :deep(.v-icon) {
+    color: #99f6e4;
 }
 
 .ameise-avito-icon {

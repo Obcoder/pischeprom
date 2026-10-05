@@ -1,9 +1,10 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { useServices } from '@/Composables/useServices.js'
 import ServiceFormDialog from './ServiceFormDialog.vue'
+import CatalogToolbar from '../CatalogToolbar.vue'
 
 const {
     services,
@@ -113,7 +114,13 @@ const headers = [
     },
 ]
 
+const activeFilterCount = computed(() =>
+    [filters.value.check_id, filters.value.expense_article_id, filters.value.project_id, filters.value.created_from, filters.value.created_to].filter(Boolean).length
+)
+const hasFilters = computed(() => Boolean(filters.value.search || activeFilterCount.value || filters.value.is_active !== 'all'))
+
 let searchTimer = null
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
 watch(
     () => ({ ...filters.value }),
@@ -248,22 +255,43 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="services-page pa-2 pa-md-3">
-        <v-row align="center" dense class="mb-2">
-            <v-col cols="12" md="3">
-                <v-text-field
-                    v-model="filters.search"
-                    label="Поиск"
-                    placeholder="Название, код, описание"
-                    variant="outlined"
-                    density="compact"
-                    prepend-inner-icon="mdi-magnify"
-                    clearable
-                    hide-details
+    <v-container fluid class="services-page pa-0">
+        <CatalogToolbar :count="totalItems" :filters-count="activeFilterCount">
+            <v-text-field
+                v-model="filters.search"
+                label="Поиск"
+                placeholder="Название, код, описание"
+                variant="outlined"
+                density="compact"
+                prepend-inner-icon="mdi-magnify"
+                clearable
+                hide-details
+                class="catalog-toolbar__search"
+            />
+            <v-select
+                v-model="filters.is_active"
+                :items="activeFilterItems"
+                label="Статус"
+                variant="outlined"
+                density="compact"
+                hide-details
+            />
+            <template #actions>
+                <v-btn
+                    icon="mdi-filter-off-outline"
+                    title="Сбросить фильтры"
+                    aria-label="Сбросить фильтры"
+                    color="#352345"
+                    size="small"
+                    variant="text"
+                    :disabled="!hasFilters"
+                    @click="resetFilters"
                 />
-            </v-col>
-
-            <v-col cols="12" md="3">
+                <v-btn color="#352345" prepend-icon="mdi-plus" size="small" variant="flat" @click="openCreate">
+                    Услуга
+                </v-btn>
+            </template>
+            <template #filters>
                 <v-autocomplete
                     v-model="filters.check_id"
                     :items="checks"
@@ -291,9 +319,6 @@ onMounted(async () => {
                         Check #{{ item.raw.id }}
                     </template>
                 </v-autocomplete>
-            </v-col>
-
-            <v-col cols="12" md="2">
                 <v-autocomplete
                     v-model="filters.expense_article_id"
                     :items="expenseArticles"
@@ -305,9 +330,6 @@ onMounted(async () => {
                     clearable
                     hide-details
                 />
-            </v-col>
-
-            <v-col cols="12" md="2">
                 <v-autocomplete
                     v-model="filters.project_id"
                     :items="projects"
@@ -319,72 +341,26 @@ onMounted(async () => {
                     clearable
                     hide-details
                 />
-            </v-col>
-
-            <v-col cols="12" md="2">
-                <v-select
-                    v-model="filters.is_active"
-                    :items="activeFilterItems"
-                    label="Статус"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-        </v-row>
-
-        <v-row align="center" dense class="mb-2">
-            <v-col cols="12" md="2">
                 <v-text-field
                     v-model="filters.created_from"
-                    label="Created from"
+                    label="Создано с"
                     type="date"
                     variant="outlined"
                     density="compact"
                     clearable
                     hide-details
                 />
-            </v-col>
-
-            <v-col cols="12" md="2">
                 <v-text-field
                     v-model="filters.created_to"
-                    label="Created to"
+                    label="Создано по"
                     type="date"
                     variant="outlined"
                     density="compact"
                     clearable
                     hide-details
                 />
-            </v-col>
-
-            <v-col>
-                <div class="text-caption text-medium-emphasis">
-                    Всего: {{ totalItems }}
-                </div>
-            </v-col>
-
-            <v-col cols="auto">
-                <v-btn
-                    text="Сбросить"
-                    prepend-icon="mdi-filter-off"
-                    color="light-blue-accent-2"
-                    variant="tonal"
-                    density="compact"
-                    @click="resetFilters"
-                />
-            </v-col>
-
-            <v-col cols="auto">
-                <v-btn
-                    text="+ Услуга"
-                    color="primary"
-                    variant="elevated"
-                    density="compact"
-                    @click="openCreate"
-                />
-            </v-col>
-        </v-row>
+            </template>
+        </CatalogToolbar>
 
         <v-data-table-server
             v-model:page="options.page"
@@ -397,7 +373,7 @@ onMounted(async () => {
             fixed-header
             hover
             density="compact"
-            class="services-table border rounded"
+            class="services-table"
             :items-per-page-options="[50, 100, 200, 500]"
             @update:options="indexServices"
         >
@@ -503,15 +479,13 @@ onMounted(async () => {
 
 <style scoped>
 .services-page {
+    border: 1px solid #d9d7dc;
+    background: #fff;
     display: flex;
     height: 100%;
     min-height: 0;
     overflow: hidden;
     flex-direction: column;
-}
-
-.services-page > :deep(.v-row) {
-    flex: 0 0 auto;
 }
 
 .services-table {

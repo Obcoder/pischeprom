@@ -14,25 +14,41 @@ export function useGoods() {
     const totalItems = ref(0)
 
     const publishLoading = ref({})
+    let goodsController = null
 
     async function indexGoods(params = {}) {
+        goodsController?.abort()
+        const controller = new AbortController()
+        goodsController = controller
         loading.value = true
 
         try {
             const { data } = await axios.get(route('goods.index'), {
                 params,
+                signal: controller.signal,
             })
 
+            if (goodsController !== controller || controller.signal.aborted) return
             goods.value = Array.isArray(data) ? data : (data.data || [])
-            totalItems.value = data.total || 0
+            totalItems.value = Array.isArray(data) ? data.length : (data.total || 0)
         } catch (e) {
+            if (goodsController !== controller || controller.signal.aborted || axios.isCancel(e)) return
             console.error(e)
             goods.value = []
             totalItems.value = 0
             throw e
         } finally {
-            loading.value = false
+            if (goodsController === controller) {
+                loading.value = false
+                goodsController = null
+            }
         }
+    }
+
+    function cancelGoodsRequest() {
+        goodsController?.abort()
+        goodsController = null
+        loading.value = false
     }
 
     async function indexProducts() {
@@ -199,5 +215,6 @@ export function useGoods() {
         saveGood,
         deleteGood,
         toggleGoodPublish,
+        cancelGoodsRequest,
     }
 }

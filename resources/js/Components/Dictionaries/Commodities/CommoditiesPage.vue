@@ -1,11 +1,12 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { useCommodities } from '@/Composables/useCommodities.js'
 import CommodityFormDialog from './CommodityFormDialog.vue'
+import CatalogToolbar from '../CatalogToolbar.vue'
 
 const {
     commodities,
@@ -36,11 +37,11 @@ const avaFilterItems = [
         value: 'all',
     },
     {
-        title: 'С ava',
+        title: 'С фото',
         value: true,
     },
     {
-        title: 'Без ava',
+        title: 'Без фото',
         value: false,
     },
 ]
@@ -108,7 +109,13 @@ const headers = [
     },
 ]
 
+const activeFilterCount = computed(() =>
+    [filters.value.check_id, filters.value.created_from, filters.value.created_to].filter(Boolean).length
+)
+const hasFilters = computed(() => Boolean(filters.value.search || activeFilterCount.value || filters.value.has_ava !== 'all'))
+
 let searchTimer = null
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
 watch(
     () => ({ ...filters.value }),
@@ -214,26 +221,48 @@ onMounted(async () => {
 </script>
 
 <template>
-    <v-container fluid class="commodities-page pa-2 pa-md-3">
-        <v-row align="center" dense class="mb-2">
-            <v-col cols="12" md="3">
-                <v-text-field
-                    v-model="filters.search"
-                    label="Поиск по имени"
-                    variant="outlined"
-                    density="compact"
-                    clearable
-                    hide-details
+    <v-container fluid class="commodities-page pa-0">
+        <CatalogToolbar :count="totalItems" :filters-count="activeFilterCount">
+            <v-text-field
+                v-model="filters.search"
+                label="Поиск"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                density="compact"
+                clearable
+                hide-details
+                class="catalog-toolbar__search"
+            />
+            <v-select
+                v-model="filters.has_ava"
+                :items="avaFilterItems"
+                label="Фото"
+                variant="outlined"
+                density="compact"
+                hide-details
+            />
+            <template #actions>
+                <v-btn
+                    icon="mdi-filter-off-outline"
+                    title="Сбросить фильтры"
+                    aria-label="Сбросить фильтры"
+                    color="#352345"
+                    size="small"
+                    variant="text"
+                    :disabled="!hasFilters"
+                    @click="resetFilters"
                 />
-            </v-col>
-
-            <v-col cols="12" md="3">
+                <v-btn color="#352345" prepend-icon="mdi-plus" size="small" variant="flat" @click="openCreate">
+                    Commodity
+                </v-btn>
+            </template>
+            <template #filters>
                 <v-autocomplete
                     v-model="filters.check_id"
                     :items="checks"
                     item-value="id"
                     item-title="id"
-                    label="Фильтр по Check"
+                    label="Check"
                     variant="outlined"
                     density="compact"
                     clearable
@@ -255,71 +284,26 @@ onMounted(async () => {
                         Check #{{ item.raw.id }}
                     </template>
                 </v-autocomplete>
-            </v-col>
-
-            <v-col cols="12" md="2">
-                <v-select
-                    v-model="filters.has_ava"
-                    :items="avaFilterItems"
-                    label="Ava"
-                    variant="outlined"
-                    density="compact"
-                    hide-details
-                />
-            </v-col>
-
-            <v-col cols="12" md="2">
                 <v-text-field
                     v-model="filters.created_from"
-                    label="Created from"
+                    label="Создано с"
                     type="date"
                     variant="outlined"
                     density="compact"
                     hide-details
                     clearable
                 />
-            </v-col>
-
-            <v-col cols="12" md="2">
                 <v-text-field
                     v-model="filters.created_to"
-                    label="Created to"
+                    label="Создано по"
                     type="date"
                     variant="outlined"
                     density="compact"
                     hide-details
                     clearable
                 />
-            </v-col>
-        </v-row>
-
-        <v-row align="center" dense class="mb-2">
-            <v-col>
-                <div class="text-caption text-grey">
-                    Всего: {{ totalItems }}
-                </div>
-            </v-col>
-
-            <v-col cols="auto">
-                <v-btn
-                    text="Сбросить"
-                    color="light-blue-accent-2"
-                    variant="tonal"
-                    density="compact"
-                    @click="resetFilters"
-                />
-            </v-col>
-
-            <v-col cols="auto">
-                <v-btn
-                    text="+ Commodity"
-                    color="primary"
-                    variant="elevated"
-                    density="compact"
-                    @click="openCreate"
-                />
-            </v-col>
-        </v-row>
+            </template>
+        </CatalogToolbar>
 
         <v-data-table-server
             v-model:page="options.page"
@@ -332,12 +316,12 @@ onMounted(async () => {
             fixed-header
             hover
             density="compact"
-            class="commodities-table border rounded"
+            class="commodities-table"
             :items-per-page-options="[50, 100, 200, 500]"
             @update:options="indexCommodities"
         >
             <template #item.ava="{ item }">
-                <v-avatar size="42" rounded="lg">
+                <v-avatar size="32" rounded="0">
                     <v-img :src="item.ava_url || logo" cover />
                 </v-avatar>
             </template>
@@ -407,15 +391,13 @@ onMounted(async () => {
 
 <style scoped>
 .commodities-page {
+    border: 1px solid #d9d7dc;
+    background: #fff;
     display: flex;
     height: 100%;
     min-height: 0;
     overflow: hidden;
     flex-direction: column;
-}
-
-.commodities-page > :deep(.v-row) {
-    flex: 0 0 auto;
 }
 
 .commodities-table {
