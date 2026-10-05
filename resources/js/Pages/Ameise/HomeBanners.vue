@@ -1,7 +1,7 @@
 <script setup>
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import HomeBannerStrip from '@/Components/Home/HomeBannerStrip.vue'
-import { bannerProductionBrief, moscowDateTimeInput, moscowDateTimePayload, moveMobileSlot, validMobileOrder } from './homeBannerAdmin'
+import { bannerProductionBrief, moscowDateTimeInput, moscowDateTimePayload, moveMobileSlot, normalizeBannerLink, validMobileOrder } from './homeBannerAdmin'
 import axios from 'axios'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useHead } from '@unhead/vue'
@@ -39,6 +39,7 @@ const slotFilter = ref(null)
 const previewDevice = ref('desktop')
 const formPreviewScroll = ref(null)
 const copiedBrief = ref(false)
+const activeColorField = ref(null)
 const slotNumbers = [1, 2, 3, 4, 5, 6]
 const activeFeed = reactive({ desktop: Array(6).fill(null), mobile: Array(6).fill(null) })
 const settings = reactive({
@@ -59,6 +60,14 @@ const colorFields = [
     { key: 'background_color', label: 'Фон', fallback: '#f5f2ed' },
     { key: 'text_color', label: 'Текст', fallback: '#292624' },
     { key: 'accent_color', label: 'Акцент', fallback: '#800000' },
+]
+const colorSwatches = [
+    ['#ffffff', '#f5f2ed', '#fff7df', '#9ca3af', '#292624'],
+    ['#fee2e2', '#fca5a5', '#ef4444', '#b91c1c', '#800000'],
+    ['#fef3c7', '#fde68a', '#f2aa00', '#d97706', '#92400e'],
+    ['#dcfce7', '#86efac', '#22c55e', '#15803d', '#14532d'],
+    ['#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#1e3a8a'],
+    ['#f3e8ff', '#d8b4fe', '#a855f7', '#7e22ce', '#581c87'],
 ]
 const positionOptions = [
     { title: 'Слева сверху', value: 'left top' }, { title: 'Сверху по центру', value: 'center top' }, { title: 'Справа сверху', value: 'right top' },
@@ -127,6 +136,10 @@ const headers = [
 ]
 
 const form = reactive(defaultForm())
+
+watch(dialogOpen, (open) => {
+    if (!open) activeColorField.value = null
+})
 
 watch([dialogOpen, previewDevice, () => form.slot_number, () => settings.mobile_layout, () => settings.mobile_order.join(',')], async () => {
     if (!dialogOpen.value) return
@@ -436,7 +449,22 @@ function closeDialog() {
     Object.assign(form, defaultForm())
 }
 
+function normalizeLink() {
+    form.cta_url = normalizeBannerLink(form.cta_url)
+}
+
+function setColorMenu(field, open) {
+    if (open) activeColorField.value = field
+    else if (activeColorField.value === field) activeColorField.value = null
+}
+
+function colorPickerValue(field) {
+    const color = form[field.key]
+    return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color || '') ? color : field.fallback
+}
+
 function payload() {
+    normalizeLink()
     return {
         ...form,
         good_id: form.good_id || null,
@@ -990,8 +1018,8 @@ useHead({
                                 <v-col cols="12" md="6" v-if="form.content_mode !== 'image'"><v-select v-model="form.vertical_align" :items="[{ title: 'Сверху', value: 'top' }, { title: 'По центру', value: 'center' }, { title: 'Снизу', value: 'bottom' }]" label="Текст по вертикали" variant="outlined" density="compact" :error-messages="fieldErrors.vertical_align" /></v-col>
                                 <v-col cols="12"><v-text-field v-model="form.alt_text" label="Альтернативный текст изображения" variant="outlined" density="compact" hint="Кратко опишите предложение для людей, использующих озвучивание страницы" :error-messages="fieldErrors.alt_text" /></v-col>
                                 <v-col cols="12">
-                                    <v-text-field v-model="form.cta_url" label="Ссылка при нажатии" variant="outlined" density="compact" hint="Если пусто, используется связанный товар / категория или каталог" persistent-hint :error-messages="fieldErrors.cta_url" />
-                                    <div class="admin-helper mb-4">Поиск в каталоге: <code>/g?search=облепиха</code>. Пробелы заменяйте на <code>%20</code>: <code>/g?search=масло%20облепихи</code>.</div>
+                                    <v-text-field v-model="form.cta_url" label="Ссылка при нажатии" variant="outlined" density="compact" hint="Введите текст для поиска или готовую ссылку. Пусто — связанный товар / категория или каталог." persistent-hint :error-messages="fieldErrors.cta_url" @blur="normalizeLink" />
+                                    <div class="admin-helper mb-4">Текст автоматически преобразуется при выходе из поля: <code>облепиха</code> → <code>/g?search=облепиха</code>. Пробелы и специальные символы кодируются автоматически.</div>
                                 </v-col>
                                 <v-col cols="12"><v-switch v-model="form.open_in_new_tab" label="Открывать ссылку в новой вкладке" color="green" hide-details :error-messages="fieldErrors.open_in_new_tab" /></v-col>
                             </v-row>
@@ -1189,7 +1217,22 @@ useHead({
                                                 <v-col v-for="field in colorFields" :key="field.key" cols="12" sm="4">
                                                     <v-text-field v-model="form[field.key]" :label="field.label" variant="outlined" density="compact" :error-messages="fieldErrors[field.key]">
                                                         <template #prepend-inner>
-                                                            <span class="banner-color-swatch" :style="{ '--color-preview': form[field.key] || field.fallback }" aria-hidden="true" />
+                                                            <v-menu :model-value="activeColorField === field.key" :close-on-content-click="false" location="bottom start" :offset="8" @update:model-value="setColorMenu(field.key, $event)">
+                                                                <template #activator="{ props: menuProps }">
+                                                                    <button v-bind="menuProps" type="button" class="banner-color-button" :aria-label="`Выбрать цвет: ${field.label}`" :title="`Выбрать цвет: ${field.label}`">
+                                                                        <span class="banner-color-swatch" :style="{ '--color-preview': form[field.key] || field.fallback }" aria-hidden="true" />
+                                                                        <v-icon icon="mdi-menu-down" size="12" aria-hidden="true" />
+                                                                    </button>
+                                                                </template>
+                                                                <v-card class="banner-color-palette" rounded="lg" role="group" :aria-label="`Палитра: ${field.label}`">
+                                                                    <v-card-title class="text-subtitle-2">{{ field.label }}</v-card-title>
+                                                                    <v-color-picker :model-value="colorPickerValue(field)" mode="hexa" :modes="['hexa']" width="100%" :canvas-height="130" :swatches="colorSwatches" :swatches-max-height="144" show-swatches hide-inputs elevation="0" @update:model-value="form[field.key] = $event" />
+                                                                    <v-card-actions>
+                                                                        <v-spacer />
+                                                                        <v-btn size="small" variant="text" @click="activeColorField = null">Готово</v-btn>
+                                                                    </v-card-actions>
+                                                                </v-card>
+                                                            </v-menu>
                                                         </template>
                                                     </v-text-field>
                                                 </v-col>
@@ -1287,6 +1330,41 @@ useHead({
 </template>
 
 <style scoped>
+.banner-color-button {
+    display: inline-flex;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 44px;
+    height: 32px;
+    margin-inline-end: 6px;
+    padding: 2px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.banner-color-button:focus-visible {
+    outline: 2px solid #800000;
+    outline-offset: 2px;
+}
+
+.banner-color-button .banner-color-swatch {
+    flex-basis: 24px;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+}
+
+.banner-color-palette {
+    width: min(292px, calc(100vw - 32px));
+}
+
+.banner-color-palette :deep(.v-color-picker-swatches__color) {
+    width: 36px;
+    margin: 2px 3px;
+}
+
 .banner-color-swatch {
     position: relative;
     display: inline-block;

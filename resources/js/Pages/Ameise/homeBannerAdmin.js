@@ -1,5 +1,15 @@
 const slots = [1, 2, 3, 4, 5, 6]
 
+export function normalizeBannerLink(value) {
+    const link = String(value ?? '').trim()
+    if (!link || link.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(link)) return link
+    const query = [...link].map(character => /^[\p{L}\p{N}]$/u.test(character)
+        ? character
+        : encodeURIComponent(character).replace(/[!'()*]/g, symbol => `%${symbol.charCodeAt(0).toString(16).toUpperCase()}`),
+    ).join('')
+    return `/g?search=${query}`
+}
+
 export function moscowDateTimeInput(value) {
     if (!value) return ''
     const date = new Date(value)
