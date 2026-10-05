@@ -815,15 +815,17 @@ function submitOrder() {
 
 @media (max-width: 720px) {
     .order-cart-strip {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .order-cart-strip__summary {
+        min-width: 0;
         flex-wrap: wrap;
         justify-content: space-between;
     }
 
     .order-cart-strip__actions {
+        min-width: 0;
         flex: 1 1 auto;
     }
 

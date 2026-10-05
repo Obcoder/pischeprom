@@ -1,10 +1,12 @@
-import { computed, ref, watch } from 'vue'
+import { computed, effectScope, onMounted, ref, watch } from 'vue'
 
 import { logo } from '@/Pages/Helpers/consts.js'
 
 const CART_KEY = 'pps-order-cart-v1'
 
 const items = ref([])
+// Persistence belongs to the shared cart, independent of the active layout.
+const storageScope = effectScope(true)
 let initialized = false
 
 function canUseStorage() {
@@ -51,8 +53,10 @@ function initializeCart() {
         })
     }
 
-    watch(items, writeCart, {
-        deep: true,
+    storageScope.run(() => {
+        watch(items, writeCart, {
+            deep: true,
+        })
     })
 }
 
@@ -197,7 +201,8 @@ function cartItemFromGood(good) {
 }
 
 export function useOrderCart() {
-    initializeCart()
+    // Match the server's empty cart during hydration, then restore browser data.
+    onMounted(initializeCart)
 
     const totalAmount = computed(() => items.value.reduce((sum, item) => {
         return sum + (Number(item.price_gross || 0) * normalizeQuantity(item.quantity))

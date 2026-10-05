@@ -13,15 +13,29 @@ const initialItems = [
     { good_id: 2, name: 'Сахар', quantity: 1, price_gross: 90, denominator: 1 },
 ]
 
-function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(initialItems)]])) {
+const stripImports = source => source.replace(/^import .+? from ['"].*['"];?$/gm, '')
+
+function cartModule(environment) {
+    const source = stripImports(readFileSync(new URL('resources/js/Composables/useOrderCart.js', projectRoot), 'utf8'))
+        .replace('export function useOrderCart', 'function useOrderCart')
+    return new Function('env', `with(env){${source};return useOrderCart}`)(environment)
+}
+
+function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(initialItems)]]), { mounted = true } = {}) {
     const visits = []
     const requests = []
+    const mountedCallbacks = []
+    const storageReads = []
     const environment = {
         ...Vue,
+        onMounted: callback => mountedCallbacks.push(callback),
         logo: '/logo.png',
         window: {
             localStorage: {
-                getItem: key => storage.get(key) ?? null,
+                getItem: key => {
+                    storageReads.push(key)
+                    return storage.get(key) ?? null
+                },
                 setItem: (key, value) => storage.set(key, value),
             },
             addEventListener: () => {},
@@ -40,10 +54,7 @@ function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(in
         DeliveryApartmentFields: { name: 'DeliveryApartmentFields' },
     }
 
-    const stripImports = source => source.replace(/^import .+? from ['"].*['"];?$/gm, '')
-    const cartSource = stripImports(readFileSync(new URL('resources/js/Composables/useOrderCart.js', projectRoot), 'utf8'))
-        .replace('export function useOrderCart', 'function useOrderCart')
-    environment.useOrderCart = new Function('env', `with(env){${cartSource};return useOrderCart}`)(environment)
+    environment.useOrderCart = cartModule(environment)
 
     const filename = fileURLToPath(new URL('resources/js/Components/Orders/OrderCartStrip.vue', projectRoot))
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename })
@@ -60,9 +71,12 @@ function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(in
     const component = new Function('env', `with(env){${script}}`)(environment)
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup({}, { expose: () => {} }))
+    const mount = () => scope.run(() => mountedCallbacks.splice(0).forEach(callback => callback()))
+    if (mounted) mount()
 
     return {
-        api, storage, visits, requests,
+        api, storage, visits, requests, storageReads, mount,
+        sharedCart: () => scope.run(environment.useOrderCart),
         render: templateRenderer(template, api),
         dispose: () => scope.stop(),
     }
@@ -71,6 +85,91 @@ function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(in
 function clearButton(harness) {
     return findVNode(harness.render(), node => node.type === 'button' && hasClass(node, 'order-cart-strip__clear'))
 }
+
+test('the first render stays empty for hydration and shared consumers restore storage after mounting', async t => {
+    const harness = cartHarness(null, undefined, { mounted: false })
+    t.after(harness.dispose)
+    const shared = harness.sharedCart()
+    const firstRender = harness.render()
+
+    assert.deepEqual(harness.storageReads, [])
+    assert.deepEqual(harness.api.items.value, [])
+    assert.equal(shared.itemsCount.value, 0)
+    assert.ok(findVNode(firstRender, node => hasClass(node, 'order-cart-strip--empty')))
+    assert.ok(findVNode(firstRender, node => hasClass(node, 'order-cart-strip__placeholder')))
+    assert.equal(clearButton(harness), null)
+    assert.equal(JSON.parse(harness.storage.get(cartKey)).length, 2)
+
+    harness.mount()
+    await Vue.nextTick()
+
+    assert.deepEqual(harness.storageReads, [cartKey])
+    assert.equal(harness.api.items.value, shared.items.value)
+    assert.equal(harness.api.items.value.length, 2)
+    assert.equal(shared.itemsCount.value, 3)
+    assert.ok(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip__rail')))
+    assert.equal(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip__placeholder')), null)
+    assert.equal(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip--empty')), null)
+    assert.ok(clearButton(harness))
+
+    clearButton(harness).props.onClick()
+    await Vue.nextTick()
+    assert.equal(shared.itemsCount.value, 0)
+    assert.equal(harness.storage.get(cartKey), '[]')
+})
+
+test('cart persistence survives unmounting the first consumer and changing layouts', async t => {
+    const storage = new Map([[cartKey, JSON.stringify(initialItems)]])
+    const useOrderCart = cartModule({
+        ...Vue,
+        logo: '/logo.png',
+        window: {
+            localStorage: {
+                getItem: key => storage.get(key) ?? null,
+                setItem: (key, value) => storage.set(key, value),
+            },
+            addEventListener: () => {},
+        },
+    })
+    // Use real component mount/unmount hooks and watcher scopes; the host tree
+    // needs only a static element to exercise the shared composable lifecycle.
+    const renderer = Vue.createRenderer({
+        createElement: type => ({ type, children: [] }),
+        createText: text => ({ text }),
+        createComment: text => ({ text }),
+        insert: (node, parent) => { node.parent = parent; parent.children.push(node) },
+        remove: node => node.parent.children.splice(node.parent.children.indexOf(node), 1),
+        setText: (node, text) => { node.text = text },
+        setElementText: (node, text) => { node.text = text },
+        parentNode: node => node.parent,
+        nextSibling: () => null,
+        patchProp: () => {},
+    })
+    function mountConsumer() {
+        let cart
+        const app = renderer.createApp({
+            setup() {
+                cart = useOrderCart()
+                return () => Vue.h('div')
+            },
+        })
+        app.mount({ children: [] })
+        return { app, cart }
+    }
+
+    const first = mountConsumer()
+    await Vue.nextTick()
+    assert.equal(first.cart.items.value.length, 2)
+    first.app.unmount()
+
+    const next = mountConsumer()
+    t.after(() => next.app.unmount())
+    assert.equal(next.cart.items.value, first.cart.items.value)
+    next.cart.clearCart()
+    await Vue.nextTick()
+    assert.deepEqual(next.cart.items.value, [])
+    assert.equal(storage.get(cartKey), '[]')
+})
 
 for (const [actor, user] of [['guest', null], ['customer', { id: 7 }]]) {
     test(`${actor} can clear every product and the cart remains empty after reloading`, async t => {
