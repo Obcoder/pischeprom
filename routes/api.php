@@ -67,6 +67,7 @@ use App\Http\Controllers\API\GoodSeoAiController;
 use App\Http\Controllers\API\GoodSeoController;
 use App\Http\Controllers\API\GoodStockAlertAdminController;
 use App\Http\Controllers\API\GoodStockMovementController;
+use App\Http\Controllers\API\GoodTradeCodesAiController;
 use App\Http\Controllers\API\GoodVatAiController;
 use App\Http\Controllers\API\HomeBannerAssetController;
 use App\Http\Controllers\API\HomeBannerController;
@@ -561,6 +562,11 @@ Route::get('goods/vat-check/availability', [GoodVatAiController::class, 'availab
     ->middleware(['auth:sanctum', 'verified'])->name('api.goods.vat-check.availability');
 Route::post('goods/vat-check', [GoodVatAiController::class, 'check'])
     ->middleware(['auth:sanctum', 'verified', 'throttle:6,1,goods-vat-ai'])->name('api.goods.vat-check');
+
+Route::get('goods/trade-codes/availability', [GoodTradeCodesAiController::class, 'availability'])
+    ->middleware(['auth:sanctum', 'verified'])->name('api.goods.trade-codes.availability');
+Route::post('goods/trade-codes/recommend', [GoodTradeCodesAiController::class, 'recommend'])
+    ->middleware(['auth:sanctum', 'verified', 'throttle:6,1,goods-trade-codes-ai'])->name('api.goods.trade-codes.recommend');
 
 Route::apiResource('goods', GoodController::class)->except(['show']);
 

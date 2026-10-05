@@ -1,12 +1,15 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { goodTradeCodeFields } from '@/utils/goodTradeCodes.js'
+import { goodTradeCodeFields, goodTradeCodeValues } from '@/utils/goodTradeCodes.js'
+import GoodTradeCodesRecommend from '@/Components/Goods/GoodTradeCodesRecommend.vue'
 
 const props = defineProps({
     modelValue: { type: Object, default: () => ({}) },
     errors: { type: Object, default: () => ({}) },
     disabled: { type: Boolean, default: false },
     readonly: { type: Boolean, default: false },
+    context: { type: Object, default: null },
+    active: { type: Boolean, default: true },
 })
 const emit = defineEmits(['update:modelValue'])
 const expanded = ref(false)
@@ -14,6 +17,10 @@ const primaryFields = goodTradeCodeFields.filter(field => field.primary)
 const otherFields = goodTradeCodeFields.filter(field => !field.primary)
 const populatedFields = computed(() => goodTradeCodeFields.filter(field => props.modelValue[field.key]))
 const otherCount = computed(() => otherFields.filter(field => props.modelValue[field.key]).length)
+const recommendationDraft = computed(() => ({
+    ...(props.context || props.modelValue),
+    ...goodTradeCodeValues(props.modelValue),
+}))
 
 watch(() => props.errors, errors => {
     if (otherFields.some(field => errors[field.key]?.length)) expanded.value = true
@@ -21,6 +28,15 @@ watch(() => props.errors, errors => {
 
 function updateField(key, value) {
     emit('update:modelValue', { ...props.modelValue, [key]: value?.trim() || null })
+}
+
+function applyRecommendations(patch) {
+    if (props.disabled || props.readonly || !props.active) return
+    const values = Object.fromEntries(goodTradeCodeFields.filter(field => Object.hasOwn(patch, field.key))
+        .map(field => [field.key, patch[field.key]]))
+    if (!Object.keys(values).length) return
+    if (otherFields.some(field => Object.hasOwn(values, field.key))) expanded.value = true
+    emit('update:modelValue', { ...props.modelValue, ...values })
 }
 </script>
 
@@ -37,6 +53,12 @@ function updateField(key, value) {
             <span class="text-subtitle-2">Торговые коды</span>
             <span class="text-caption text-medium-emphasis">· необязательные</span>
         </div>
+        <GoodTradeCodesRecommend
+            :draft="recommendationDraft"
+            :disabled="disabled"
+            :active="active"
+            @apply="applyRecommendations"
+        />
         <v-row dense>
             <v-col v-for="field in primaryFields" :key="field.key" cols="12" sm="4">
                 <v-text-field

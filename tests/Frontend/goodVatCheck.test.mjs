@@ -204,10 +204,10 @@ test('current errors preserve manual data and the check can be retried', async t
 })
 
 test('trade code fields preserve leading zeroes, unrelated fields and explicit nullable values', () => {
-    const props = Vue.reactive({ modelValue: { name: 'Товар', hs_code: '030111' }, errors: {}, disabled: false, readonly: false })
+    const props = Vue.reactive({ modelValue: { name: 'Товар', hs_code: '030111' }, errors: {}, disabled: false, readonly: false, context: null, active: true })
     const emitted = []
     const scope = Vue.effectScope()
-    const component = componentSource('resources/js/Components/Goods/GoodTradeCodeFields.vue', { ...Vue, ...tradeCodes })
+    const component = componentSource('resources/js/Components/Goods/GoodTradeCodeFields.vue', { ...Vue, ...tradeCodes, GoodTradeCodesRecommend: {} })
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...event) => emitted.push(event) }))
     api.updateField('tn_ved_code', ' 0301110000 ')
     assert.deepEqual(emitted[0], ['update:modelValue', { name: 'Товар', hs_code: '030111', tn_ved_code: '0301110000' }])

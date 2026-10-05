@@ -704,7 +704,7 @@ onBeforeUnmount(() => {
                         </v-col>
 
                         <v-col cols="12">
-                            <GoodTradeCodeFields :model-value="form" :errors="form.errors" :disabled="saving"
+                            <GoodTradeCodeFields :model-value="form" :errors="form.errors" :disabled="saving" :active="dialogForm"
                                 @update:model-value="Object.assign(form, $event)" />
                         </v-col>
                         <v-col cols="12" md="4">

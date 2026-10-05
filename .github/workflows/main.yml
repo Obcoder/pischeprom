@@ -354,13 +354,19 @@ jobs:
             tests/Unit/LegacyWordTextReaderTest.php \
             tests/Unit/WordAttachmentPreviewerTest.php
 
-      - name: Check goods SEO AI and deployment PHP style
+      - name: Check goods catalog AI and deployment PHP style
         run: |
           vendor/bin/pint --test \
             app/Http/Controllers/API/GoodSeoAiController.php \
             app/Http/Requests/GenerateGoodSeoAiRequest.php \
             app/Services/Seo/GoodSeoAiException.php \
             app/Services/Seo/GoodSeoAiService.php \
+            app/Http/Controllers/API/GoodTradeCodesAiController.php \
+            app/Http/Requests/RecommendGoodTradeCodesRequest.php \
+            app/Services/Goods/GoodTradeCodesAiException.php \
+            app/Services/Goods/GoodTradeCodesAiService.php \
+            config/goods-trade-codes-ai.php \
+            tests/Feature/GoodTradeCodesAiTest.php \
             config/goods-seo-ai.php \
             scripts/update-production-goods-seo-ai-env.php \
             scripts/check-production-goods-seo-ai.php \
@@ -518,6 +524,7 @@ jobs:
             tests/Feature/GoodSearchTest.php \
             tests/Feature/GoodCatalogManagementTest.php \
             tests/Feature/GoodsVatAiCheckTest.php \
+            tests/Feature/GoodTradeCodesAiTest.php \
             tests/Feature/GoodMediaMultipleUploadTest.php \
             tests/Feature/HomeBannerFeedTest.php \
             tests/Feature/AmeiseCommercePageTest.php \

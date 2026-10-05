@@ -1056,6 +1056,8 @@ onMounted(() => {
                             <v-col cols="12" class="mb-2">
                                 <GoodTradeCodeFields
                                     :model-value="goodForm"
+                                    :context="vatCheckDraft"
+                                    :active="editGoodDialog"
                                     :errors="goodFormErrors"
                                     :disabled="savingGood"
                                     @update:model-value="Object.assign(goodForm, $event)"
