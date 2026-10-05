@@ -28,18 +28,18 @@ function onIntersect(isIntersecting) {
             v-if="visible && src && !failed"
             :src="src"
             alt=""
-            width="32"
-            height="32"
+            width="40"
+            height="40"
             loading="lazy"
             decoding="async"
             @error="failed = true"
         >
-        <v-icon v-else icon="mdi-package-variant-closed" size="18" aria-hidden="true" />
+        <v-icon v-else icon="mdi-package-variant-closed" size="20" aria-hidden="true" />
     </button>
 </template>
 
 <style scoped>
-.good-table-avatar { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; overflow: hidden; border: 1px solid #e4e1e7; background: #f5f5f6; color: #8a818f; }
+.good-table-avatar { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; overflow: hidden; border: 1px solid #e4e1e7; background: #f5f5f6; color: #8a818f; }
 .good-table-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .good-table-avatar:hover { border-color: #352345; }
 </style>

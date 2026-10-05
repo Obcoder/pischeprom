@@ -104,7 +104,7 @@ const form = useForm({
 
 const headers = [
     { key: 'group_category', title: 'Category', sortable: false, width: '150px' },
-    { key: 'ava_image', title: '', sortable: false, width: '48px' },
+    { key: 'ava_image', title: '', sortable: false, width: '56px' },
     { key: 'name', title: 'Good', sortable: true },
     { key: 'country', title: 'Страна', sortable: false, width: '132px' },
     { key: 'fields', title: 'Fields', sortable: false, width: '190px' },
@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
         <CatalogToolbar :count="totalItems">
             <v-text-field
                 v-model="search"
-                label="Поиск товаров"
+                label="Название или категория"
                 prepend-inner-icon="mdi-magnify"
                 variant="outlined"
                 density="compact"
@@ -825,7 +825,7 @@ onBeforeUnmount(() => {
 }
 
 .goods-table :deep(tbody td) {
-    height: 40px !important;
+    height: 48px !important;
     padding: 3px 8px !important;
 }
 

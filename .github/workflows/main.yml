@@ -515,6 +515,7 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/GoodAvatarPerformanceTest.php \
+            tests/Feature/GoodSearchTest.php \
             tests/Feature/GoodMediaMultipleUploadTest.php \
             tests/Feature/HomeBannerFeedTest.php \
             tests/Feature/AmeiseCommercePageTest.php \

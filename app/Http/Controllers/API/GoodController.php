@@ -58,11 +58,17 @@ class GoodController extends Controller
         ]);
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('slug', 'like', "%{$search}%")
-                    ->orWhere('denominator', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
+            $like = '%'.strtr(mb_strtolower($search, 'UTF-8'), [
+                '!' => '!!',
+                '%' => '!%',
+                '_' => '!_',
+            ]).'%';
+
+            $query->where(function ($q) use ($like) {
+                $q->whereRaw("LOWER(goods.name) LIKE ? ESCAPE '!'", [$like])
+                    ->orWhereHas('products.category', function ($categoryQuery) use ($like) {
+                        $categoryQuery->whereRaw("LOWER(categories.name) LIKE ? ESCAPE '!'", [$like]);
+                    });
             });
         }
 
