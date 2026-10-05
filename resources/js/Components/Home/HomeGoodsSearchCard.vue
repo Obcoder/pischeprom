@@ -349,7 +349,6 @@ function clickHomePhone() {
 
 <style scoped>
 .goods-search-card {
-    container-type: inline-size;
     overflow: hidden;
     background: #ffffff;
 }
@@ -466,7 +465,7 @@ function clickHomePhone() {
     font-weight: 800;
 }
 
-@container (max-width: 400px) {
+@media (max-width: 600px) {
     .goods-search-card__actions {
         flex-direction: column;
     }
