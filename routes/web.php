@@ -465,6 +465,10 @@ Route::get('/Ameise/units/', function () {
     return Inertia::render('Ameise/Units');
 })->name('Ameise.units');
 
+Route::post('/web/units/company-search', \App\Http\Controllers\Web\UnitCompanySearchController::class)
+    ->middleware('throttle:10,1')
+    ->name('web.units.company-search');
+
 Route::get('/Ameise/entities/', function () {
     return Inertia::render('Ameise/Entities');
 })->name('Ameise.entities');

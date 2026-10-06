@@ -5,6 +5,7 @@ import { route } from 'ziggy-js'
 import { Link } from '@inertiajs/vue3'
 import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
 import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import UnitCompanySearchDialog from '@/Components/Unit/UnitCompanySearchDialog.vue'
 import { selectedBuildingApartments } from '@/utils/buildingApartments'
 
 const units = ref([])
@@ -24,6 +25,7 @@ const selectedCityIDs = ref([])
 const selectedIndustryIDs = ref([])
 const showFormUnit = ref(false)
 const showFilters = ref(false)
+const showCompanySearch = ref(false)
 const unitSaving = ref(false)
 const unitError = ref('')
 
@@ -257,6 +259,15 @@ watch(searchUnits, () => indexUnits())
             />
 
             <v-btn
+                text="Компании по ОКВЭД"
+                prepend-icon="mdi-domain-search"
+                variant="tonal"
+                density="comfortable"
+                color="teal"
+                @click="showCompanySearch = true"
+            />
+
+            <v-btn
                 variant="tonal"
                 density="comfortable"
                 color="teal-darken-3"
@@ -359,6 +370,8 @@ watch(searchUnits, () => indexUnits())
                 </div>
             </template>
         </v-data-table>
+
+        <UnitCompanySearchDialog v-model="showCompanySearch" :industries="industries" />
 
         <v-dialog v-model="showFilters" width="760">
             <v-card>
