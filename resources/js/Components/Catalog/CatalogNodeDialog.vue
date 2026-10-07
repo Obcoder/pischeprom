@@ -64,9 +64,22 @@ const isGood = computed(() => form.entity_type === 'good')
 const busy = computed(() => saving.value || seoState.value.busy || operationsState.value.busy)
 const mainTab = computed(() => !isGood.value || activeTab.value === 'overview')
 const operationsTab = computed(() => isGood.value && !['overview', 'seo'].includes(activeTab.value))
-const seoGood = computed(() => ({ ...goodOverview.value, id: record.value?.entity_id, name: form.name, slug: form.slug,
+const seoGood = computed(() => ({
+    ...goodOverview.value, ...goodTradeCodeValues(goodForm),
+    id: record.value?.entity_id, name: form.name, slug: form.slug,
     description: form.description, is_published: form.is_published, ava_image: form.image,
-    ava_thumb: goodOverview.value?.ava_thumb || form.image }))
+    ava_thumb: goodOverview.value?.ava_thumb || form.image,
+    denominator: goodForm.denominator ?? null,
+    country_id: goodForm.country_id ?? null,
+    country: (goodOptions.value.countries || []).find(country => String(country.id) === String(goodForm.country_id)) || null,
+    vat_rate_id: goodForm.vat_rate_id ?? null,
+    vat_rate: (goodOptions.value.vat_rates || []).find(rate => String(rate.id) === String(goodForm.vat_rate_id)) || null,
+    products: (goodOptions.value.products || []).filter(product => (goodForm.products || []).some(id => String(id) === String(product.id))),
+    level_name: currentLevel.value?.name || null,
+    seo_properties: (currentLevel.value?.fields || [])
+        .filter(field => field.is_public && ['string', 'number', 'boolean'].includes(typeof form.properties?.[field.key]) && form.properties[field.key] !== '')
+        .map(field => ({ name: field.label || field.key, value: form.properties[field.key] })),
+}))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value || Boolean(selectedFile.value)
     || (isGood.value && (JSON.stringify(goodForm) !== goodBaseline.value || seoState.value.dirty || operationsState.value.dirty)))
 const canSave = computed(() => !busy.value && (!isGood.value || goodReady.value))
@@ -446,7 +459,7 @@ async function remove() {
 </script>
 
 <template>
-    <v-dialog :model-value="open" :max-width="isGood ? 1640 : 1380" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
+    <v-dialog :model-value="open" :max-width="isGood ? 1640 : 1380" :content-class="isGood ? 'catalog-node-dialog-overlay--good' : undefined" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
         <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood }">
             <v-card-title class="catalog-node-dialog__heading">
                 <div class="catalog-node-dialog__title"><span>{{ isGood ? 'Карточка товара' : record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
@@ -545,12 +558,15 @@ async function remove() {
 
 <style scoped>
 .catalog-node-dialog { border-radius: 14px !important; }
+:global(.v-dialog > .v-overlay__content.catalog-node-dialog-overlay--good) { height: calc(100vh - 24px); height: calc(100dvh - 24px); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); margin-block: 12px; }
+:global(.v-dialog > .v-overlay__content.catalog-node-dialog-overlay--good > .catalog-node-dialog--good) { height: 100%; min-height: 0; overflow: hidden; }
+.catalog-node-dialog--good > :not(.catalog-node-dialog__body) { flex: 0 0 auto; }
 .catalog-node-dialog__heading { display: flex; align-items: center; gap: 16px; padding: 18px 24px; white-space: normal; }
 .catalog-node-dialog__title { flex: 1; min-width: 0; }
 .catalog-node-dialog__title > span { font-size: 11px; font-weight: 500; color: #8c8294; }
 .catalog-node-dialog__title h2 { font-size: 19px; line-height: 1.5; }
 .catalog-node-dialog__body { padding: 24px !important; background: #fdfcfe; }
-.catalog-node-dialog--good .catalog-node-dialog__body { padding: 18px 22px !important; }
+.catalog-node-dialog--good .catalog-node-dialog__body { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 18px 22px !important; }
 .catalog-node-dialog--good .catalog-node-dialog__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .catalog-node-dialog--good h3 { margin-bottom: 14px; }
 .catalog-node-dialog--good .catalog-node-dialog__avatar { margin-bottom: 12px; }
@@ -580,6 +596,7 @@ async function remove() {
 .catalog-node-dialog__actions { padding: 12px 24px; }
 @media (max-width: 1050px) { .catalog-node-dialog__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } .catalog-node-dialog__seo { grid-column: 1 / -1; } .catalog-node-dialog__property-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
+    :global(.v-dialog > .v-overlay__content.catalog-node-dialog-overlay--good) { height: calc(100vh - 16px); height: calc(100dvh - 16px); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); margin-block: 8px; }
     .catalog-node-dialog__columns, .catalog-node-dialog--good .catalog-node-dialog__columns, .catalog-node-dialog__property-grid { grid-template-columns: 1fr; }
     .catalog-node-dialog__body { padding: 18px !important; }
     .catalog-node-dialog__heading { padding: 14px 18px; }

@@ -11,6 +11,7 @@ use App\Services\Seo\IndexNowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class GoodSeoController extends Controller
 {
@@ -74,7 +75,12 @@ class GoodSeoController extends Controller
             'short_seo_text' => ['nullable', 'string'],
             'seo_text' => ['nullable', 'string'],
 
-            'semantic_core' => ['nullable', 'array'],
+            'semantic_core' => ['nullable', 'array', 'max:2000'],
+            'semantic_core.*' => ['required', 'string', 'max:1000'],
+            'semantic_core_rows' => ['sometimes', 'array', 'list', 'max:2000'],
+            'semantic_core_rows.*' => ['required', 'array:group,phrase'],
+            'semantic_core_rows.*.group' => ['nullable', 'string', 'max:255'],
+            'semantic_core_rows.*.phrase' => ['required', 'string', 'max:1000'],
             'keywords' => ['nullable', 'array'],
             'search_queries' => ['nullable', 'array'],
             'structured_data' => ['nullable', 'array'],
@@ -98,6 +104,8 @@ class GoodSeoController extends Controller
             'faq' => ['nullable', 'array'],
         ]);
 
+        $validated = $this->synchronizeSemanticCore($validated, $existing?->semantic_core_rows ?? []);
+
         $seo = $good->seo()->updateOrCreate(
             ['good_id' => $good->id],
             [
@@ -117,6 +125,38 @@ class GoodSeoController extends Controller
         }
 
         return response()->json($seo->fresh());
+    }
+
+    private function synchronizeSemanticCore(array $attributes, array $existingRows): array
+    {
+        if (array_key_exists('semantic_core_rows', $attributes)) {
+            $rows = collect($attributes['semantic_core_rows'])->map(fn (array $row): array => [
+                'group' => trim($row['group'] ?? ''),
+                'phrase' => trim($row['phrase']),
+            ])->uniqueStrict(fn (array $row): string => json_encode([mb_strtolower($row['group']), mb_strtolower($row['phrase'])]))->values()->all();
+            $attributes['semantic_core_rows'] = $rows;
+            $attributes['semantic_core'] = collect($rows)->pluck('phrase')->uniqueStrict(fn (string $phrase): string => mb_strtolower($phrase))->values()->all();
+        } elseif (array_key_exists('semantic_core', $attributes)) {
+            $phrases = collect($attributes['semantic_core'] ?? [])->map(fn (string $phrase): string => trim($phrase))
+                ->uniqueStrict(fn (string $phrase): string => mb_strtolower($phrase))->values();
+            $rows = $phrases->flatMap(function (string $phrase) use ($existingRows): array {
+                $retained = collect($existingRows)->filter(fn (array $row): bool => mb_strtolower($row['phrase']) === mb_strtolower($phrase))
+                    ->map(fn (array $row): array => ['group' => $row['group'], 'phrase' => $phrase])->values()->all();
+
+                return $retained ?: [['group' => '', 'phrase' => $phrase]];
+            })->values()->all();
+
+            if (count($rows) > 2000) {
+                throw ValidationException::withMessages(['semantic_core' => 'Сохранённые группы и новые фразы превышают ограничение в 2000 строк.']);
+            }
+
+            $attributes['semantic_core_rows'] = $rows;
+            if ($attributes['semantic_core'] !== null) {
+                $attributes['semantic_core'] = $phrases->all();
+            }
+        }
+
+        return $attributes;
     }
 
     public function generateStructuredData(

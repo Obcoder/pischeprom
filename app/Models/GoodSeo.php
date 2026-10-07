@@ -29,6 +29,7 @@ class GoodSeo extends Model
         'seo_text',
 
         'semantic_core',
+        'semantic_core_rows',
         'keywords',
         'search_queries',
         'structured_data',
@@ -57,6 +58,7 @@ class GoodSeo extends Model
 
     protected $casts = [
         'semantic_core' => 'array',
+        'semantic_core_rows' => 'array',
         'keywords' => 'array',
         'search_queries' => 'array',
         'structured_data' => 'array',

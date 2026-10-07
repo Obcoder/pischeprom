@@ -4,6 +4,8 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { safeGalleryUrl } from '../../resources/js/Components/Catalog/gallery.js'
+import { normalizeSemanticCoreRows, parseSemanticCoreTable, semanticCorePhrases } from '../../resources/js/Components/Catalog/semanticCore.js'
+import { buildGoodSeoPrompt } from '../../resources/js/Components/Catalog/seoPrompt.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 const seo = (changes = {}) => ({
@@ -28,7 +30,7 @@ function harness(t, overrides = {}) {
     assert.deepEqual(template.errors, [])
     const requests = [], emitted = [], exposed = {}
     const environment = {
-        ...Vue, safeGalleryUrl,
+        ...Vue, safeGalleryUrl, normalizeSemanticCoreRows, parseSemanticCoreTable, semanticCorePhrases, buildGoodSeoPrompt,
         usePublicGoodUrl: () => ({ goodPublicUrl: good => `https://example.test/g/${good.slug || good.id}` }),
         axios: Object.fromEntries(['get', 'put', 'post'].map(method => [method, (url, body, options) => {
             let resolve, reject
@@ -56,8 +58,174 @@ function updateInput(h, id, value) {
     const input = findVNode(h.render(), node => node.props?.id === id)
     assert.ok(input, `Input ${id} exists on the thematic page`)
     const handlers = input.props['onUpdate:modelValue']
+    if (!handlers && input.props.onInput) return input.props.onInput({ target: { value } })
     for (const handler of Array.isArray(handlers) ? handlers : [handlers]) handler(value)
 }
+function mockClipboard(t, clipboard) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { clipboard } })
+    t.after(() => previous ? Object.defineProperty(globalThis, 'navigator', previous) : delete globalThis.navigator)
+}
+
+test('ChatGPT assignment copies current facts and drafts, announcing success only after clipboard resolves', async t => {
+    let resolveCopy, copied
+    mockClipboard(t, { writeText: value => { copied = value; return new Promise(resolve => { resolveCopy = resolve }) } })
+    const h = harness(t)
+    await h.ready()
+    h.props.good.name = 'Несохранённая форель'
+    h.api.form.h1 = 'Новый заголовок'
+    h.api.form.semantic_core_rows = [{ group: 'Поставка', phrase: 'форель ресторанам' }]
+    const count = h.requests.length
+    const copy = h.api.copyChatGptPrompt()
+    assert.equal(h.api.copyingPrompt.value, true)
+    assert.equal(h.api.clipboardMessage.value, '')
+    assert.match(copied, /Несохранённая форель/)
+    assert.match(copied, /Новый заголовок/)
+    assert.match(copied, /форель ресторанам/)
+    resolveCopy()
+    assert.equal(await copy, true)
+    assert.match(h.api.clipboardMessage.value, /скопировано/)
+    assert.equal(h.api.clipboardDialog.value, false)
+    assert.equal(h.requests.length, count, 'Copying creates no AI, advertising or save request')
+})
+
+test('blocked clipboard offers selectable plain text and late rejection cannot reopen an inactive tab', async t => {
+    let rejectCopy
+    mockClipboard(t, { writeText: () => new Promise((resolve, reject) => { rejectCopy = reject }) })
+    const h = harness(t)
+    await h.ready()
+    let focused = 0, selected = 0
+    h.api.promptTextarea.value = { focus: () => focused++, select: () => selected++ }
+    const copy = h.api.copyChatGptPrompt()
+    rejectCopy(new Error('Denied'))
+    assert.equal(await copy, false)
+    assert.equal(h.api.clipboardDialog.value, true)
+    assert.equal(h.api.clipboardMessage.value, '')
+    assert.ok(focused > 0 && selected > 0)
+    const textarea = findVNode(h.render(), node => node.type === 'textarea' && node.props?.readonly !== undefined)
+    assert.equal(textarea.props.value, h.api.clipboardText.value)
+    assert.equal(textarea.props.innerHTML, undefined)
+    h.api.clipboardDialog.value = false
+    const stale = h.api.copyChatGptPrompt()
+    h.props.active = false
+    rejectCopy(new Error('Denied late'))
+    assert.equal(await stale, false)
+    assert.equal(h.api.clipboardDialog.value, false)
+    assert.equal(h.api.copyingPrompt.value, false)
+})
+
+test('canonical preserves a loaded custom address, follows explicit slug edits and automatic base addresses', async t => {
+    const h = harness(t)
+    await h.ready(seo({ canonical_url: 'https://example.test/custom' }))
+    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
+    assert.equal(h.api.dirty.value, false)
+    h.props.good.slug = 'base-change'
+    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
+    updateInput(h, 'catalog-seo-slug', 'new-seo-slug')
+    assert.equal(h.api.form.canonical_url, 'https://example.test/g/new-seo-slug')
+    updateInput(h, 'catalog-seo-slug', '')
+    assert.equal(h.api.form.canonical_url, 'https://example.test/g/base-change')
+    h.props.good.slug = 'latest-base'
+    assert.equal(h.api.form.canonical_url, 'https://example.test/g/latest-base')
+    updateInput(h, 'catalog-seo-canonical', 'https://example.test/manual')
+    h.props.good.slug = 'last-base'
+    assert.equal(h.api.form.canonical_url, 'https://example.test/manual')
+    h.api.useAutomaticCanonical()
+    assert.equal(h.api.form.canonical_url, 'https://example.test/g/last-base')
+    h.exposed.reset()
+    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
+    assert.equal(h.api.dirty.value, false)
+    const blank = harness(t)
+    await blank.ready(seo({ canonical_url: '', slug_override: '' }))
+    assert.equal(blank.api.form.canonical_url, 'https://example.test/g/trout')
+    assert.equal(blank.api.dirty.value, false)
+    blank.props.good.slug = 'updated'
+    assert.equal(blank.api.form.canonical_url, 'https://example.test/g/updated')
+})
+
+test('grouped rows remain distinct by group while legacy and AI fields contain unique phrases only', async t => {
+    const h = harness(t)
+    await h.ready(seo({ semantic_core_rows: null }))
+    assert.deepEqual(h.api.form.semantic_core_rows, [{ group: '', phrase: 'форель оптом' }, { group: '', phrase: 'филе' }])
+    h.api.form.semantic_core_rows = [{ group: 'Опт', phrase: 'форель оптом' }, { group: 'Ресторанам', phrase: 'ФОРЕЛЬ ОПТОМ' }, { group: 'Опт', phrase: 'форель оптом' }]
+    const payload = h.api.payload()
+    assert.equal(payload.semantic_core_rows.length, 2)
+    assert.deepEqual(payload.semantic_core, ['форель оптом'])
+    assert.deepEqual(h.api.aiContext().semantic_core, ['форель оптом'])
+    const save = h.exposed.save()
+    h.requests.at(-1).resolve({ ...seo(), ...payload })
+    assert.equal(await save, true)
+    assert.deepEqual(h.api.form.semantic_core_rows, payload.semantic_core_rows)
+    h.api.addSemanticRow()
+    assert.equal(h.exposed.validate(), false)
+    assert.match(h.api.error.value, /строка 3/)
+    h.api.form.semantic_core_rows[2].phrase = 'x'.repeat(1001)
+    assert.equal(h.exposed.validate(), false)
+    h.api.removeSemanticRow(2)
+    assert.equal(h.exposed.validate(), true)
+    h.exposed.reset()
+    assert.deepEqual(h.api.form.semantic_core_rows, payload.semantic_core_rows)
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('unapplied table paste is guarded as a draft; preview, append, replace and reset retain independent tabs', async t => {
+    const h = harness(t)
+    await h.ready(seo({ semantic_core_rows: [{ group: 'Опт', phrase: 'форель оптом' }] }))
+    const original = JSON.parse(JSON.stringify(h.api.form.semantic_core_rows))
+    updateInput(h, 'catalog-seo-core-import', '| Группа | Поисковая фраза |\n|---|---|\n| Опт | форель оптом |\n| HoReCa | филе ресторанам |')
+    assert.equal(h.api.importPreview.value.rows.length, 2)
+    assert.deepEqual(h.api.form.semantic_core_rows, original, 'Preview does not mutate saved or draft rows')
+    assert.equal(h.api.dirty.value, true)
+    assert.equal(h.exposed.validate(), false)
+    assert.match(h.api.error.value, /Примените или очистите/)
+    const count = h.requests.length
+    assert.equal(await h.exposed.save(), false)
+    assert.equal(h.requests.length, count)
+    h.props.active = false
+    assert.equal(h.api.dirty.value, true)
+    assert.match(h.api.importText.value, /HoReCa/)
+    h.props.active = true
+    assert.equal(h.api.applySemanticImport(), true)
+    assert.equal(h.api.form.semantic_core_rows.length, 2)
+    assert.equal(h.api.importText.value, '')
+    updateInput(h, 'catalog-seo-keywords_text', 'Новый keyword')
+    updateInput(h, 'catalog-seo-faq', 'Новый вопрос | Ответ')
+    for (const tab of ['core', 'keywords', 'queries', 'faq']) {
+        const button = findVNode(h.render(), node => node.props?.id === `catalog-seo-tab-${tab}`)
+        button.props.onClick()
+        assert.equal(h.api.semanticTab.value, tab)
+        assert.ok(findVNode(h.render(), node => node.props?.id === 'catalog-seo-core-import'), 'Inner tabs remain mounted')
+    }
+    assert.equal(h.api.form.keywords_text, 'Новый keyword')
+    assert.equal(h.api.form.faq_text, 'Новый вопрос | Ответ')
+    h.api.importText.value = 'Новая группа\tНовая фраза'
+    h.api.importMode.value = 'replace'
+    assert.equal(h.api.applySemanticImport(), true)
+    assert.deepEqual(h.api.form.semantic_core_rows, [{ group: 'Новая группа', phrase: 'Новая фраза' }])
+    h.api.importText.value = 'Ещё\tНесохранённая таблица'
+    h.exposed.reset()
+    assert.deepEqual(h.api.form.semantic_core_rows, original)
+    assert.equal(h.api.importText.value, '')
+    assert.equal(h.api.form.keywords_text, 'форель')
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('malformed table import cannot partially apply and markup remains literal preview text', async t => {
+    const h = harness(t)
+    await h.ready()
+    const original = JSON.parse(JSON.stringify(h.api.form.semantic_core_rows))
+    h.api.importText.value = '| Группа | Фраза |\n|---|---|\n| Опт | корректная |\n| Ошибка | |'
+    assert.equal(h.api.importPreview.value.rows.length, 1)
+    assert.ok(h.api.importPreview.value.errors.length)
+    assert.equal(h.api.applySemanticImport(), false)
+    assert.deepEqual(h.api.form.semantic_core_rows, original)
+    h.api.importText.value = 'Опт\t<img src=x onerror=alert(1)>'
+    const preview = findVNode(h.render(), node => hasClass(node, 'catalog-good-seo__import-preview'))
+    assert.ok(findVNode(preview, node => node.type === 'td' && node.children === '<img src=x onerror=alert(1)>'))
+    assert.equal(findVNode(preview, node => node.type === 'img' || node.props?.innerHTML), null)
+    h.api.clearImport()
+    assert.equal(h.api.dirty.value, false)
+})
 
 test('every SEO field is present in the compact tables and a single payload retains all channels and data', async t => {
     const h = harness(t)
@@ -67,10 +235,11 @@ test('every SEO field is present in the compact tables and a single payload reta
     assert.equal(h.api.dirty.value, false)
     const payload = h.api.payload()
     const expected = seo()
+    expected.semantic_core_rows = expected.semantic_core.map(phrase => ({ group: '', phrase }))
     delete expected.id; delete expected.good_id; delete expected.ai_generation
     assert.deepEqual(payload, expected)
     assert.equal(findVNode(h.render(), node => node.type === 'v-expansion-panels'), null)
-    for (const id of ['h1', 'meta_title', 'meta_description', 'slug', 'canonical', 'breadcrumbs', 'robots', 'short_seo_text', 'seo_text', 'semantic_core_text', 'keywords_text', 'search_queries_text', 'faq', 'availability', 'min-order', 'delivery', 'payment', 'jsonld', 'yandex_direct_title_1', 'yandex_direct_title_2', 'yandex_direct_text', 'utm']) {
+    for (const id of ['h1', 'meta_title', 'meta_description', 'slug', 'canonical', 'breadcrumbs', 'robots', 'short_seo_text', 'seo_text', 'core-import', 'keywords_text', 'search_queries_text', 'faq', 'availability', 'min-order', 'delivery', 'payment', 'jsonld', 'yandex_direct_title_1', 'yandex_direct_title_2', 'yandex_direct_text', 'utm']) {
         assert.ok(findVNode(h.render(), node => node.props?.id === `catalog-seo-${id}`), id)
     }
     assert.ok(findVNode(h.render(), node => hasClass(node, 'catalog-good-seo__metrics')))
