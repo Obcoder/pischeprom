@@ -128,3 +128,39 @@ test('publication status distinguishes a published object inside a hidden parent
     state.nodes.value.find(node => node.id === 40).is_published = false
     assert.equal(state.tableItems.value[0].status_label, 'Черновик')
 })
+
+test('trout fillet remains inside the left trout class while its goods appear in the right table', async t => {
+    const { state, setPayload } = harness(t)
+    const troutLevels = [
+        { id: 1, name: 'Класс', display_mode: 'tree' },
+        { id: 2, name: 'Продукт', entity_type: 'product', display_mode: 'tree' },
+        { id: 3, name: 'Товар', entity_type: 'good', display_mode: 'list' },
+    ]
+    const trout = { id: 10, parent_id: null, level_id: 1, name: 'Форель' }
+    const fillet = { id: 20, parent_id: 10, level_id: 2, entity_type: 'product', entity_id: 42, name: 'Форель филе' }
+    const goods = [
+        { id: 30, parent_id: 20, level_id: 3, entity_type: 'good', name: 'Филе охлаждённое', is_published: true },
+        { id: 31, parent_id: 20, level_id: 3, entity_type: 'good', name: 'Филе замороженное', is_published: false },
+    ]
+    setPayload({ levels: troutLevels, nodes: [trout, fillet, ...goods] })
+    await state.load()
+    assert.equal(state.view.value.treeRows.find(node => node.id === 10).hasTreeChildren, true)
+    state.toggle(trout)
+    assert.deepEqual(state.view.value.treeRows.map(node => [node.id, node.depth]), [[10, 0], [20, 1]])
+    state.selectBranch(fillet)
+    assert.deepEqual(state.tableItems.value.map(node => node.id).sort(), [30, 31])
+    assert.equal(state.currentTitle.value, 'Форель филе')
+    assert.equal(state.tableItems.value.some(node => node.entity_type === 'product'), false)
+    state.publication.value = 'published'
+    assert.deepEqual(state.tableItems.value.map(node => node.id), [30])
+
+    state.publication.value = 'all'
+    setPayload({ levels: troutLevels, nodes: [trout, fillet] })
+    await state.load()
+    assert.deepEqual(state.view.value.treeRows.map(node => [node.id, node.depth]), [[10, 0], [20, 1]])
+    assert.deepEqual(state.tableItems.value, [])
+    assert.equal(state.selectedBranchId.value, 20)
+    state.createGood()
+    assert.equal(state.editorContext.parentId, 20)
+    assert.equal(state.editorContext.entityType, 'good')
+})

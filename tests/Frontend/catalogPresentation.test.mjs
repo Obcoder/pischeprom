@@ -37,33 +37,33 @@ const ids = items => items.map(item => item.id)
 test('All keeps uneven domains, skipped levels and unclassified leaves reachable without selecting defaults', () => {
     const view = buildCatalogView(nodes, levels)
     assert.deepEqual(ids(view.domainTabs), [null, 1, 2, 3, 'unassigned'])
-    assert.deepEqual(ids(view.items), [11, 40, 41, 43, 52, 53, 61, 62])
+    assert.deepEqual(ids(view.items), [40, 43, 52, 61, 62])
     assert.deepEqual(view.selections, { 2: null, 4: null })
     assert.equal(view.domainId, null)
     assert.equal(view.selectedBranchId, null)
     assert.equal(view.scopeNodeId, null)
     assert.deepEqual(view.counts, {
-        total: 8, domain: 8, scoped: 8, matched: 8, list: 8, branches: 5,
-        published: 7, featured: 1, domainNodesCount: 18,
+        total: 5, domain: 5, scoped: 5, matched: 5, list: 5, branches: 7,
+        published: 4, featured: 1, domainNodesCount: 18,
     })
-    assert.equal(view.domainTabs.find(tab => tab.id === 1).count, 4)
-    assert.equal(view.domainTabs.find(tab => tab.id === 2).count, 2)
+    assert.equal(view.domainTabs.find(tab => tab.id === 1).count, 2)
+    assert.equal(view.domainTabs.find(tab => tab.id === 2).count, 1)
     assert.equal(view.domainTabs.find(tab => tab.id === 3).count, 0)
     assert.equal(view.domainTabs.find(tab => tab.id === 'unassigned').count, 2)
 })
 
-test('structural leaves appear right even when their configured level is tabs or tree', () => {
+test('empty classifiers keep their configured tabs or tree placement while terminal objects appear right', () => {
     const view = buildCatalogView(nodes, levels, { domainId: 1 })
-    assert.deepEqual(ids(view.items), [11, 40, 41, 43])
-    assert.equal(view.items.find(item => item.id === 11).level_name, 'Категория')
-    assert.equal(view.items.find(item => item.id === 41).level_name, 'Группа')
+    assert.deepEqual(ids(view.items), [40, 43])
     assert.equal(view.items.find(item => item.id === 43).level_name, 'Без уровня')
-    assert.deepEqual(ids(view.tabRows[0].items), [10])
+    assert.deepEqual(ids(view.tabRows[0].items), [10, 11])
+    assert.equal(view.tabRows[0].items.find(item => item.id === 11).count, 0)
     assert.ok(view.items.every(item => !item.hasChildren))
-    assert.deepEqual(ids(view.treeRows), [20, 42])
+    assert.deepEqual(ids(view.treeRows), [20, 41, 42])
+    assert.equal(view.treeRows.find(item => item.id === 41).count, 0)
 })
 
-test('toolbar selections cascade through interspersed tree levels and clear selections that have become leaves', () => {
+test('toolbar selections cascade through interspersed levels and retain empty classifier selections', () => {
     const view = buildCatalogView(nodes, levels, { domainId: 1, selections: { 2: 10, 4: 30 }, selectedBranchId: 50 })
     assert.deepEqual(ids(view.items), [40])
     assert.deepEqual(view.tabRows.map(row => row.levelId), [2, 4])
@@ -73,33 +73,34 @@ test('toolbar selections cascade through interspersed tree levels and clear sele
     assert.equal(view.items[0].path_label, 'Товары / Зерновые / Пшеница / Твёрдая')
     assert.deepEqual(ids(view.items[0].ancestors), [1, 10, 20, 30])
 
-    const leaf = buildCatalogView(nodes, levels, { domainId: 1, selections: { 2: 11, 4: 30 } })
-    assert.deepEqual(ids(leaf.items), [11, 40, 41, 43])
-    assert.deepEqual(leaf.selections, { 2: null, 4: null })
-    assert.deepEqual(leaf.tabRows.map(row => row.levelId), [2, 4])
+    const empty = buildCatalogView(nodes, levels, { domainId: 1, selections: { 2: 11, 4: 30 } })
+    assert.deepEqual(empty.items, [])
+    assert.deepEqual(empty.selections, { 2: 11, 4: null })
+    assert.deepEqual(empty.tabRows.map(row => row.levelId), [2])
+    assert.equal(empty.scopeNodeId, 11)
 })
 
 test('a branch can skip all configured tabs and retain unknown intermediary levels', () => {
     const view = buildCatalogView(nodes, levels, { domainId: 2, expanded: new Set([50]) })
     assert.deepEqual(view.tabRows, [])
-    assert.deepEqual(ids(view.treeRows), [50, 51])
-    assert.deepEqual(view.treeRows.map(row => row.depth), [0, 1])
+    assert.deepEqual(ids(view.treeRows), [50, 51, 53])
+    assert.deepEqual(view.treeRows.map(row => row.depth), [0, 1, 0])
     assert.equal(view.treeRows[0].hasTreeChildren, true)
     assert.equal(view.treeRows[0].descendantCount, 2)
     assert.equal(view.treeRows[0].count, 1)
     assert.equal(view.treeRows[1].hasTreeChildren, false)
-    assert.deepEqual(ids(view.items), [52, 53])
+    assert.deepEqual(ids(view.items), [52])
 })
 
 test('list-mode objects with children become navigable branches and preserve every descendant', () => {
     const view = buildCatalogView(nodes, levels, { domainId: 1, selectedBranchId: 42 })
     assert.deepEqual(ids(view.items), [43])
-    assert.deepEqual(ids(view.treeRows), [20, 42])
+    assert.deepEqual(ids(view.treeRows), [20, 41, 42])
     const branch = view.treeRows.find(row => row.id === 42)
     assert.equal(branch.hasChildren, true)
     assert.equal(branch.childCount, 1)
     assert.equal(branch.selected, true)
-    assert.equal(view.counts.domain, 4)
+    assert.equal(view.counts.domain, 2)
     assert.equal(view.counts.scoped, 1)
 })
 
@@ -108,7 +109,7 @@ test('domain levels configured as trees remain in the tree, including empty doma
     const view = buildCatalogView(nodes, treeLevels, { selectedBranchId: 2 })
     assert.deepEqual(ids(view.domainTabs), [null, 'unassigned'])
     assert.deepEqual(ids(view.treeRows), [1, 2, 3, 60])
-    assert.deepEqual(ids(view.items), [52, 53])
+    assert.deepEqual(ids(view.items), [52])
     assert.equal(view.treeRows.find(row => row.id === 3).count, 0)
     assert.ok(!ids(view.items).includes(3))
     const expanded = buildCatalogView(nodes, treeLevels, { expanded: new Set([2]), selectedBranchId: 51 })
@@ -118,7 +119,7 @@ test('domain levels configured as trees remain in the tree, including empty doma
 
 test('publication filters match leaves and retain draft branch context with accurate descendant counts', () => {
     const view = buildCatalogView(nodes, levels, { publication: 'published' })
-    assert.deepEqual(ids(view.items), [11, 40, 41, 43, 53, 61, 62])
+    assert.deepEqual(ids(view.items), [40, 43, 61, 62])
     const wheat = view.treeRows.find(row => row.id === 20)
     assert.equal(wheat.context, true)
     assert.equal(wheat.count, 1)
@@ -126,7 +127,7 @@ test('publication filters match leaves and retain draft branch context with accu
     assert.equal(wheat.expanded, true)
     const draft = buildCatalogView(nodes, levels, { publication: 'draft' })
     assert.deepEqual(ids(draft.items), [52])
-    assert.equal(draft.counts.total, 8)
+    assert.equal(draft.counts.total, 5)
     assert.equal(draft.counts.matched, 1)
 })
 
@@ -138,7 +139,7 @@ test('search finds terminals and descendants of matching branches through collap
     const ancestor = buildCatalogView(nodes, levels, { search: 'пшеница', publication: 'featured' })
     assert.deepEqual(ids(ancestor.items), [40])
     assert.equal(ancestor.treeRows.find(row => row.id === 20).matchedCount, 1)
-    assert.equal(buildCatalogView(nodes, levels, { search: null }).items.length, 8)
+    assert.equal(buildCatalogView(nodes, levels, { search: null }).items.length, 5)
 })
 
 test('unassigned domain scope includes missing-parent records and unknown or absent levels', () => {
@@ -200,14 +201,79 @@ test('creation scope is the deepest selected classifier, including empty domains
     assert.equal(buildCatalogView(nodes, levels, { domainId: 'unassigned' }).scopeNodeId, null)
 })
 
-test('a tabs-configured terminal level appears exclusively in the right table, including former tab selections', () => {
+test('empty tab classifiers remain selectable and list reassignment clears a stale tree selection', () => {
     const flat = [n(1, null, 1, 'Домен'), n(10, 1, 2, 'Категория без детей'), n(20, 1, 4, 'Сорт без детей')]
-    const view = buildCatalogView(flat, levels, { domainId: 1, selections: { 2: 10, 4: 20 }, selectedBranchId: 20 })
-    assert.deepEqual(view.tabRows, [])
+    const empty = buildCatalogView(flat, levels, { domainId: 1, selections: { 2: 10, 4: 20 }, selectedBranchId: 20 })
+    assert.deepEqual(empty.tabRows.map(row => row.levelId), [2])
+    assert.deepEqual(ids(empty.tabRows[0].items), [10])
+    assert.deepEqual(empty.items, [])
+    assert.deepEqual(empty.selections, { 2: 10, 4: null })
+    assert.equal(empty.scopeNodeId, 10)
+
+    const reassigned = flat.map(node => node.id === 10 ? { ...node, level_id: 5 } : node)
+    const view = buildCatalogView(reassigned, levels, { domainId: 1, selections: { 2: 10, 4: 20 }, selectedBranchId: 10 })
+    assert.deepEqual(view.tabRows.map(row => row.levelId), [4])
     assert.deepEqual(view.treeRows, [])
-    assert.deepEqual(ids(view.items), [10, 20])
+    assert.deepEqual(ids(view.items), [10])
     assert.deepEqual(view.selections, { 2: null, 4: null })
     assert.equal(view.selectedBranchId, null)
     assert.equal(view.scopeNodeId, 1)
     assert.deepEqual(ids(view.domainTabs), [null, 1])
+})
+
+test('Форель филе stays under Форель in the tree before, with and after its goods', () => {
+    const trout = [
+        n(1, null, 1, 'Рыба'),
+        n(10, 1, 3, 'Форель'),
+        n(20, 10, 3, 'Форель филе', { entity_type: 'product', entity_id: 115 }),
+    ]
+    const options = { domainId: 1, selectedBranchId: 20, expanded: new Set([10]) }
+    for (const hasGoods of [false, true, false]) {
+        const entries = hasGoods
+            ? [...trout, n(30, 20, 5, 'Филе форели охлаждённое', { entity_type: 'good', entity_id: 501 })]
+            : trout
+        const view = buildCatalogView(entries, levels, options)
+        assert.deepEqual(ids(view.treeRows), [10, 20])
+        assert.deepEqual(view.treeRows.map(row => row.depth), [0, 1])
+        assert.equal(view.treeRows[0].hasTreeChildren, true)
+        assert.equal(view.treeRows[1].selected, true)
+        assert.equal(view.treeRows[1].count, Number(hasGoods))
+        assert.equal(view.scopeNodeId, 20)
+        assert.deepEqual(ids(view.items), hasGoods ? [30] : [])
+        if (hasGoods) assert.equal(view.items[0].path_label, 'Рыба / Форель / Форель филе')
+    }
+})
+
+test('changing classifier display between tabs and trees never promotes its empty records to objects', () => {
+    const entries = [n(1, null, 1, 'Домен'), n(10, 1, 3, 'Пустой продукт', { entity_type: 'product' })]
+    for (const display_mode of ['tabs', 'tree', 'tabs']) {
+        const configured = levels.map(level => level.id === 3 ? { ...level, display_mode } : level)
+        const view = buildCatalogView(entries, configured, { domainId: 1 })
+        assert.deepEqual(view.items, [])
+        assert.equal(view.counts.total, 0)
+        if (display_mode === 'tree') assert.deepEqual(ids(view.treeRows), [10])
+        else assert.deepEqual(ids(view.tabRows.find(row => row.levelId === 3).items), [10])
+    }
+})
+
+test('assigned level controls placement independently from business type, with safe fallback for absent levels', () => {
+    const entries = [
+        n(1, null, 3, 'Товар на уровне классификации', { entity_type: 'good' }),
+        n(2, null, 5, 'Продукт на конечном уровне', { entity_type: 'product' }),
+        n(3, null, 3, 'Пользовательская классификация', { entity_type: 'custom' }),
+        n(4, null, null, 'Категория без уровня', { entity_type: 'category' }),
+        n(5, null, 999, 'Продукт с удалённым уровнем', { entity_type: 'product' }),
+        n(6, null, null, 'Товар без уровня', { entity_type: 'good' }),
+        n(7, null, 999, 'Объект без известного уровня', { entity_type: 'custom' }),
+        n(8, null, null, 'Пользовательский объект', { entity_type: null }),
+    ]
+    const view = buildCatalogView(entries, levels)
+    assert.deepEqual(ids(view.treeRows), [1, 3, 4, 5])
+    assert.deepEqual(ids(view.items), [2, 6, 7, 8])
+    assert.equal(view.counts.total, 4)
+    assert.ok(view.treeRows.every(row => row.count === 0))
+    const stale = buildCatalogView(entries, levels, { selectedBranchId: 2 })
+    assert.equal(stale.selectedBranchId, null)
+    assert.equal(stale.scopeNodeId, null)
+    assert.deepEqual(ids(stale.items), [2, 6, 7, 8])
 })

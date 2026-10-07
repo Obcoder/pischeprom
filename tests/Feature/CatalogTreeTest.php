@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Catalog\CatalogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,47 @@ class CatalogTreeTest extends TestCase
         $this->assertSame(2, CatalogNode::where('entity_type', 'good')->where('entity_id', $good->id)->count());
         $this->assertFalse(CatalogNode::where('import_key', 'product:'.$product->id)->first()->is_published);
         $this->assertNull(CatalogNode::where('import_key', 'good:'.$unlinked->id.':root')->first()->parent_id);
+    }
+
+    public function test_import_keeps_trout_product_inside_its_class_with_published_and_draft_goods(): void
+    {
+        $category = Category::create(['name' => 'Рыба', 'is_published' => true]);
+        $product = Product::create(['rus' => 'Форель филе', 'category_id' => $category->id, 'is_published' => true]);
+        $published = Good::create(['name' => 'Форель филе охлаждённое', 'is_published' => true]);
+        $draft = Good::create(['name' => 'Форель филе замороженное', 'is_published' => false]);
+        $product->goods()->attach([$published->id, $draft->id]);
+        $this->staff();
+        $this->getJson('/api/catalog')->assertOk();
+        $categoryNode = CatalogNode::where('import_key', 'category:'.$category->id)->firstOrFail();
+        $productNode = CatalogNode::where('import_key', 'product:'.$product->id)->firstOrFail();
+        $classLevel = CatalogLevel::create(['name' => 'Класс', 'entity_type' => 'custom', 'display_mode' => 'tree']);
+        $class = $this->createNode($classLevel, 'Форель', $categoryNode->id);
+        $this->patchJson('/api/catalog/nodes/'.$productNode->id, ['parent_id' => $class['id']])->assertOk();
+
+        foreach ([1, 2] as $iteration) {
+            $nodes = collect($this->getJson('/api/catalog')->assertOk()->assertJsonCount(5, 'nodes')->json('nodes'))->keyBy('id');
+            $this->assertSame($categoryNode->id, $nodes[$class['id']]['parent_id']);
+            $this->assertSame($class['id'], $nodes[$productNode->id]['parent_id']);
+            $this->assertSame('product', $nodes[$productNode->id]['entity_type']);
+            $this->assertSame('Форель филе', $nodes[$productNode->id]['name']);
+            $children = $nodes->where('parent_id', $productNode->id)->keyBy('entity_id');
+            $this->assertCount(2, $children);
+            $this->assertSame('good', $children[$published->id]['entity_type']);
+            $this->assertSame('good', $children[$draft->id]['entity_type']);
+            $this->assertTrue($children[$published->id]['is_published']);
+            $this->assertFalse($children[$draft->id]['is_published']);
+        }
+
+        $additional = Good::create(['name' => 'Форель филе порционное', 'is_published' => true]);
+        $additional->products()->attach($product->id);
+        $nodes = collect($this->getJson('/api/catalog')->assertOk()->assertJsonCount(6, 'nodes')->json('nodes'))->keyBy('id');
+        $this->assertSame($class['id'], $nodes[$productNode->id]['parent_id']);
+        $this->assertEqualsCanonicalizing(
+            [$published->id, $draft->id, $additional->id],
+            $nodes->where('parent_id', $productNode->id)->pluck('entity_id')->all(),
+        );
+        $this->assertSame($category->id, $product->fresh()->category_id);
+        $this->assertDatabaseCount('good_product', 3);
     }
 
     public function test_linked_source_edits_are_visible_without_overwriting_source_data(): void
@@ -318,6 +360,125 @@ class CatalogTreeTest extends TestCase
         $this->assertDatabaseCount('products', 0);
         $this->assertDatabaseCount('categories', 0);
         $this->getJson('/api/catalog')->assertOk()->assertJsonCount(0, 'nodes');
+    }
+
+    public function test_trout_fillet_repair_moves_only_diagnosed_goods_without_losing_other_links_or_metadata(): void
+    {
+        $fixture = $this->troutFilletRepairFixture();
+        $migration = require database_path('migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php');
+        $before = $fixture['placements']->map(fn (CatalogNode $node): array => $node->fresh()->getAttributes());
+        $migration->up();
+
+        foreach ([99, 148] as $goodId) {
+            $node = $fixture['placements'][$goodId]->fresh();
+            $this->assertSame($fixture['fillet']->id, $node->parent_id);
+            $this->assertSame('good:'.$goodId.':product:186', $node->import_key);
+            $this->assertSame(
+                collect($before[$goodId])->except(['parent_id', 'import_key', 'updated_at'])->all(),
+                collect($node->getAttributes())->except(['parent_id', 'import_key', 'updated_at'])->all(),
+            );
+            $this->assertDatabaseHas('good_product', ['good_id' => $goodId, 'product_id' => 186]);
+            $this->assertDatabaseMissing('good_product', ['good_id' => $goodId, 'product_id' => 99]);
+        }
+        $this->assertSame($fixture['class']->id, $fixture['placements'][110]->fresh()->parent_id);
+        $this->assertDatabaseHas('good_product', ['good_id' => 110, 'product_id' => 99]);
+        $this->assertDatabaseHas('good_product', ['good_id' => 99, 'product_id' => 250]);
+        $this->assertSame($fixture['other']->id, $fixture['other_placement']->fresh()->parent_id);
+        $this->assertTrue(Good::findOrFail(99)->is_published);
+        $this->assertFalse(Good::findOrFail(148)->is_published);
+        $this->assertDatabaseCount('goods', 3);
+        $this->assertDatabaseCount('good_product', 4);
+
+        $after = CatalogNode::orderBy('id')->get()->toArray();
+        $migration->up();
+        $migration->down();
+        $this->getJson('/api/catalog')->assertOk();
+        $this->getJson('/api/catalog')->assertOk();
+        $this->assertSame($after, CatalogNode::orderBy('id')->get()->toArray());
+    }
+
+    public function test_trout_fillet_repair_respects_renamed_goods_and_manually_reparented_goods(): void
+    {
+        $fixture = $this->troutFilletRepairFixture();
+        Good::findOrFail(99)->update(['name' => 'Новое назначение товара']);
+        $branch = CatalogNode::create(['name' => 'Другой раздел', 'parent_id' => $fixture['class']->id]);
+        $fixture['placements'][148]->update(['parent_id' => $branch->id]);
+        $before = CatalogNode::orderBy('id')->get()->toArray();
+        $migration = require database_path('migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php');
+        $migration->up();
+        $this->assertSame($before, CatalogNode::orderBy('id')->get()->toArray());
+        $this->assertDatabaseMissing('good_product', ['product_id' => 186]);
+    }
+
+    public function test_trout_fillet_repair_leaves_existing_target_placements_and_external_link_edits_alone(): void
+    {
+        $fixture = $this->troutFilletRepairFixture();
+        Good::findOrFail(99)->products()->attach(186);
+        $this->getJson('/api/catalog')->assertOk();
+        Good::findOrFail(148)->products()->detach(99);
+        $before = CatalogNode::orderBy('id')->get()->toArray();
+        $migration = require database_path('migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php');
+        $migration->up();
+        $this->assertSame($before, CatalogNode::orderBy('id')->get()->toArray());
+        $this->assertDatabaseHas('good_product', ['good_id' => 99, 'product_id' => 99]);
+        $this->assertDatabaseHas('good_product', ['good_id' => 99, 'product_id' => 186]);
+        $this->assertDatabaseMissing('good_product', ['good_id' => 148, 'product_id' => 186]);
+        $this->assertSame($fixture['class']->id, $fixture['placements'][99]->fresh()->parent_id);
+    }
+
+    public function test_trout_fillet_repair_does_not_guess_after_product_names_or_class_hierarchy_change(): void
+    {
+        $fixture = $this->troutFilletRepairFixture();
+        $migration = require database_path('migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php');
+        Product::without(['category', 'manufacturers'])->findOrFail(186)->update(['rus' => 'Другой продукт']);
+        $before = CatalogNode::orderBy('id')->get()->toArray();
+        $migration->up();
+        $this->assertSame($before, CatalogNode::orderBy('id')->get()->toArray());
+        Product::without(['category', 'manufacturers'])->findOrFail(186)->update(['rus' => 'Форель филе']);
+        $fixture['fillet']->update(['parent_id' => $fixture['other']->id]);
+        $before = CatalogNode::orderBy('id')->get()->toArray();
+        $migration->up();
+        $this->assertSame($before, CatalogNode::orderBy('id')->get()->toArray());
+        $this->assertDatabaseMissing('good_product', ['product_id' => 186]);
+    }
+
+    private function troutFilletRepairFixture(): array
+    {
+        $this->staff();
+        $category = Category::create(['name' => 'Рыба', 'is_published' => true]);
+        foreach ([99 => 'Форель', 186 => 'Форель филе', 250 => 'Другое назначение'] as $id => $name) {
+            Product::forceCreate(['id' => $id, 'rus' => $name, 'category_id' => $category->id, 'is_published' => true]);
+        }
+        $names = [
+            99 => 'Форель филе-кусок б/к и/з вакуум 12/12',
+            110 => 'Форель радужная ПБГ IQF 3.6-4.5 Турция',
+            148 => 'Форель филе-кубики б/к зам. 1/12',
+        ];
+        foreach ($names as $id => $name) {
+            $good = Good::forceCreate(['id' => $id, 'name' => $name, 'is_published' => $id !== 148]);
+            $good->products()->attach($id === 99 ? [99, 250] : [99]);
+        }
+        $this->getJson('/api/catalog')->assertOk();
+        $class = CatalogNode::where('import_key', 'product:99')->firstOrFail();
+        $fillet = CatalogNode::where('import_key', 'product:186')->firstOrFail();
+        $classLevel = CatalogLevel::create(['name' => 'Класс', 'entity_type' => 'custom', 'display_mode' => 'tree']);
+        $class->update(['level_id' => $classLevel->id]);
+        $fillet = app(CatalogService::class)->saveNode(['parent_id' => $class->id], $fillet);
+        $placements = collect();
+        foreach (array_keys($names) as $goodId) {
+            $node = CatalogNode::where('import_key', 'good:'.$goodId.':product:99')->firstOrFail();
+            $node->update([
+                'properties' => ['origin' => 'Карелия'], 'properties_by_level' => [$classLevel->id => ['grade' => 'Высший']],
+                'is_manual' => $goodId === 148, 'is_featured' => $goodId === 99, 'sort_order' => 7,
+            ]);
+            $placements[$goodId] = $node;
+        }
+
+        return [
+            'class' => $class, 'fillet' => $fillet, 'placements' => $placements,
+            'other' => CatalogNode::where('import_key', 'product:250')->firstOrFail(),
+            'other_placement' => CatalogNode::where('import_key', 'good:99:product:250')->firstOrFail(),
+        ];
     }
 
     private function staff(): void

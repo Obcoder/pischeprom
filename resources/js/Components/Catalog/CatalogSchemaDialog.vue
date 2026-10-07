@@ -18,8 +18,8 @@ const discardTarget = ref(null)
 const deleteTarget = ref(null)
 const selectedLevel = computed(() => props.levels.find(level => level.id === selectedLevelId.value))
 const displayModes = [
-    { title: 'Ряд вкладок', value: 'tabs', icon: 'mdi-tab', description: 'Компактный ряд над деревом и таблицей. Удобно для основных разделов.' },
-    { title: 'Иерархический список', value: 'tree', icon: 'mdi-file-tree-outline', description: 'Раскрывающиеся ветки в левой части. Подходит для подробной классификации.' },
+    { title: 'Ряд вкладок', value: 'tabs', icon: 'mdi-tab', description: 'Разделы в компактном ряду над деревом и таблицей, включая пока пустые.' },
+    { title: 'Иерархический список', value: 'tree', icon: 'mdi-file-tree-outline', description: 'Разделы в левой части. Пустой раздел остаётся в дереве и готов к добавлению записей.' },
     { title: 'Таблица объектов', value: 'list', icon: 'mdi-format-list-bulleted', description: 'Конечные записи справа. Если у записи есть подуровни, её ветка остаётся слева.' },
 ]
 const fieldTypes = [

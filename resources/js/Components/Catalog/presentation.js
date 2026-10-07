@@ -11,13 +11,15 @@ const compare = (a, b) => (Number(a.sort_order || 0) - Number(b.sort_order || 0)
  *
  * domainId identifies a domain NODE; null means all, 'unassigned' means no domain.
  * selections uses level IDs as keys and tab node IDs as values.
- * Structural leaves belong exclusively to the right-hand table regardless of
- * their level's display mode. Empty domains remain navigational placeholders.
+ * Levels shown as tabs or trees remain classifiers even when empty. List levels
+ * contain terminal objects; objects with children stay navigable. Without a
+ * known level, category/product sources remain classifiers and other leaves are
+ * terminal objects. Assigning a level takes precedence over the source type.
  *
- * Counts: total = all structural leaves except domains; domain = leaves in the
- * selected domain; scoped = leaves after domain/tab/branch selections; matched
+ * Counts: total = all terminal objects; domain = objects in the selected domain;
+ * scoped = objects after domain/tab/branch selections; matched
  * and list = right-hand items after search/publication. published/featured count
- * scoped leaves before filters. branches counts the full projected sidebar;
+ * scoped objects before filters. branches counts the full projected sidebar;
  * domainNodesCount counts all nodes in the selected domain before selections.
  *
  * Traversals and subtree counts are linear; sibling ordering costs O(n log n).
@@ -98,7 +100,13 @@ export function buildCatalogView(nodes = [], levels = [], options = {}) {
         || (start.get(ancestor) <= start.get(descendant) && start.get(descendant) < end.get(ancestor))
     const compatible = (first, second) => first === null || second === null || contains(first, second) || contains(second, first)
     const narrower = (first, second) => first === null || contains(first, second) ? second : first
-    const terminal = new Set(order.filter(id => !isDomain.has(id) && !(children.get(id)?.length)))
+    const terminal = new Set(order.filter(id => {
+        if (isDomain.has(id) || children.get(id)?.length) return false
+        const node = byId.get(id)
+        return levelById.has(keyOf(node.level_id))
+            ? mode.get(id) === 'list'
+            : !['category', 'product'].includes(node.entity_type)
+    }))
 
     let selectedDomain = options.domainId === 'unassigned' ? 'unassigned' : keyOf(options.domainId)
     if (selectedDomain !== null && selectedDomain !== 'unassigned' && !isDomain.has(selectedDomain)) selectedDomain = null
@@ -170,12 +178,12 @@ export function buildCatalogView(nodes = [], levels = [], options = {}) {
     }
 
     let branch = clearFollowingSelections ? null : keyOf(options.selectedBranchId)
-    if (!byId.has(branch) || !inDomain(branch) || !compatible(tabScope, branch)) branch = null
+    if (!byId.has(branch) || terminal.has(branch) || !inDomain(branch) || !compatible(tabScope, branch)) branch = null
     const itemScope = branch === null ? tabScope : narrower(tabScope, branch)
     const expanded = new Set([...(options.expanded || [])].map(keyOf))
     const projected = new Set()
     for (const id of order) {
-        const navigable = (isDomain.has(id) || Boolean(children.get(id)?.length)) && mode.get(id) !== 'tabs'
+        const navigable = !terminal.has(id) && mode.get(id) !== 'tabs'
         if (!navigable || !inDomain(id) || !compatible(tabScope, id)) continue
         if (filtering && !countWithin(matchedPrefix, id, tabScope) && !(ownSearchMatch.get(id) && publicationMatches(raw(id)))) continue
         projected.add(id)

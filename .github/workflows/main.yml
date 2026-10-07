@@ -394,6 +394,7 @@ jobs:
             app/Services/Catalog \
             database/migrations/2026_10_07_150000_create_catalog_tree_tables.php \
             database/migrations/2026_10_07_170000_make_catalog_classification_optional.php \
+            database/migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
