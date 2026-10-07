@@ -10,6 +10,7 @@ import HomeHeroSection from '@/Components/Home/HomeHeroSection.vue'
 import HomeFieldCollectionsSection from '@/Components/Home/HomeFieldCollectionsSection.vue'
 import HomeCountryCollectionsSection from '@/Components/Home/HomeCountryCollectionsSection.vue'
 import HomeFeaturedGoodsSection from '@/Components/Home/HomeFeaturedGoodsSection.vue'
+import HomeCatalogShowcase from '@/Components/Home/HomeCatalogShowcase.vue'
 import HomeBannerStrip from '@/Components/Home/HomeBannerStrip.vue'
 import CocoaButterClassification from '@/Components/CocoaButterClassification.vue'
 import HomeGoodsSearchCard from '@/Components/Home/HomeGoodsSearchCard.vue'
@@ -50,6 +51,10 @@ const props = defineProps({
         default: 0,
     },
     categories: {
+        type: Array,
+        default: () => [],
+    },
+    catalogShowcase: {
         type: Array,
         default: () => [],
     },
@@ -411,6 +416,8 @@ onMounted(() => {
             :hero-goods="heroGoods"
             :categories="categories"
         />
+
+        <HomeCatalogShowcase :items="catalogShowcase" />
 
         <HomeFieldCollectionsSection :fields="fields" />
 

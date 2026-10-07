@@ -379,6 +379,25 @@ jobs:
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Unit/Seo
 
+      - name: Check hierarchical catalog and public showcase PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/CatalogTreeController.php \
+            app/Http/Controllers/API/ComponentController.php \
+            app/Http/Controllers/Web/CatalogController.php \
+            app/Http/Controllers/Web/ProductController.php \
+            app/Http/Controllers/MainController.php \
+            app/Models/CatalogField.php \
+            app/Models/CatalogLevel.php \
+            app/Models/CatalogNode.php \
+            app/Models/Component.php \
+            app/Services/Catalog \
+            database/migrations/2026_10_07_150000_create_catalog_tree_tables.php \
+            tests/Feature/CatalogTreeTest.php \
+            tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/PublicCatalogTest.php \
+            tests/Feature/ComponentCatalogManagementTest.php
+
       - name: Check Entity product needs PHP style
         run: |
           vendor/bin/pint --test \
@@ -526,6 +545,9 @@ jobs:
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/CatalogTreeTest.php \
+            tests/Feature/PublicCatalogTest.php \
+            tests/Feature/ComponentCatalogManagementTest.php \
             tests/Feature/GoodAvatarPerformanceTest.php \
             tests/Feature/GoodSearchTest.php \
             tests/Feature/GoodCatalogManagementTest.php \

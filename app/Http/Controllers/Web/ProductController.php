@@ -17,6 +17,8 @@ class ProductController extends Controller
         Product $product,
         GoodStockService $stock,
     ): Response {
+        abort_unless($product->is_published, 404);
+
         $product->load([
             'category',
         ]);

@@ -794,6 +794,20 @@ Route::apiResource('buildings.apartments', ApartmentController::class)->names('a
 Route::apiResource('building-types', BuildingTypeController::class)
     ->parameters(['building-types' => 'buildingType']);
 Route::apiResource('catalogs', CatalogController::class);
+Route::prefix('catalog')->group(function () {
+    Route::get('/', [\App\Http\Controllers\API\CatalogTreeController::class, 'index']);
+    Route::post('/levels', [\App\Http\Controllers\API\CatalogTreeController::class, 'storeLevel']);
+    Route::patch('/levels/{level}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateLevel']);
+    Route::delete('/levels/{level}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyLevel']);
+    Route::post('/fields', [\App\Http\Controllers\API\CatalogTreeController::class, 'storeField']);
+    Route::patch('/fields/{field}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateField']);
+    Route::delete('/fields/{field}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyField']);
+    Route::post('/nodes', [\App\Http\Controllers\API\CatalogTreeController::class, 'storeNode']);
+    Route::patch('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateNode']);
+    Route::delete('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyNode']);
+    Route::post('/nodes/{node}/image', [\App\Http\Controllers\API\CatalogTreeController::class, 'uploadImage']);
+});
+
 Route::apiResource('categories', CategoryController::class);
 Route::post('checks/{check}/commodities', [CheckCommodityController::class, 'store'])
     ->name('checks.commodities.store');

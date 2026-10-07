@@ -7,6 +7,7 @@ use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
 use App\Models\Product;
+use App\Services\Catalog\PublicCatalogService;
 use App\Services\Goods\HomeGoodsModuleService;
 use App\Services\HomeBanners\HomeBannerFeedService;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class MainController extends Controller
 {
-    public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService, HomeBannerFeedService $homeBannerFeed): Response
+    public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService, HomeBannerFeedService $homeBannerFeed, PublicCatalogService $catalog): Response
     {
         $categoriesQuery = Category::query()
             ->where('is_published', true)
@@ -54,6 +55,7 @@ class MainController extends Controller
 
         return Inertia::render('Welcome', [
             'categories' => $categories,
+            'catalogShowcase' => $catalog->showcase(),
             'fields' => $fields,
             'goodOfTheDay' => $goodOfTheDay,
             'productsCount' => Product::query()->count(),

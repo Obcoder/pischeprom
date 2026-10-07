@@ -5,47 +5,59 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Component;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ComponentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        return Component::orderBy('created_at', 'desc')
+        return Component::query()
+            ->withCount('products')
+            ->orderBy('name')
+            ->orderBy('id')
             ->get();
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        $component = Component::create($request->all());
+        $component = Component::create($this->validated($request));
+
+        return response()->json($component->loadCount('products'), 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Component $component)
     {
-        //
+        return $component->load([
+            'products' => fn ($query) => $query->without(['category', 'manufacturers'])
+                ->select(['products.id', 'products.rus', 'products.eng'])
+                ->orderBy('products.rus'),
+        ])->loadCount('products');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Component $component)
     {
-        //
+        $component->update($this->validated($request));
+
+        return $this->show($component->fresh());
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Component $component)
     {
-        //
+        DB::transaction(function () use ($component): void {
+            $component->products()->detach();
+            $component->delete();
+        });
+
+        return response()->noContent();
+    }
+
+    private function validated(Request $request): array
+    {
+        return $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+        ], [
+            'name.required' => 'Укажите название компонента.',
+            'name.max' => 'Название должно содержать не более 255 символов.',
+        ]);
     }
 }

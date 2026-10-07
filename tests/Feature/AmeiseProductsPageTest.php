@@ -23,7 +23,7 @@ class AmeiseProductsPageTest extends TestCase
         $grossbuchPage = (string) file_get_contents(resource_path('js/Pages/Ameise/Grossbuch.vue'));
         $layout = (string) file_get_contents(resource_path('js/Layouts/VerwalterLayout.vue'));
 
-        foreach (['Categories', 'Products', 'Goods', 'Components', 'Commodities', 'Услуги'] as $title) {
+        foreach (['Товароведение', 'Товары', 'Закупаемое', 'Компоненты', 'Commodities', 'Услуги'] as $title) {
             $this->assertStringContainsString($title, $productsPage);
         }
 

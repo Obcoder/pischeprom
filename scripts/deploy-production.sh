@@ -562,6 +562,14 @@ for private_mail_api in /api/mailboxes /api/mail-messages; do
     fi
 done
 
+if ! php artisan app:deploy-smoke --path=/Ameise/products --status=302 >/dev/null 2>&1; then
+    fail 'Anonymous access to the goods classification workspace was not redirected to login.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/catalog --status=401 >/dev/null 2>&1; then
+    fail 'Anonymous access to the goods classification API was not rejected.'
+fi
+
 if ! php artisan app:deploy-smoke --path=/Ameise/warehouses --status=302 >/dev/null 2>&1; then
     fail 'Smoke check for goods warehouses failed; rerun the command locally on the VPS.'
 fi

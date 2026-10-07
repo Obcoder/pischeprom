@@ -607,11 +607,11 @@ onMounted(fetchWorkingLeads)
                     :href="route('Ameise.products')"
                     class="ameise-header-control ameise-nav-link ameise-products-icon"
                     :class="{ 'is-active': isActiveUrl(route('Ameise.products')) }"
-                    title="Products"
-                    aria-label="Products"
+                    title="Товароведение"
+                    aria-label="Товароведение"
                 >
                     <v-icon icon="mdi-package-variant-closed" size="19" />
-                    <span class="ameise-nav-link__label">Products</span>
+                    <span class="ameise-nav-link__label">Товароведение</span>
                 </Link>
 
                 <Link
