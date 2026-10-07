@@ -15,10 +15,17 @@ class GoodSeoService
     public function publicUrl(Good $good): string
     {
         return route('public.goods.show', [
-            'good' => $good->seo?->is_active && filled($good->seo?->slug_override)
-                ? trim($good->seo->slug_override)
-                : $good->slug,
+            'good' => $this->publicSlug($good),
         ]);
+    }
+
+    public function publicSlug(Good $good): string
+    {
+        if ($good->seo?->is_active && filled($good->seo?->slug_override)) {
+            return trim($good->seo->slug_override);
+        }
+
+        return filled($good->slug) ? $good->slug : (string) $good->getKey();
     }
 
     public function title(Good $good): string

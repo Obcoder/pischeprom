@@ -160,6 +160,67 @@ class CatalogGoodSeoTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_legacy_blank_slugs_keep_catalog_home_and_public_landing_available(): void
+    {
+        config()->set('app.asset_url', 'https://assets.example.test');
+        $this->withHeader('X-Inertia-Version', hash('xxh128', 'https://assets.example.test'));
+        auth()->logout();
+
+        $visible = null;
+        foreach ([null, ''] as $slug) {
+            $good = Good::create(['name' => 'Старый товар '.($slug === null ? 'публичный' : 'черновик'), 'is_published' => $slug === null]);
+            DB::table('goods')->where('id', $good->id)->update(['slug' => $slug]);
+            $node = $this->placement($good, ['is_featured' => $slug === null]);
+            $url = route('public.goods.show', (string) $good->id);
+            $payload = app(CatalogService::class)->nodePayload($node);
+            $this->assertSame($url, $payload['public_url']);
+            $this->assertSame($url, $payload['offer_url']);
+            $this->assertSame($url, $payload['public_seo']['canonical']);
+
+            if ($slug === null) {
+                $visible = $node;
+                $this->get($url, ['X-Inertia' => 'true'])->assertOk()
+                    ->assertJsonPath('props.good.id', $good->id)
+                    ->assertJsonPath('props.seo.canonical', $url)
+                    ->assertJsonPath('props.seo.jsonLd.0.url', $url);
+            } else {
+                $this->get($url)->assertNotFound();
+            }
+        }
+
+        $this->get('/', ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonCount(1, 'props.catalogShowcase')
+            ->assertJsonPath('props.catalogShowcase.0.id', $visible->id);
+        $this->assertNull(Good::findOrFail($visible->entity_id)->slug);
+        Http::assertNothingSent();
+    }
+
+    public function test_numeric_public_lookup_preserves_exact_slug_and_alias_priority_and_publication(): void
+    {
+        config()->set('app.asset_url', 'https://assets.example.test');
+        $this->withHeader('X-Inertia-Version', hash('xxh128', 'https://assets.example.test'));
+        auth()->logout();
+
+        $legacyForSlug = Good::create(['name' => 'Старый первый', 'is_published' => true]);
+        $legacyForAlias = Good::create(['name' => 'Старый второй', 'is_published' => true]);
+        DB::table('goods')->whereIn('id', [$legacyForSlug->id, $legacyForAlias->id])->update(['slug' => null]);
+        $numericSlug = Good::create(['name' => 'Числовой адрес', 'slug' => (string) $legacyForSlug->id, 'is_published' => true]);
+        $numericAlias = Good::create(['name' => 'Числовой SEO адрес', 'is_published' => true]);
+        GoodSeo::create(['good_id' => $numericAlias->id, 'slug_override' => (string) $legacyForAlias->id, 'is_active' => true]);
+
+        foreach ([[$legacyForSlug, $numericSlug], [$legacyForAlias, $numericAlias]] as [$legacy, $exact]) {
+            $url = route('public.goods.show', (string) $legacy->id);
+            $this->get($url, ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.good.id', $exact->id);
+            $exact->update(['is_published' => false]);
+            $this->get($url)->assertNotFound();
+        }
+
+        $ordinary = Good::create(['name' => 'Обычный адрес', 'is_published' => true]);
+        $this->get(route('public.goods.show', (string) $ordinary->id))
+            ->assertStatus(301)->assertRedirect(route('public.goods.show', $ordinary->slug));
+        Http::assertNothingSent();
+    }
+
     private function placement(Good $good, array $attributes = []): CatalogNode
     {
         return CatalogNode::create([

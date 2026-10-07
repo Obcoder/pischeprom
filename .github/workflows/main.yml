@@ -363,6 +363,7 @@ jobs:
             app/Http/Requests/GenerateGoodSeoAiRequest.php \
             app/Services/Seo/GoodSeoAiException.php \
             app/Services/Seo/GoodSeoAiService.php \
+            app/Services/Seo/GoodSeoService.php \
             app/Http/Controllers/API/GoodTradeCodesAiController.php \
             app/Http/Controllers/API/GoodTradeCodeRegistryController.php \
             app/Http/Requests/VerifyGoodTradeCodesRequest.php \

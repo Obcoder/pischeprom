@@ -149,11 +149,16 @@ class GoodController extends Controller
                             ->where('slug_override', $requestedSlug);
                     });
             })
-            ->firstOrFail();
+            ->first();
 
-        abort_unless($good->is_published, 404);
+        // Existing slugs and SEO aliases take precedence over legacy numeric URLs.
+        if (! $good && ctype_digit($requestedSlug)) {
+            $good = Good::query()->with(['seo', 'stockAvailability'])->find($requestedSlug);
+        }
 
-        $canonicalSlug = $this->canonicalSlug($good);
+        abort_unless($good?->is_published, 404);
+
+        $canonicalSlug = $seoService->publicSlug($good);
 
         if ($requestedSlug !== $canonicalSlug) {
             return redirect()->route('public.goods.show', [
@@ -262,17 +267,6 @@ class GoodController extends Controller
             'publicPurchase' => [...$purchase, 'max_url' => $max->publicProductUrl($good)],
             'seo' => $pageSeo,
         ]);
-    }
-
-    private function canonicalSlug(Good $good): string
-    {
-        $seo = $good->seo;
-
-        if ($seo?->is_active && filled($seo->slug_override)) {
-            return trim($seo->slug_override);
-        }
-
-        return $good->slug;
     }
 
     private function fieldFilters()
