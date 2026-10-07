@@ -7,6 +7,7 @@ use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
+use App\Services\Goods\GoodAvatarImages;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -70,6 +71,9 @@ class CatalogService
                 $data['meta_description'] = $source->seo?->meta_description;
             }
         }
+        $data['thumbnail_url'] = $source instanceof Good
+            ? app(GoodAvatarImages::class)->url($source)
+            : $data['image'];
         $data['slug'] = $data['slug'] ?: (Str::slug($data['name']) ?: 'catalog');
         $data['public_url'] = Route::has('public.catalog.show')
             ? route('public.catalog.show', ['node' => $node->id, 'slug' => $data['slug'] ?: Str::slug($data['name'])])

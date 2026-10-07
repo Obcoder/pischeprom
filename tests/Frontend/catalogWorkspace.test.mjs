@@ -33,7 +33,7 @@ function harness(t) {
     const requests = []
     const environment = {
         ...Vue, buildCatalogView, onMounted() {},
-        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {},
+        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {}, CatalogAvatar: {}, CatalogGalleryDialog: {},
         axios: { async get(url) { requests.push(url); return { data: structuredClone(payload) } } },
     }
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -127,6 +127,23 @@ test('publication status distinguishes a published object inside a hidden parent
     assert.equal(state.tableItems.value[0].status_label, 'На сайте')
     state.nodes.value.find(node => node.id === 40).is_published = false
     assert.equal(state.tableItems.value[0].status_label, 'Черновик')
+})
+
+test('opening an avatar keeps original photos and classification context separate from the editor', async t => {
+    const { state, setPayload } = harness(t)
+    const photo = { image: '/storage/good-original.jpg', thumbnail_url: '/storage/good-thumb.jpg', entity_type: 'good', entity_id: 77 }
+    setPayload({ levels, nodes: nodes.map(node => node.id === 40 ? { ...node, ...photo } : node) })
+    await state.load()
+    state.selectBranch(state.nodes.value.find(node => node.id === 30))
+    const item = state.tableItems.value[0]
+    state.openGallery(item)
+    assert.equal(state.galleryOpen.value, true)
+    assert.equal(state.galleryNode.value.image, photo.image)
+    assert.equal(state.galleryNode.value.thumbnail_url, photo.thumbnail_url)
+    assert.equal(state.galleryNode.value.entity_id, 77)
+    assert.ok(state.galleryNode.value.path_label.includes('Группа над сортом'))
+    assert.equal(state.editorOpen.value, false)
+    assert.equal(state.selectedBranchId.value, 30)
 })
 
 test('trout fillet remains inside the left trout class while its goods appear in the right table', async t => {

@@ -4,6 +4,8 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
 import CatalogSchemaDialog from './CatalogSchemaDialog.vue'
 import CatalogNodeDialog from './CatalogNodeDialog.vue'
+import CatalogAvatar from './CatalogAvatar.vue'
+import CatalogGalleryDialog from './CatalogGalleryDialog.vue'
 import { buildCatalogView } from './presentation.js'
 
 const nodes = ref([])
@@ -19,6 +21,8 @@ const expanded = ref(new Set())
 const schemaOpen = ref(false)
 const editorOpen = ref(false)
 const editorNode = ref(null)
+const galleryOpen = ref(false)
+const galleryNode = ref(null)
 const editorContext = reactive({ parentId: null, levelId: null, entityType: 'custom' })
 const page = ref(1)
 const notice = ref('')
@@ -100,6 +104,9 @@ function toggle(node) {
 }
 function openEditor(node) {
     editorNode.value = node; editorOpen.value = true
+}
+function openGallery(node) {
+    galleryNode.value = node; galleryOpen.value = true
 }
 function create({ parentId = contextNode.value?.id ?? null, levelId = null, entityType = 'custom' } = {}) {
     editorNode.value = null
@@ -203,7 +210,7 @@ onMounted(load)
                     <div class="catalog-items-heading__actions"><v-btn v-if="contextNode" prepend-icon="mdi-pencil-outline" size="small" variant="text" @click="openEditor(contextNode)">Изменить раздел</v-btn><v-btn prepend-icon="mdi-plus" size="small" variant="tonal" @click="create()">Объект</v-btn></div>
                 </div>
                 <v-data-table v-model:page="page" :items="tableItems" :headers="headers" :items-per-page="50" :items-per-page-options="[25, 50, 100]" :loading="loading" item-value="id" density="compact" fixed-header hover class="catalog-items-table" items-per-page-text="На странице" loading-text="Загрузка каталога…">
-                    <template #item.name="{ item }"><div class="catalog-item-name"><div class="catalog-item-avatar"><img v-if="item.image" :src="item.image" alt="" loading="lazy"><v-icon v-else :icon="iconFor(item)" size="20" /></div><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }}</strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
+                    <template #item.name="{ item }"><div class="catalog-item-name"><CatalogAvatar :node="item" :icon="iconFor(item)" @open="openGallery" /><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }}</strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
                     <template #item.level_name="{ item }"><button type="button" class="catalog-level-label" :class="{ 'is-unassigned': !item.level_id }" title="Изменить классификацию" @click="openEditor(item)">{{ item.level_name }}</button></template>
                     <template #item.path_label="{ item }"><span class="catalog-item-path" :title="item.path_label">{{ item.path_label || 'Корень каталога' }}</span></template>
                     <template #item.is_published="{ item }"><div class="catalog-item-status" :title="item.is_published && !item.visible ? 'Запись опубликована, но родительский раздел скрыт на сайте' : item.status_label"><span :class="['catalog-status-dot', { 'is-published': item.visible, 'is-hidden': item.is_published && !item.visible }]" />{{ item.status_label }}<v-icon v-if="item.is_featured" icon="mdi-storefront-outline" size="16" color="#927332" title="На витрине" /></div></template>
@@ -219,6 +226,7 @@ onMounted(load)
         </div>
         <CatalogNodeDialog v-model="editorOpen" :node="editorNode" :levels="levels" :nodes="nodes" :initial-parent-id="editorContext.parentId" :initial-level-id="editorContext.levelId" :initial-entity-type="editorContext.entityType" @saved="saved" @deleted="deleted" @changed="load" @schema="schemaOpen = true" />
         <CatalogSchemaDialog v-model="schemaOpen" :levels="levels" @changed="schemaChanged" />
+        <CatalogGalleryDialog v-model="galleryOpen" :node="galleryNode" />
         <v-snackbar v-model="noticeOpen" :timeout="2500" color="#352345">{{ notice }}</v-snackbar>
     </section>
 </template>
@@ -251,8 +259,8 @@ onMounted(load)
 .catalog-items-heading { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 75px; padding: 11px 16px; border-bottom: 1px solid #e5dfea; }
 .catalog-items-heading__text { min-width: 0; }.catalog-items-heading h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; line-height: 1.5; }.catalog-items-heading h2 > span { font-size: 11px; font-weight: 500; padding: 1px 6px; color: #907e9e; background: #f0eaf5; }.catalog-items-heading p { font-size: 10px; margin-top: 3px; color: #a095a9; }.catalog-items-heading__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
 .catalog-path { display: flex; flex-wrap: wrap; gap: 5px; font-size: 10px; color: #998ca3; margin-bottom: 3px; }.catalog-path__separator { margin-right: 5px; color: #c2b8ca; }
-.catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(td) { height: 58px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
-.catalog-item-name { display: flex; align-items: center; gap: 10px; min-width: 170px; padding: 7px 0; }.catalog-item-avatar { flex: 0 0 34px; width: 34px; height: 34px; display: grid; place-items: center; background: #f4f0f7; border: 1px solid #eee9f2; color: #aa9ab6; }.catalog-item-avatar img { width: 100%; height: 100%; object-fit: cover; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(td) { height: 60px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(tbody td:first-child) { padding: 0 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
+.catalog-item-name { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 0; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-level-label { padding: 3px 6px; font-size: 10px; color: #7b638e; background: #f3eef8; text-align: left; }.catalog-level-label.is-unassigned { background: #f4f4f4; color: #aaa; }.catalog-level-label:hover { background: #e8dff1; }.catalog-item-path { display: block; color: #9a8ba5; font-size: 11px; line-height: 1.5; max-width: 300px; }.catalog-item-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 11px; color: #8c7c96; }.catalog-status-dot { display: inline-block; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #c5bdcd; }.catalog-status-dot.is-published { background: #559c79; }.catalog-status-dot.is-hidden { background: #c59954; }.catalog-item-actions { display: flex; gap: 2px; }
 .catalog-items-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 50px 24px; color: #a092aa; }.catalog-items-empty strong { font-size: 16px; color: #7d698c; font-weight: 500; }.catalog-items-empty p { font-size: 12px; max-width: 400px; line-height: 1.8; }
 @media (max-width: 980px) { .catalog-workspace__body { grid-template-columns: minmax(225px, 30%) minmax(0, 1fr); }.catalog-items-heading__actions { flex-direction: column; align-items: flex-end; }.catalog-tree__name { min-width: 75px; } }

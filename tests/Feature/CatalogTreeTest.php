@@ -7,6 +7,7 @@ use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
+use App\Models\GoodMedia;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Catalog\CatalogService;
@@ -285,11 +286,69 @@ class CatalogTreeTest extends TestCase
         $this->staff();
         $payload = $this->getJson('/api/catalog')->assertOk()->json('nodes.0');
         $this->assertSame('/storage/full.png', $payload['image']);
+        $this->assertSame('/storage/thumb.png', $payload['thumbnail_url']);
         $this->assertStringContainsString('/catalog/', $payload['public_url']);
         $this->assertStringContainsString('/g/', $payload['offer_url']);
         $this->patchJson('/api/catalog/nodes/'.$payload['id'], ['name' => 'Новое имя', 'image' => $payload['image']])->assertOk();
         $this->assertSame('/storage/full.png', $good->fresh()->ava_image);
         $this->assertSame('/storage/thumb.png', $good->fresh()->ava_thumb);
+    }
+
+    public function test_catalog_thumbnails_use_stored_metadata_and_cdn_without_replacing_original_images(): void
+    {
+        config()->set([
+            'filesystems.disks.yandex.bucket' => 'catalog-images-test',
+            'filesystems.disks.yandex.url' => 'https://storage.yandexcloud.net/catalog-images-test',
+            'goods-media.avatar_cdn_url' => 'https://images.example.test/',
+        ]);
+        $source = 'https://storage.yandexcloud.net/catalog-images-test/goods/1/';
+        $full = Good::create(['name' => 'С миниатюрой', 'ava_image' => $source.'original.jpg', 'ava_thumb' => $source.'thumb.jpg']);
+        $external = Good::create(['name' => 'Только оригинал', 'ava_image' => 'https://external.example.test/photo.jpg']);
+        $thumbOnly = Good::create(['name' => 'Только миниатюра', 'ava_thumb' => '/storage/legacy-thumb.jpg']);
+        $empty = Good::create(['name' => 'Без фотографии']);
+        $category = Category::create(['name' => 'Раздел', 'image' => '/storage/category.png']);
+        $custom = CatalogNode::create(['name' => 'Произвольный объект', 'image' => '/storage/custom.png']);
+        $this->staff();
+        Storage::shouldReceive('disk')->never();
+        DB::enableQueryLog();
+
+        $nodes = collect($this->getJson('/api/catalog')->assertOk()->json('nodes'));
+        $queries = implode("\n", array_column(DB::getQueryLog(), 'query'));
+        DB::disableQueryLog();
+        $goods = $nodes->where('entity_type', 'good')->keyBy('entity_id');
+        $this->assertSame($source.'original.jpg', $goods[$full->id]['image']);
+        $this->assertSame('https://images.example.test/goods/1/thumb.jpg', $goods[$full->id]['thumbnail_url']);
+        $this->assertSame('https://external.example.test/photo.jpg', $goods[$external->id]['thumbnail_url']);
+        $this->assertSame('/storage/legacy-thumb.jpg', $goods[$thumbOnly->id]['thumbnail_url']);
+        $this->assertNull($goods[$empty->id]['thumbnail_url']);
+        $this->assertNull($goods[$empty->id]['image']);
+        $this->assertSame('/storage/category.png', $nodes->where('entity_type', 'category')->firstWhere('entity_id', $category->id)['thumbnail_url']);
+        $this->assertSame('/storage/custom.png', $nodes->firstWhere('id', $custom->id)['thumbnail_url']);
+        $this->assertStringNotContainsString('good_media', $queries);
+    }
+
+    public function test_catalog_gallery_can_reuse_staff_media_endpoint_including_draft_images(): void
+    {
+        $good = Good::create(['name' => 'Неопубликованный товар', 'is_published' => false]);
+        $published = GoodMedia::create([
+            'good_id' => $good->id, 'type' => 'image', 'disk' => 'yandex', 'path' => 'goods/photo.jpg',
+            'url' => 'https://images.example.test/photo.jpg', 'thumb_url' => 'https://images.example.test/thumb.jpg',
+            'is_published' => true, 'sort_order' => 1, 'title' => 'Основное фото', 'is_ava' => true,
+        ]);
+        $draft = GoodMedia::create([
+            'good_id' => $good->id, 'type' => 'image', 'disk' => 'yandex', 'path' => 'goods/draft.jpg',
+            'url' => 'https://images.example.test/draft.jpg', 'is_published' => false, 'sort_order' => 2,
+        ]);
+        $uri = '/api/goods/'.$good->id.'/media';
+        $this->getJson($uri)->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))->getJson($uri)->assertForbidden();
+        $this->staff();
+        Storage::shouldReceive('disk')->never();
+        $this->getJson($uri)->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertJsonCount(2)
+            ->assertJsonPath('0.id', $published->id)->assertJsonPath('0.type', 'image')
+            ->assertJsonPath('0.url', $published->url)->assertJsonPath('0.thumb_url', $published->thumb_url)
+            ->assertJsonPath('0.title', 'Основное фото')->assertJsonPath('0.is_ava', true)
+            ->assertJsonPath('1.id', $draft->id)->assertJsonPath('1.is_published', false);
     }
 
     public function test_migration_backfills_existing_legacy_rows_and_preserves_links(): void
