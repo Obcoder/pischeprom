@@ -6,10 +6,13 @@ use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Category;
+use App\Models\Country;
+use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\VatRate;
 use App\Services\Catalog\CatalogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -349,6 +352,168 @@ class CatalogTreeTest extends TestCase
             ->assertJsonPath('0.url', $published->url)->assertJsonPath('0.thumb_url', $published->thumb_url)
             ->assertJsonPath('0.title', 'Основное фото')->assertJsonPath('0.is_ava', true)
             ->assertJsonPath('1.id', $draft->id)->assertJsonPath('1.is_published', false);
+    }
+
+    public function test_good_overview_is_lazy_staff_only_and_returns_narrow_source_data_and_counts(): void
+    {
+        $country = Country::create(['name' => 'Россия', 'сodeISO' => 'RU', 'flag' => 'ru']);
+        $vat = VatRate::create(['title' => 'НДС 10%', 'rate' => 10]);
+        $field = Field::create(['title' => 'Рыбная подборка']);
+        $product = Product::create(['rus' => 'Форель']);
+        $good = Good::create(['name' => 'Филе', 'country_id' => $country->id, 'vat_rate_id' => $vat->id, 'denominator' => 12,
+            'hs_code' => '030449', 'ava_image' => '/storage/full.jpg', 'ava_thumb' => '/storage/thumb.jpg', 'is_published' => false]);
+        $good->products()->attach($product->id);
+        $good->fields()->attach($field->id);
+        GoodMedia::create(['good_id' => $good->id, 'type' => 'image', 'disk' => 'yandex', 'path' => 'test.jpg', 'url' => '/storage/test.jpg']);
+        app(CatalogService::class)->importMissing();
+        $node = CatalogNode::where('entity_type', 'good')->firstOrFail();
+        $uri = '/api/catalog/nodes/'.$node->id.'/overview';
+        $this->getJson($uri)->assertUnauthorized();
+        $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))->getJson($uri)->assertForbidden();
+        $this->staff();
+        Storage::shouldReceive('disk')->never();
+        $this->getJson($uri)->assertOk()->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('data.id', $good->id)->assertJsonPath('data.denominator', 12)
+            ->assertJsonPath('data.country.id', $country->id)->assertJsonPath('data.vat_rate.id', $vat->id)
+            ->assertJsonPath('data.hs_code', '030449')->assertJsonPath('data.products.0.id', $product->id)
+            ->assertJsonPath('data.fields.0.id', $field->id)->assertJsonPath('data.fields.0.title', 'Рыбная подборка')
+            ->assertJsonPath('data.ava_image', '/storage/full.jpg')->assertJsonPath('data.ava_thumb', '/storage/thumb.jpg')
+            ->assertJsonPath('data.counts', ['prices' => 0, 'sales' => 0, 'purchases' => 0, 'media' => 1, 'quotations' => 0])
+            ->assertJsonMissingPath('data.media')->assertJsonMissingPath('data.sales')->assertJsonMissingPath('data.products.0.manufacturers');
+        $this->getJson('/api/catalog')->assertOk()->assertJsonMissingPath('nodes.0.denominator')->assertJsonMissingPath('nodes.0.counts');
+        $productNode = CatalogNode::where('entity_type', 'product')->firstOrFail();
+        $this->getJson('/api/catalog/nodes/'.$productNode->id.'/overview')->assertNotFound();
+    }
+
+    public function test_good_overview_saves_source_and_catalog_fields_together_without_changing_unedited_data(): void
+    {
+        $this->staff();
+        $country = Country::create(['name' => 'Россия', 'сodeISO' => 'RU']);
+        $vat = VatRate::create(['title' => 'НДС 10%', 'rate' => 10]);
+        $field = Field::create(['title' => 'Подборка']);
+        $good = Good::create(['name' => 'Товар', 'ava_image' => '/storage/full.jpg', 'ava_thumb' => '/storage/thumb.jpg', 'gtin' => '04601234567890']);
+        $this->getJson('/api/catalog')->assertOk();
+        $node = CatalogNode::where('entity_type', 'good')->firstOrFail();
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['name' => 'Обновлённый товар', 'is_published' => true, 'good' => [
+            'denominator' => 12.5, 'country_id' => $country->id, 'vat_rate_id' => $vat->id,
+            'hs_code' => '0304.49', 'eccn_code' => 'ear99', 'fields' => [$field->id], 'products' => [],
+        ]])->assertOk()->assertJsonPath('data.id', $node->id)->assertJsonPath('data.name', 'Обновлённый товар');
+        $this->assertDatabaseHas('goods', ['id' => $good->id, 'name' => 'Обновлённый товар', 'is_published' => true, 'denominator' => 12.5,
+            'country_id' => $country->id, 'vat_rate_id' => $vat->id, 'hs_code' => '030449', 'eccn_code' => 'EAR99', 'gtin' => '04601234567890',
+            'ava_image' => '/storage/full.jpg', 'ava_thumb' => '/storage/thumb.jpg']);
+        $this->assertSame([$field->id], $good->fields()->pluck('fields.id')->all());
+    }
+
+    public function test_good_overview_validation_prevents_partial_writes_and_rejects_other_source_types(): void
+    {
+        $this->staff();
+        $good = Good::create(['name' => 'Исходный', 'denominator' => 10]);
+        $this->getJson('/api/catalog')->assertOk();
+        $node = CatalogNode::where('entity_type', 'good')->firstOrFail();
+        foreach (['denominator' => -1, 'country_id' => 999999, 'vat_rate_id' => 999999, 'hs_code' => 'invalid',
+            'products' => [999999], 'fields' => [999999], 'avatar_source_url' => 'javascript:alert(1)'] as $key => $value) {
+            $this->patchJson('/api/catalog/nodes/'.$node->id, ['name' => 'Не сохранять', 'good' => [$key => $value]])->assertUnprocessable();
+        }
+        $this->assertSame('Исходный', $good->fresh()->name);
+        $this->assertSame('Исходный', $node->fresh()->name);
+        $this->assertSame(10.0, $good->fresh()->denominator);
+        $custom = $this->createNode(CatalogLevel::create(['name' => 'Свободный уровень']), 'Раздел');
+        $this->patchJson('/api/catalog/nodes/'.$custom['id'], ['name' => 'Не сохранять', 'good' => ['denominator' => 2]])
+            ->assertUnprocessable()->assertJsonValidationErrors('good');
+        $this->assertSame('Раздел', CatalogNode::findOrFail($custom['id'])->name);
+    }
+
+    public function test_good_overview_product_changes_preserve_edited_node_id_metadata_and_optional_sublevels(): void
+    {
+        $this->staff();
+        $first = Product::create(['rus' => 'Первый']);
+        $second = Product::create(['rus' => 'Второй']);
+        $good = Good::create(['name' => 'Товар']);
+        $good->products()->attach($first->id);
+        $this->getJson('/api/catalog')->assertOk();
+        $node = CatalogNode::where('entity_type', 'good')->firstOrFail();
+        $level = CatalogLevel::create(['name' => 'Упаковка']);
+        $branch = $this->createNode($level, 'Необязательный подуровень', $node->parent_id);
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['parent_id' => $branch['id']])->assertOk();
+        $node->update(['properties' => ['kept' => 'value'], 'is_featured' => true]);
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['good' => ['products' => [$first->id]]])
+            ->assertOk()->assertJsonPath('data.parent_id', $branch['id']);
+        $secondNode = CatalogNode::where('import_key', 'product:'.$second->id)->firstOrFail();
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['parent_id' => (string) $branch['id'], 'good' => ['products' => [$second->id]]])
+            ->assertOk()->assertJsonPath('data.id', $node->id)->assertJsonPath('data.parent_id', $secondNode->id)
+            ->assertJsonPath('data.properties.kept', 'value')->assertJsonPath('data.is_featured', true);
+        $this->assertSame([$second->id], $good->products()->pluck('products.id')->all());
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['good' => ['products' => []]])
+            ->assertOk()->assertJsonPath('data.id', $node->id)->assertJsonPath('data.parent_id', null);
+        $this->getJson('/api/catalog')->assertOk();
+        $this->assertSame(1, CatalogNode::where('entity_type', 'good')->count());
+        $this->assertNull($node->fresh()->parent_id);
+        $this->assertCount(0, $good->products()->get());
+    }
+
+    public function test_good_overview_adds_other_product_placements_and_rolls_back_ambiguous_moves(): void
+    {
+        $this->staff();
+        $first = Product::create(['rus' => 'Первый']);
+        $second = Product::create(['rus' => 'Второй']);
+        $good = Good::create(['name' => 'Исходное имя', 'denominator' => 10]);
+        $good->products()->attach($first->id);
+        $this->getJson('/api/catalog')->assertOk();
+        $node = CatalogNode::where('entity_type', 'good')->firstOrFail();
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['good' => ['products' => [$first->id, $second->id]]])
+            ->assertOk()->assertJsonPath('data.id', $node->id)->assertJsonPath('data.parent_id', $node->parent_id);
+        $this->assertSame(2, CatalogNode::where('entity_type', 'good')->count());
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['name' => 'Не сохранять', 'good' => [
+            'denominator' => 100, 'products' => [$second->id], 'remove_ava' => true,
+        ]])->assertUnprocessable()->assertJsonValidationErrors('good.products');
+        $this->assertSame('Исходное имя', $good->fresh()->name);
+        $this->assertSame('Исходное имя', $node->fresh()->name);
+        $this->assertSame(10.0, $good->fresh()->denominator);
+        $this->assertEqualsCanonicalizing([$first->id, $second->id], $good->products()->pluck('products.id')->all());
+        $this->assertSame(2, CatalogNode::where('entity_type', 'good')->count());
+    }
+
+    public function test_good_overview_unchanged_links_do_not_reclassify_a_manual_root_placement(): void
+    {
+        $this->staff();
+        $first = Product::create(['rus' => 'Первый']);
+        $second = Product::create(['rus' => 'Второй']);
+        $good = Good::create(['name' => 'Товар']);
+        $good->products()->attach([$first->id, $second->id]);
+        $this->getJson('/api/catalog')->assertOk();
+        $node = CatalogNode::where('import_key', 'good:'.$good->id.':product:'.$first->id)->firstOrFail();
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['parent_id' => null])->assertOk();
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['parent_id' => null, 'good' => [
+            'denominator' => 12, 'products' => [$second->id],
+        ]])->assertOk()->assertJsonPath('data.id', $node->id)->assertJsonPath('data.parent_id', null);
+        $this->assertSame(12.0, $good->fresh()->denominator);
+        $this->assertSame([$second->id], $good->products()->pluck('products.id')->all());
+        $this->getJson('/api/catalog')->assertOk();
+        $this->assertNull($node->fresh()->parent_id);
+        $this->assertSame(2, CatalogNode::where('entity_type', 'good')->count());
+    }
+
+    public function test_good_overview_supports_new_unclassified_goods_and_avatar_metadata_edits_without_storage_deletion(): void
+    {
+        $this->staff();
+        $product = Product::create(['rus' => 'Продукт']);
+        $response = $this->postJson('/api/catalog/nodes', ['name' => 'Новый', 'entity_type' => 'good', 'good' => [
+            'denominator' => 6, 'products' => [$product->id], 'avatar_source_url' => 'https://cdn.example.test/original.jpg',
+            'avatar_thumb_source_url' => 'https://cdn.example.test/thumb.jpg',
+        ]])->assertCreated()->assertJsonPath('data.level_id', null);
+        $nodeId = $response->json('data.id');
+        $goodId = $response->json('data.entity_id');
+        $this->assertDatabaseHas('good_product', ['good_id' => $goodId, 'product_id' => $product->id]);
+        $this->assertSame(CatalogNode::where('import_key', 'product:'.$product->id)->value('id'), $response->json('data.parent_id'));
+        Storage::shouldReceive('disk')->never();
+        $this->patchJson('/api/catalog/nodes/'.$nodeId, ['good' => ['avatar_source_url' => 'https://cdn.example.test/original.jpg']])
+            ->assertOk()->assertJsonPath('data.thumbnail_url', 'https://cdn.example.test/thumb.jpg');
+        $this->patchJson('/api/catalog/nodes/'.$nodeId, ['good' => ['avatar_source_url' => 'https://cdn.example.test/updated.jpg']])
+            ->assertOk()->assertJsonPath('data.image', 'https://cdn.example.test/updated.jpg');
+        $this->assertNull(Good::findOrFail($goodId)->ava_thumb);
+        $this->patchJson('/api/catalog/nodes/'.$nodeId, ['good' => ['remove_ava' => true]])
+            ->assertOk()->assertJsonPath('data.image', null)->assertJsonPath('data.thumbnail_url', null);
+        $this->assertDatabaseHas('goods', ['id' => $goodId, 'ava_image' => null, 'ava_thumb' => null]);
     }
 
     public function test_migration_backfills_existing_legacy_rows_and_preserves_links(): void

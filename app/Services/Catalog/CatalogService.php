@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
 use App\Services\Goods\GoodAvatarImages;
+use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -215,6 +216,11 @@ class CatalogService
     public function saveNode(array $data, ?CatalogNode $node = null): CatalogNode
     {
         return DB::transaction(function () use ($data, $node): CatalogNode {
+            $goodData = $data['good'] ?? null;
+            unset($data['good']);
+            if (array_key_exists('parent_id', $data) && $data['parent_id'] !== null) {
+                $data['parent_id'] = (int) $data['parent_id'];
+            }
             // Serialize structural edits and imports; this also closes concurrent cycle creation.
             CatalogLevel::orderBy('id')->lockForUpdate()->get();
             CatalogNode::orderBy('id')->lockForUpdate()->get(['id']);
@@ -229,6 +235,10 @@ class CatalogService
             if (! $creating && $type !== $node->entity_type) {
                 throw ValidationException::withMessages(['entity_type' => 'Тип учётной сущности менять нельзя; уровень классификации можно назначить любой.']);
             }
+            if ($goodData !== null && $type !== 'good') {
+                throw ValidationException::withMessages(['good' => 'Дополнительные параметры доступны только для товара.']);
+            }
+            $parentChanged = $creating || (array_key_exists('parent_id', $data) && $node->parent_id !== $data['parent_id']);
             $levelChanged = $node->level_id !== $level?->id;
             $parentId = array_key_exists('parent_id', $data) ? $data['parent_id'] : $node->parent_id;
             if ($level?->is_domain && $parentId !== null && ($creating || $levelChanged || $node->parent_id !== $parentId)) {
@@ -275,9 +285,88 @@ class CatalogService
             foreach ($this->subtree($node) as $item) {
                 $this->syncRelationships($item, $oldParents[$item->id] ?? null);
             }
+            if ($goodData !== null) {
+                $node = $this->saveGoodOverview($node, $goodData, $parentChanged);
+            }
 
             return $node->fresh();
         }, 3);
+    }
+
+    public function goodOverview(CatalogNode $node): array
+    {
+        abort_unless($node->entity_type === 'good', 404);
+        $good = Good::query()->with([
+            'country:id,name,flag', 'vatRate:id,title,rate',
+            'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.category_id']),
+            'fields:id,title',
+        ])->withCount(['priceTypeValues', 'sales', 'purchases', 'media', 'quotations'])->findOrFail($node->entity_id);
+        $data = $good->only(['id', 'denominator', 'country_id', 'vat_rate_id', 'ava_image', 'ava_thumb', 'created_at', 'updated_at', ...GoodTradeCodes::FIELDS]);
+        $data['country'] = $good->country;
+        $data['vat_rate'] = $good->vatRate;
+        $data['products'] = $good->products->map(fn (Product $product): array => $product->only(['id', 'rus', 'category_id']));
+        $data['fields'] = $good->fields->map(fn ($field): array => $field->only(['id', 'title', 'name']));
+        $data['counts'] = [
+            'prices' => $good->price_type_values_count, 'sales' => $good->sales_count,
+            'purchases' => $good->purchases_count, 'media' => $good->media_count, 'quotations' => $good->quotations_count,
+        ];
+
+        return $data;
+    }
+
+    private function saveGoodOverview(CatalogNode $node, array $data, bool $parentChanged): CatalogNode
+    {
+        $good = Good::lockForUpdate()->findOrFail($node->entity_id);
+        $good->update(array_intersect_key($data, array_flip(['denominator', 'country_id', 'vat_rate_id', ...GoodTradeCodes::FIELDS])));
+        if (array_key_exists('fields', $data)) {
+            $good->fields()->sync($data['fields']);
+        }
+        if ($data['remove_ava'] ?? false) {
+            $good->update(['ava_image' => null, 'ava_thumb' => null]);
+            $node->update(['image' => null]);
+        } elseif (array_key_exists('avatar_source_url', $data) || array_key_exists('avatar_thumb_source_url', $data)) {
+            $image = array_key_exists('avatar_source_url', $data) ? $data['avatar_source_url'] : $good->ava_image;
+            $thumbnail = array_key_exists('avatar_thumb_source_url', $data)
+                ? $data['avatar_thumb_source_url'] : ($image === $good->ava_image ? $good->ava_thumb : null);
+            $image ??= $thumbnail;
+            $good->update(['ava_image' => $image, 'ava_thumb' => $thumbnail]);
+            $node->update(['image' => $image]);
+        }
+        if (! array_key_exists('products', $data)) {
+            return $node;
+        }
+
+        $ids = array_map('intval', $data['products']);
+        $currentProduct = $this->nearestAncestor($node, 'product');
+        if ($parentChanged && $currentProduct && ! in_array($currentProduct->entity_id, $ids, true)) {
+            throw ValidationException::withMessages(['good.products' => 'В список продуктов нужно включить продукт из выбранной ветки классификации.']);
+        }
+        $existingIds = $good->products()->pluck('products.id')->map(fn ($id): int => (int) $id)->sort()->values()->all();
+        $requestedIds = collect($ids)->sort()->values()->all();
+        if ($existingIds === $requestedIds) {
+            // Opening and saving a card must not flatten its independent manual placement.
+            return $node;
+        }
+        $move = $currentProduct && ! in_array($currentProduct->entity_id, $ids, true);
+        $move = $move || (! $currentProduct && $node->parent_id === null && $ids !== [] && ! $node->level?->is_domain);
+        if ($move) {
+            // Import newly created source products before selecting a target placement.
+            $this->importMissing();
+            $target = $ids === [] ? null : CatalogNode::where('import_key', 'product:'.$ids[0])->firstOrFail();
+            $targetKey = 'good:'.$good->id.($target ? ':product:'.$target->entity_id : ':root');
+            if (CatalogNode::where('import_key', $targetKey)->whereKeyNot($node->id)->exists()) {
+                throw ValidationException::withMessages(['good.products' => 'Товар уже размещён в выбранном продукте. Сначала перенесите или удалите другое размещение, чтобы сохранить свойства этой карточки.']);
+            }
+            $this->validateParent($node, $target?->id);
+            $good->products()->sync($ids);
+            $node = $this->saveNode(['parent_id' => $target?->id], $node);
+        } else {
+            $good->products()->sync($ids);
+        }
+        // Reconcile added/removed source links while preserving the edited placement ID.
+        $this->importMissing();
+
+        return $node->fresh();
     }
 
     public function validateProperties(?CatalogLevel $level, array $values): array

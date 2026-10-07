@@ -1,7 +1,9 @@
 <script setup>
 import axios from 'axios'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onScopeDispose, reactive, ref, watch } from 'vue'
 import { descendantIds } from './tree.js'
+import { goodTradeCodeFields, goodTradeCodeValues } from '../../utils/goodTradeCodes.js'
+import CatalogGoodOverview from './CatalogGoodOverview.vue'
 
 const open = defineModel({ type: Boolean, default: false })
 const props = defineProps({
@@ -23,6 +25,18 @@ const baseline = ref('')
 const discardOpen = ref(false)
 const deleteOpen = ref(false)
 const previousLevelId = ref(null)
+const goodForm = reactive({})
+const goodOverview = ref(null)
+const goodOptions = ref({})
+const goodLoading = ref(false)
+const goodReady = ref(false)
+const goodError = ref('')
+const goodBaseline = ref('{}')
+const resetOpen = ref(false)
+let overviewVersion = 0
+let overviewController = null
+let inferredProductId = null
+let productsEdited = false
 let propertyDrafts = {}
 let propertyBaselines = {}
 let schemaSnapshot = {}
@@ -32,7 +46,11 @@ const entityTypes = [
 ]
 const currentLevel = computed(() => props.levels.find(level => level.id === form.level_id))
 const levelOptions = computed(() => [{ id: null, name: 'Без уровня' }, ...props.levels])
-const dirty = computed(() => JSON.stringify(form) !== baseline.value || Boolean(selectedFile.value))
+const isGood = computed(() => form.entity_type === 'good')
+const dirty = computed(() => JSON.stringify(form) !== baseline.value || Boolean(selectedFile.value)
+    || (isGood.value && JSON.stringify(goodForm) !== goodBaseline.value))
+const canSave = computed(() => !saving.value && (!isGood.value || goodReady.value))
+const goodErrors = computed(() => Object.fromEntries(Object.entries(errors.value).filter(([key]) => key.startsWith('good.')).map(([key, value]) => [key.slice(5), value])))
 const selectedFile = computed(() => Array.isArray(imageFile.value) ? imageFile.value[0] : imageFile.value)
 const blockedParents = computed(() => record.value ? descendantIds(props.nodes, record.value.id) : new Set())
 const byId = computed(() => new Map(props.nodes.map(node => [node.id, node])))
@@ -65,31 +83,150 @@ function booleanDefaults(values, fields) {
     return values
 }
 
-function reset() {
-    record.value = props.node
+function nearestProductId() {
+    let node = byId.value.get(form.parent_id)
+    const seen = new Set()
+    while (node && !seen.has(node.id)) {
+        if (node.entity_type === 'product') return node.entity_id
+        seen.add(node.id)
+        node = byId.value.get(node.parent_id)
+    }
+    return null
+}
+function defaultGood(source = {}) {
+    return {
+        denominator: source.denominator ?? null, country_id: source.country_id ?? source.country?.id ?? null,
+        vat_rate_id: source.vat_rate_id ?? source.vat_rate?.id ?? null,
+        products: (source.products || []).map(product => typeof product === 'object' ? product.id : product),
+        fields: (source.fields || []).map(field => typeof field === 'object' ? field.id : field),
+        ...goodTradeCodeValues(source), remove_ava: false,
+        avatar_source_url: /^https?:\/\//i.test(source.ava_image || '') ? source.ava_image : '',
+        avatar_thumb_source_url: /^https?:\/\//i.test(source.ava_thumb || '') ? source.ava_thumb : '',
+    }
+}
+function cancelGoodOverview() {
+    overviewVersion++
+    overviewController?.abort()
+    overviewController = null
+    goodLoading.value = false
+}
+async function loadGoodOverview() {
+    cancelGoodOverview()
+    goodReady.value = false; goodError.value = ''; goodOverview.value = null; goodOptions.value = {}
+    inferredProductId = null; productsEdited = false
+    Object.assign(goodForm, defaultGood())
+    goodBaseline.value = JSON.stringify(goodForm)
+    if (!open.value || !isGood.value) return
+    const version = overviewVersion
+    const current = new AbortController()
+    overviewController = current
+    goodLoading.value = true
+    const nodeId = record.value?.id
+    try {
+        const [metadata, overview] = await Promise.all([
+            axios.get('/api/goods', { params: { view: 'filters' }, signal: current.signal }),
+            nodeId ? axios.get(`/api/catalog/nodes/${nodeId}/overview`, { signal: current.signal }) : Promise.resolve(null),
+        ])
+        if (version !== overviewVersion || !open.value || !isGood.value) return
+        const source = overview?.data?.data
+        const options = metadata.data?.data || metadata.data
+        if (!options || !['products', 'categories', 'countries', 'fields', 'vat_rates'].every(key => Array.isArray(options[key]))
+            || (nodeId && (!source || String(source.id) !== String(record.value.entity_id)))) throw new Error('incomplete overview')
+        goodOverview.value = source || null
+        goodOptions.value = options
+        Object.assign(goodForm, defaultGood(source || {}))
+        if (!nodeId) {
+            inferredProductId = nearestProductId()
+            goodForm.products = inferredProductId ? [inferredProductId] : []
+        }
+        goodBaseline.value = JSON.stringify(goodForm)
+        goodReady.value = true
+    } catch (failure) {
+        if (version !== overviewVersion || !open.value) return
+        goodError.value = failure.response?.data?.message || 'Не удалось загрузить данные товара. Повторите загрузку перед сохранением.'
+    } finally {
+        if (version === overviewVersion) { goodLoading.value = false; overviewController = null }
+    }
+}
+function goodPayload() {
+    const previous = JSON.parse(goodBaseline.value)
+    const payload = {}
+    for (const key of ['denominator', 'country_id', 'vat_rate_id', ...goodTradeCodeFields.map(field => field.key)]) {
+        if (!record.value || !same(goodForm[key], previous[key])) payload[key] = goodForm[key] === '' ? null : goodForm[key]
+    }
+    for (const key of ['products', 'fields']) {
+        const values = [...new Set(goodForm[key] || [])]
+        const original = [...(previous[key] || [])]
+        const compareIds = list => list.map(String).sort().join(',')
+        if (!record.value || compareIds(values) !== compareIds(original)) payload[key] = values
+    }
+    if (!selectedFile.value) {
+        if (goodForm.remove_ava) payload.remove_ava = true
+        else for (const key of ['avatar_source_url', 'avatar_thumb_source_url']) {
+            if (goodForm[key] !== previous[key]) payload[key] = goodForm[key] || null
+        }
+    }
+    return payload
+}
+function updateGoodAvatar(value) {
+    goodForm.avatar_source_url = value || ''
+    form.image = value || ''
+    const previous = JSON.parse(goodBaseline.value)
+    if (goodForm.avatar_thumb_source_url === previous.avatar_thumb_source_url) goodForm.avatar_thumb_source_url = ''
+}
+function removeGoodAvatar(value) {
+    goodForm.remove_ava = value
+    if (value) imageFile.value = null
+    form.image = value ? '' : goodForm.avatar_source_url || goodOverview.value?.ava_image || ''
+}
+function changeParent() {
+    if (!isGood.value || record.value) return
+    const productId = nearestProductId()
+    const previousDefault = inferredProductId ? [inferredProductId] : []
+    if (!productsEdited && same(goodForm.products, previousDefault)) goodForm.products = productId ? [productId] : []
+    else if (productId && !goodForm.products.includes(productId)) goodForm.products.push(productId)
+    inferredProductId = productId
+}
+function updateGoodForm(values) {
+    if (!same(goodForm.products, values.products)) productsEdited = true
+    Object.assign(goodForm, values)
+}
+function requestReset() {
+    if (saving.value) return
+    if (dirty.value) resetOpen.value = true
+    else reset(record.value || props.node)
+}
+function confirmReset() { resetOpen.value = false; reset(record.value || props.node) }
+
+function reset(node = props.node) {
+    record.value = node
     Object.keys(form).forEach(key => delete form[key])
     Object.assign(form, {
-        level_id: props.node ? props.node.level_id ?? null : props.initialLevelId,
-        entity_type: props.node ? props.node.entity_type || 'custom' : props.initialEntityType || 'custom',
-        parent_id: props.node ? props.node.parent_id ?? null : props.initialParentId,
-        name: props.node?.name || '', slug: props.node?.slug || '', image: props.node?.image || '',
-        description: props.node?.description || '', meta_title: props.node?.meta_title || '',
-        meta_description: props.node?.meta_description || '',
-        is_published: props.node?.is_published ?? false, is_featured: props.node?.is_featured ?? false,
-        sort_order: props.node?.sort_order ?? 0, properties: clone(props.node?.properties),
+        level_id: node ? node.level_id ?? null : props.initialLevelId,
+        entity_type: node ? node.entity_type || 'custom' : props.initialEntityType || 'custom',
+        parent_id: node ? node.parent_id ?? null : props.initialParentId,
+        name: node?.name || '', slug: node?.slug || '', image: node?.image || '',
+        description: node?.description || '', meta_title: node?.meta_title || '',
+        meta_description: node?.meta_description || '',
+        is_published: node?.is_published ?? false, is_featured: node?.is_featured ?? false,
+        sort_order: node?.sort_order ?? 0, properties: clone(node?.properties),
     })
-    propertyDrafts = clone(props.node?.properties_by_level)
+    propertyDrafts = clone(node?.properties_by_level)
     previousLevelId.value = form.level_id
     fillBooleanDefaults()
     propertyBaselines = { ...clone(propertyDrafts), [draftKey(form.level_id)]: clone(form.properties) }
     schemaSnapshot = definitions()
-    if (!props.node && currentLevel.value?.is_domain) form.parent_id = null
+    if (!node && currentLevel.value?.is_domain) form.parent_id = null
     error.value = ''; errors.value = {}; imageFile.value = null
-    discardOpen.value = false; deleteOpen.value = false
+    discardOpen.value = false; deleteOpen.value = false; resetOpen.value = false
     baseline.value = JSON.stringify(form)
+    loadGoodOverview()
 }
-watch(open, value => { if (value) reset() }, { immediate: true })
+watch(open, value => { if (value) reset(); else cancelGoodOverview() }, { immediate: true, flush: 'sync' })
+watch(() => props.node?.id, (id, previous) => { if (open.value && id !== previous) reset() }, { flush: 'sync' })
 watch([definitions, () => props.nodes], reconcileProperties)
+watch(selectedFile, value => { if (value && isGood.value) goodForm.remove_ava = false })
+onScopeDispose(cancelGoodOverview)
 
 function reconcileProperties() {
     if (!open.value || !baseline.value) return
@@ -156,12 +293,17 @@ function requestClose() {
 function discard() { discardOpen.value = false; open.value = false }
 
 async function save() {
-    if (saving.value) return
+    if (!canSave.value) return
     saving.value = true; error.value = ''; errors.value = {}
     let saved = null
     try {
         const payload = { ...form, properties: {} }
         if (record.value) delete payload.entity_type
+        if (isGood.value) {
+            delete payload.image
+            const extras = goodPayload()
+            if (Object.keys(extras).length) payload.good = extras
+        }
         for (const field of currentLevel.value?.fields || []) {
             const value = form.properties[field.key]
             payload.properties[field.key] = value === '' || value === undefined ? null
@@ -172,7 +314,13 @@ async function save() {
             : await axios.post('/api/catalog/nodes', payload)
         saved = data.data
         record.value = saved
+        // Relationship edits can relocate this placement on the server. Keep
+        // the confirmed parent for retries if the subsequent avatar upload fails.
+        if (own(saved, 'parent_id')) form.parent_id = saved.parent_id ?? null
+        if (own(saved, 'slug')) form.slug = saved.slug || ''
+        if (own(saved, 'image')) form.image = saved.image || ''
         baseline.value = JSON.stringify(form)
+        goodBaseline.value = JSON.stringify(goodForm)
         if (selectedFile.value) {
             const body = new FormData()
             body.append('image', selectedFile.value)
@@ -205,8 +353,8 @@ async function remove() {
 </script>
 
 <template>
-    <v-dialog :model-value="open" max-width="1380" scrollable :persistent="saving" @update:model-value="value => { if (!value) requestClose() }">
-        <v-card class="catalog-node-dialog">
+    <v-dialog :model-value="open" :max-width="isGood ? 1560 : 1380" scrollable :persistent="saving" @update:model-value="value => { if (!value) requestClose() }">
+        <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood }">
             <v-card-title class="catalog-node-dialog__heading">
                 <div class="catalog-node-dialog__title"><span>{{ record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
                 <v-chip v-if="dirty" size="small" variant="tonal" class="catalog-node-dialog__dirty">Не сохранено</v-chip>
@@ -220,10 +368,10 @@ async function remove() {
                         <section class="catalog-node-dialog__section">
                             <h3><v-icon icon="mdi-file-tree-outline" size="18" /> Название и классификация</h3>
                             <v-text-field v-model="form.name" label="Название *" variant="outlined" density="compact" :error-messages="fieldErrors('name')" required maxlength="255" />
-                            <v-select v-if="!record" v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :error-messages="fieldErrors('entity_type')" hint="Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект." persistent-hint class="mb-3" />
+                            <v-select v-if="!record" v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :error-messages="fieldErrors('entity_type')" hint="Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект." persistent-hint class="mb-3" @update:model-value="loadGoodOverview" />
                             <div v-else class="catalog-node-dialog__identity"><v-chip size="small" variant="tonal">{{ entityTypes.find(type => type.value === (record.entity_type || 'custom'))?.title }}</v-chip><span v-if="record.entity_id">№ {{ record.entity_id }}</span></div>
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
-                            <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" />
+                            <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent" />
                             <p v-if="parentPath" class="catalog-node-dialog__path">{{ parentPath }}</p>
                             <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" min="0" max="1000000" variant="outlined" density="compact" :error-messages="fieldErrors('sort_order')" />
                             <div class="catalog-node-dialog__publication">
@@ -235,14 +383,19 @@ async function remove() {
                         </section>
                         <section class="catalog-node-dialog__section">
                             <h3><v-icon icon="mdi-text-box-outline" size="18" /> Содержание</h3>
-                            <v-textarea v-model="form.description" label="Описание" variant="outlined" density="compact" rows="5" :error-messages="fieldErrors('description')" />
+                            <v-textarea v-model="form.description" label="Описание" variant="outlined" density="compact" :rows="isGood ? 3 : 5" :error-messages="fieldErrors('description')" />
                             <div class="catalog-node-dialog__avatar">
                                 <v-img v-if="form.image" :src="form.image" width="88" height="88" cover rounded="lg" />
                                 <div v-else class="catalog-node-dialog__avatar-empty"><v-icon icon="mdi-image-outline" size="30" /></div>
                                 <p>Аватар записи<small>Для каталога и витрины</small></p>
                             </div>
-                            <v-text-field v-model="form.image" label="Ссылка на изображение" variant="outlined" density="compact" clearable :error-messages="fieldErrors('image')" />
-                            <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint />
+                            <template v-if="isGood">
+                                <v-text-field :model-value="goodForm.avatar_source_url" label="Аватар: URL / CDN" type="url" variant="outlined" density="compact" clearable :disabled="!goodReady || saving || Boolean(selectedFile) || goodForm.remove_ava" :error-messages="goodErrors.avatar_source_url" @update:model-value="updateGoodAvatar" />
+                                <v-text-field v-model="goodForm.avatar_thumb_source_url" label="Миниатюра: URL / CDN" type="url" variant="outlined" density="compact" clearable :disabled="!goodReady || saving || Boolean(selectedFile) || goodForm.remove_ava" :error-messages="goodErrors.avatar_thumb_source_url" />
+                            </template>
+                            <v-text-field v-else v-model="form.image" label="Ссылка на изображение" variant="outlined" density="compact" clearable :error-messages="fieldErrors('image')" />
+                            <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint :disabled="saving || (isGood && !goodReady)" />
+                            <v-checkbox v-if="isGood" :model-value="goodForm.remove_ava" label="Удалить аватар" color="error" density="compact" hide-details :disabled="!goodReady || saving" :error-messages="goodErrors.remove_ava" @update:model-value="removeGoodAvatar" />
                         </section>
                         <section class="catalog-node-dialog__section catalog-node-dialog__seo">
                             <h3><v-icon icon="mdi-magnify" size="18" /> Поиск и SEO</h3>
@@ -255,6 +408,8 @@ async function remove() {
                             </div>
                         </section>
                     </div>
+                    <div v-if="isGood && !goodReady" class="catalog-node-dialog__overview-loading" role="status"><v-progress-circular v-if="goodLoading" indeterminate size="20" width="2" color="#806592" /><v-icon v-else icon="mdi-alert-circle-outline" size="20" /><span>{{ goodLoading ? 'Загрузка данных товара…' : goodError }}</span><v-btn v-if="!goodLoading" variant="text" size="small" @click="loadGoodOverview">Повторить</v-btn></div>
+                    <CatalogGoodOverview v-if="isGood && goodReady" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :context="form" :errors="goodErrors" :disabled="saving" :active="open && goodReady" :edit-url="record?.edit_url || ''" @update:model-value="updateGoodForm" />
                     <section class="catalog-node-dialog__properties">
                         <div class="catalog-node-dialog__properties-heading"><h3>Свойства<span v-if="currentLevel"> · {{ currentLevel.name }}</span></h3><v-btn variant="text" size="small" prepend-icon="mdi-tune-variant" :disabled="saving" @click="emit('schema')">Уровни и поля</v-btn></div>
                         <p v-if="!currentLevel" class="catalog-node-dialog__hint">Выберите уровень, чтобы заполнить его дополнительные свойства.</p>
@@ -273,11 +428,12 @@ async function remove() {
             <v-divider />
             <v-card-actions class="catalog-node-dialog__actions">
                 <v-btn v-if="record" color="error" variant="text" prepend-icon="mdi-delete-outline" :disabled="saving" @click="deleteOpen = true">Удалить</v-btn>
-                <v-spacer /><v-btn variant="text" :disabled="saving" @click="requestClose">Отмена</v-btn><v-btn type="submit" form="catalog-node-form" color="#4d315e" variant="flat" :loading="saving" prepend-icon="mdi-check">Сохранить</v-btn>
+                <v-spacer /><v-btn variant="text" :disabled="saving" @click="requestReset">Сбросить</v-btn><v-btn variant="text" :disabled="saving" @click="requestClose">Отмена</v-btn><v-btn type="submit" form="catalog-node-form" color="#4d315e" variant="flat" :loading="saving" :disabled="!canSave" prepend-icon="mdi-check">Сохранить</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
     <v-dialog v-model="discardOpen" max-width="480"><v-card title="Есть несохранённые изменения"><v-card-text>Закрыть карточку и отменить изменения?</v-card-text><v-card-actions><v-spacer /><v-btn @click="discardOpen = false">Продолжить</v-btn><v-btn color="error" @click="discard">Отменить изменения</v-btn></v-card-actions></v-card></v-dialog>
+    <v-dialog v-model="resetOpen" max-width="480"><v-card title="Сбросить изменения?"><v-card-text>Поля карточки вернутся к сохранённым значениям.</v-card-text><v-card-actions><v-spacer /><v-btn @click="resetOpen = false">Продолжить редактирование</v-btn><v-btn color="error" @click="confirmReset">Сбросить</v-btn></v-card-actions></v-card></v-dialog>
     <v-dialog v-model="deleteOpen" max-width="520" :persistent="saving"><v-card title="Удалить запись?"><v-card-text>«{{ record?.name }}» будет удалена. Сначала перенесите вложенные записи. Записи со связанными операциями защищены от удаления.</v-card-text><v-card-actions><v-spacer /><v-btn :disabled="saving" @click="deleteOpen = false">Отмена</v-btn><v-btn color="error" :loading="saving" @click="remove">Удалить</v-btn></v-card-actions></v-card></v-dialog>
 </template>
 
@@ -288,6 +444,11 @@ async function remove() {
 .catalog-node-dialog__title > span { font-size: 11px; font-weight: 500; color: #8c8294; }
 .catalog-node-dialog__title h2 { font-size: 19px; line-height: 1.5; }
 .catalog-node-dialog__body { padding: 24px !important; background: #fdfcfe; }
+.catalog-node-dialog--good .catalog-node-dialog__body { padding: 18px 22px !important; }
+.catalog-node-dialog--good .catalog-node-dialog__columns { gap: 20px; }
+.catalog-node-dialog--good h3 { margin-bottom: 14px; }
+.catalog-node-dialog--good .catalog-node-dialog__avatar { margin-bottom: 12px; }
+.catalog-node-dialog__overview-loading { display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 12px 16px; background: #f5f0f8; border-radius: 8px; font-size: 12px; color: #806592; }
 .catalog-node-dialog__columns { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 24px; }
 .catalog-node-dialog__section { min-width: 0; }
 .catalog-node-dialog h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; font-size: 13px; font-weight: 650; color: #4d4058; }
@@ -310,5 +471,14 @@ async function remove() {
 .catalog-node-dialog__hint { color: #8c8294; font-size: 12px; }
 .catalog-node-dialog__actions { padding: 12px 24px; }
 @media (max-width: 1050px) { .catalog-node-dialog__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } .catalog-node-dialog__seo { grid-column: 1 / -1; } .catalog-node-dialog__property-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .catalog-node-dialog__columns, .catalog-node-dialog__property-grid { grid-template-columns: 1fr; } .catalog-node-dialog__body { padding: 18px !important; } .catalog-node-dialog__heading { padding: 14px 18px; } .catalog-node-dialog__dirty { display: none; } .catalog-node-dialog__actions { padding: 10px 12px; } }
+@media (max-width: 700px) {
+    .catalog-node-dialog__columns, .catalog-node-dialog__property-grid { grid-template-columns: 1fr; }
+    .catalog-node-dialog__body { padding: 18px !important; }
+    .catalog-node-dialog__heading { padding: 14px 18px; }
+    .catalog-node-dialog__dirty { display: none; }
+    .catalog-node-dialog__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; padding: 10px 12px; }
+    .catalog-node-dialog__actions :deep(.v-spacer) { display: none; }
+    .catalog-node-dialog__actions :deep(.v-btn) { width: 100%; min-width: 0; margin: 0 !important; padding-inline: 8px; font-size: 11px; letter-spacing: .02em; }
+    .catalog-node-dialog__actions :deep(.v-btn__content) { white-space: normal; overflow-wrap: anywhere; }
+}
 </style>

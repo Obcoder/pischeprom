@@ -7,6 +7,7 @@ use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Services\Catalog\CatalogService;
+use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -158,6 +159,11 @@ class CatalogTreeController extends Controller
         return response()->json(['data' => $this->catalog->nodePayload($node)], 201);
     }
 
+    public function overview(CatalogNode $node): JsonResponse
+    {
+        return response()->json(['data' => $this->catalog->goodOverview($node)]);
+    }
+
     public function updateNode(Request $request, CatalogNode $node): JsonResponse
     {
         $node = $this->catalog->saveNode($this->nodeData($request, $node), $node);
@@ -201,6 +207,26 @@ class CatalogTreeController extends Controller
     private function nodeData(Request $request, ?CatalogNode $node = null): array
     {
         $required = $node ? 'sometimes' : 'required';
+        if (is_array($request->input('good'))) {
+            $request->merge(['good' => [...$request->input('good'), ...GoodTradeCodes::normalize($request->input('good'))]]);
+        }
+        $goodRules = [
+            'denominator' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:1000000000'],
+            'country_id' => ['sometimes', 'nullable', 'integer', 'exists:countries,id'],
+            'vat_rate_id' => ['sometimes', 'nullable', 'integer', 'exists:vat_rates,id'],
+            'products' => ['sometimes', 'array', 'max:1000'],
+            'products.*' => ['required', 'integer', 'distinct', 'exists:products,id'],
+            'fields' => ['sometimes', 'array', 'max:1000'],
+            'fields.*' => ['required', 'integer', 'distinct', 'exists:fields,id'],
+            'avatar_source_url' => ['sometimes', 'nullable', 'string', 'max:2048', 'regex:~^(https?://|/storage/)~i'],
+            'avatar_thumb_source_url' => ['sometimes', 'nullable', 'string', 'max:2048', 'regex:~^(https?://|/storage/)~i'],
+            'remove_ava' => ['sometimes', 'boolean'],
+            ...GoodTradeCodes::rules(),
+        ];
+        $nested = ['good' => ['sometimes', 'array:'.implode(',', array_filter(array_keys($goodRules), fn (string $key): bool => ! str_contains($key, '.')))]];
+        foreach ($goodRules as $key => $rules) {
+            $nested['good.'.$key] = $rules;
+        }
 
         return $request->validate([
             'level_id' => ['sometimes', 'nullable', 'integer', 'exists:catalog_levels,id'],
@@ -216,6 +242,7 @@ class CatalogTreeController extends Controller
             'is_featured' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'properties' => ['sometimes', 'nullable', 'array'],
+            ...$nested,
         ]);
     }
 

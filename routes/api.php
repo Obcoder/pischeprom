@@ -803,6 +803,7 @@ Route::prefix('catalog')->group(function () {
     Route::patch('/fields/{field}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateField']);
     Route::delete('/fields/{field}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyField']);
     Route::post('/nodes', [\App\Http\Controllers\API\CatalogTreeController::class, 'storeNode']);
+    Route::get('/nodes/{node}/overview', [\App\Http\Controllers\API\CatalogTreeController::class, 'overview']);
     Route::patch('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateNode']);
     Route::delete('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyNode']);
     Route::post('/nodes/{node}/image', [\App\Http\Controllers\API\CatalogTreeController::class, 'uploadImage']);

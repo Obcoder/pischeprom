@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import * as tradeCodes from '../../resources/js/utils/goodTradeCodes.js'
+import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
 
 const root = new URL('../../', import.meta.url)
 
@@ -226,65 +227,66 @@ function goodCardHarness() {
         ava_image: 'https://cdn.example.com/old.webp', ava_thumb: 'https://cdn.example.com/old-small.webp',
         hs_code: '030111', tn_ved_code: '0301110000', products: [{ id: 9 }],
     }
+    const node = { id: 7, entity_type: 'good', entity_id: 42, name: good.name, image: good.ava_image, is_published: true }
+    const props = Vue.reactive({ modelValue: true, node, nodes: [], levels: [], initialParentId: null, initialLevelId: null, initialEntityType: 'custom' })
     const environment = {
-        ...Vue, ...tradeCodes,
-        VerwalterLayout: {}, GoodQuotationCalculator: {}, GoodSeoTab: {}, GoodPriceCalculationsTab: {},
-        GoodPriceTypesTab: {}, GoodPriceTypeValuesTab: {}, GoodMediaTab: {}, GoodTradeCodeFields: {}, GoodVatCheck: {}, FindBuyersLauncher: {},
-        onMounted() {}, useHead() {}, useDate: () => ({ format: value => value }),
-        usePage: () => ({ props: {} }), useForm: values => Vue.reactive(values),
-        route: (name, id) => `${name}/${id ?? ''}`,
+        ...Vue, ...tradeCodes, descendantIds, CatalogGoodOverview: {}, _mergeModels: Vue.mergeModels,
+        _useModel: (source, key) => Vue.computed({ get: () => source[key], set: value => { source[key] = value } }),
         axios: {
-            async post(url, body, options) { requests.push({ url, body, options }); return { data: good } },
-            async get() { return { data: good } },
+            async patch(url, body) { requests.push({ url, body }); return { data: { data: node } } },
+            async post(url, body) { requests.push({ url, body }); return { data: { data: node } } },
+            async get(url) {
+                return { data: url === '/api/goods'
+                    ? { products: [], categories: [], fields: [], countries: [], vat_rates: [] }
+                    : { data: good } }
+            },
         },
     }
-    const component = componentSource('resources/js/Pages/Ameise/Good.vue', environment)
-    const api = scope.run(() => component.setup({ good }, { expose() {}, emit() {} }))
-    api.goodData.value = good
-    api.syncGoodForm()
-    return { api, requests, dispose: () => scope.stop() }
+    const component = componentSource('resources/js/Components/Catalog/CatalogNodeDialog.vue', environment)
+    const api = scope.run(() => component.setup(props, { expose() {}, emit() {} }))
+    return { api, props, requests, ready: async () => { await Promise.resolve(); await Vue.nextTick() }, dispose: () => scope.stop() }
 }
 
-test('the Good card saves all nullable code fields while preserving an unchanged CDN avatar', async t => {
+test('the catalog record saves changed nullable trade codes atomically while preserving unchanged codes and CDN avatars', async t => {
     const h = goodCardHarness()
     t.after(h.dispose)
+    await h.ready()
     h.api.goodForm.hs_code = null
     h.api.goodForm.gtin = '00012345600012'
-    await h.api.saveGood()
+    await h.api.save()
     const body = h.requests[0].body
-    assert.equal(h.requests[0].url, '/api/goods/42')
-    assert.equal(body.get('_method'), 'PATCH')
-    for (const field of tradeCodes.goodTradeCodeFields) assert.equal(body.has(field.key), true)
-    assert.equal(body.get('hs_code'), '')
-    assert.equal(body.get('tn_ved_code'), '0301110000')
-    assert.equal(body.get('gtin'), '00012345600012')
-    assert.equal(body.has('avatar_source_url'), false)
-    assert.equal(body.has('avatar_thumb_source_url'), false)
-    assert.equal(body.has('ava_image'), false)
+    assert.equal(h.requests[0].url, '/api/catalog/nodes/7')
+    assert.deepEqual(body.good, { hs_code: null, gtin: '00012345600012' })
+    assert.equal(h.api.goodForm.tn_ved_code, '0301110000')
+    assert.equal(Object.hasOwn(body, 'image'), false)
 })
 
 test('changing the card CDN original clears the old thumbnail and saves only changed source fields', async t => {
     const h = goodCardHarness()
     t.after(h.dispose)
-    h.api.updateAvatarSource('https://cdn.example.com/new.webp')
+    await h.ready()
+    h.api.updateGoodAvatar('https://cdn.example.com/new.webp')
     assert.equal(h.api.goodForm.avatar_thumb_source_url, '')
-    await h.api.saveGood()
-    assert.equal(h.requests[0].body.get('avatar_source_url'), 'https://cdn.example.com/new.webp')
-    assert.equal(h.requests[0].body.get('avatar_thumb_source_url'), '')
+    await h.api.save()
+    assert.equal(h.requests[0].body.good.avatar_source_url, 'https://cdn.example.com/new.webp')
+    assert.equal(h.requests[0].body.good.avatar_thumb_source_url, null)
 })
 
 test('uploaded media and explicit avatar removal do not submit stale CDN URLs from the card form', async t => {
     const h = goodCardHarness()
     t.after(h.dispose)
+    await h.ready()
     h.api.goodForm.avatar_source_url = 'https://cdn.example.com/new.webp'
-    h.api.avatarFile.value = new File(['image'], 'good.webp', { type: 'image/webp' })
-    await h.api.saveGood()
-    assert.equal(h.requests[0].body.get('ava_image').name, 'good.webp')
-    assert.equal(h.requests[0].body.has('avatar_source_url'), false)
-    h.api.goodForm.remove_ava = true
+    h.api.imageFile.value = new File(['image'], 'good.webp', { type: 'image/webp' })
+    await h.api.save()
+    assert.equal(Object.hasOwn(h.requests[0].body, 'good'), false)
+    assert.equal(h.requests[1].url, '/api/catalog/nodes/7/image')
+    assert.equal(h.requests[1].body.get('image').name, 'good.webp')
+    h.props.modelValue = true
+    await h.ready()
+    h.api.removeGoodAvatar(true)
     h.api.goodForm.avatar_source_url = 'https://cdn.example.com/another.webp'
-    await h.api.saveGood()
-    assert.equal(h.requests[1].body.get('remove_ava'), '1')
-    assert.equal(h.requests[1].body.has('avatar_source_url'), false)
-    assert.equal(h.requests[1].body.has('ava_image'), false)
+    await h.api.save()
+    assert.deepEqual(h.requests[2].body.good, { remove_ava: true })
+    assert.equal(Object.hasOwn(h.requests[2].body, 'image'), false)
 })

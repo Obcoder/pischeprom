@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
+import { goodTradeCodeFields, goodTradeCodeValues } from '../../resources/js/utils/goodTradeCodes.js'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 
 const levels = [
@@ -17,7 +18,9 @@ const sourceNode = (changes = {}) => ({
     ...changes,
 })
 
-function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog') {
+const goodMetadata = { products: [{ id: 12, rus: 'Мука пшеничная', category_id: 1 }], categories: [{ id: 1, name: 'Мука' }], fields: [{ id: 3, title: 'Бакалея' }], countries: [{ id: 1, name: 'Россия' }], vat_rates: [{ id: 2, title: 'Льготная', rate: 10 }] }
+const sourceOverview = (changes = {}) => ({ id: 42, denominator: 25, country_id: 1, vat_rate_id: 2, products: [{ id: 12 }], fields: [{ id: 3 }], ...goodTradeCodeValues(), hs_code: '110100', counts: { prices: 3, sales: 5, purchases: 2, media: 8 }, ...changes })
+function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', config = {}) {
     const filename = `resources/js/Components/Catalog/${componentName}.vue`
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename })
     assert.deepEqual(errors, [])
@@ -26,20 +29,30 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog') {
     assert.deepEqual(template.errors, [])
     const emitted = []
     const requests = []
+    const reads = []
     const environment = {
-        ...Vue, descendantIds, _mergeModels: Vue.mergeModels,
+        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, CatalogGoodOverview: 'CatalogGoodOverview', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
         _useModel: (props, name) => Vue.computed({
             get: () => props[name],
             set: value => { emitted.push([`update:${name}`, value]); props[name] = value },
         }),
-        axios: Object.fromEntries(['post', 'patch', 'delete'].map(method => [method, (url, data) => {
+        axios: { get(url, options) {
+            if (!config.deferReads) {
+                reads.push({ url, options })
+                return Promise.resolve({ data: url === '/api/goods' ? goodMetadata : { data: sourceOverview({ id: props.node?.entity_id || 42 }) } })
+            }
+            let resolve, reject
+            const promise = new Promise((success, failure) => { resolve = success; reject = failure })
+            reads.push({ url, options, resolve: data => resolve({ data }), reject })
+            return promise
+        }, ...Object.fromEntries(['post', 'patch', 'delete'].map(method => [method, (url, data) => {
             let resolve, reject
             const promise = new Promise((success, failure) => { resolve = success; reject = failure })
             requests.push({ method, url, data, resolve: data => resolve({ data: { data } }), reject })
             return promise
-        }])),
+        }])) },
     }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
@@ -47,7 +60,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog') {
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...args) => emitted.push(args) }))
     t.after(() => scope.stop())
-    return { api, props, requests, emitted, render: templateRenderer(template, api, props) }
+    return { api, props, requests, reads, emitted, ready: async () => { await Promise.resolve(); await Vue.nextTick() }, render: templateRenderer(template, api, props) }
 }
 function updateModel(vnode, value) {
     assert.ok(vnode, 'Expected input is rendered')
@@ -60,6 +73,7 @@ function chooseLevel(h, id) {
 
 test('existing goods can use any level, restore archived properties, or remove classification without changing their source', async t => {
     const h = harness(t, { node: sourceNode() })
+    await h.ready()
     const selector = findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Уровень классификации')
     assert.deepEqual(selector.props.items.map(level => level.id), [null, 1, 2, 3])
     assert.notEqual(selector.props.disabled, true)
@@ -90,6 +104,7 @@ test('existing goods can use any level, restore archived properties, or remove c
 
 test('empty archived maps remain editable and new records can be saved without any level', async t => {
     const h = harness(t, { node: sourceNode({ level_id: null, properties: {}, properties_by_level: { 1: [] } }) })
+    await h.ready()
     chooseLevel(h, 1)
     h.api.form.properties.origin = 'Россия'
     assert.equal(Array.isArray(h.api.form.properties), false)
@@ -102,6 +117,7 @@ test('empty archived maps remain editable and new records can be saved without a
     await unclassify
 
     const fresh = harness(t, { initialEntityType: 'good', levels: [] })
+    await fresh.ready()
     fresh.api.form.name = 'Новый товар'
     const create = fresh.api.save()
     assert.equal(fresh.requests[0].method, 'post')
@@ -114,6 +130,7 @@ test('empty archived maps remain editable and new records can be saved without a
 
 test('failed image upload preserves the created record ID and retry updates it instead of creating a duplicate', async t => {
     const h = harness(t, { initialEntityType: 'good' })
+    await h.ready()
     h.api.form.name = 'Мука'
     h.api.imageFile.value = new Blob(['image'], { type: 'image/png' })
     const save = h.api.save()
@@ -146,8 +163,33 @@ test('failed image upload preserves the created record ID and retry updates it i
     assert.deepEqual(h.emitted.find(event => event[0] === 'saved'), ['saved', uploaded])
 })
 
+test('image upload retry keeps the server-confirmed parent after changing a good product relationship', async t => {
+    const h = harness(t, { node: sourceNode({ parent_id: 5 }) })
+    await h.ready()
+    h.api.goodForm.products = [13]
+    h.api.imageFile.value = new Blob(['image'], { type: 'image/png' })
+    const save = h.api.save()
+    assert.deepEqual(h.requests[0].data.good.products, [13])
+    const relocated = sourceNode({ parent_id: 99 })
+    h.requests[0].resolve(relocated)
+    await h.ready()
+    h.requests[1].reject({ response: { data: { message: 'Временная ошибка загрузки.' } } })
+    await save
+    assert.equal(h.api.form.parent_id, 99)
+    assert.deepEqual(h.api.goodForm.products, [13])
+    const retry = h.api.save()
+    assert.equal(h.requests[2].data.parent_id, 99)
+    assert.equal(Object.hasOwn(h.requests[2].data, 'good'), false)
+    h.requests[2].resolve(relocated)
+    await h.ready()
+    h.requests[3].resolve({ ...relocated, image: '/new-image.png' })
+    await retry
+    assert.equal(h.props.modelValue, false)
+})
+
 test('dismissal guards dirty form data and busy writes; validation failures keep the form open and retryable', async t => {
     const h = harness(t, { node: sourceNode() })
+    await h.ready()
     assert.equal(h.api.dirty.value, false)
     h.api.form.name = 'Новое название'
     updateModel(findVNode(h.render(), node => node.type === 'v-dialog'), false)
@@ -199,6 +241,7 @@ test('domain levels allow choosing hierarchical rendering and persist it without
 test('schema reload remaps renamed fields by stable ID and refreshes clean values without creating unsaved edits', async t => {
     const original = sourceNode()
     const h = harness(t, { node: original, nodes: [original] })
+    await h.ready()
     const renamedLevels = structuredClone(levels)
     renamedLevels[0].fields[0] = { ...renamedLevels[0].fields[0], key: 'country', type: 'textarea' }
     h.props.levels = renamedLevels
@@ -216,6 +259,7 @@ test('schema reload remaps renamed fields by stable ID and refreshes clean value
 test('schema reload preserves unsaved current and archived-level properties while refreshing untouched values', async t => {
     const original = sourceNode()
     const h = harness(t, { node: original, nodes: [original] })
+    await h.ready()
     h.api.form.properties.origin = 'Свой вариант'
     h.api.form.description = 'Несохранённое описание'
     chooseLevel(h, 2)
@@ -242,6 +286,7 @@ test('schema reload preserves unsaved current and archived-level properties whil
 test('consecutive field renames preserve draft and clean values even before refreshed nodes arrive', async t => {
     const original = sourceNode()
     const h = harness(t, { node: original, nodes: [original] })
+    await h.ready()
     for (const key of ['country', 'country_of_origin']) {
         const renamedLevels = structuredClone(levels)
         renamedLevels[0].fields[0].key = key
@@ -254,4 +299,157 @@ test('consecutive field renames preserve draft and clean values even before refr
     await Vue.nextTick()
     assert.deepEqual(h.api.form.properties, { country_of_origin: 'Россия' })
     assert.equal(h.api.dirty.value, false)
+})
+
+test('goods load their complete overview lazily and cannot save unresolved defaults', async t => {
+    const h = harness(t, { node: sourceNode() }, 'CatalogNodeDialog', { deferReads: true })
+    assert.deepEqual(h.reads.map(request => request.url), ['/api/goods', '/api/catalog/nodes/7/overview'])
+    assert.deepEqual(h.reads[0].options.params, { view: 'filters' })
+    assert.equal(h.api.canSave.value, false)
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    h.api.form.description = 'Описание изменено во время загрузки'
+    h.reads[0].resolve(goodMetadata)
+    await h.ready()
+    assert.equal(h.api.canSave.value, false)
+    h.reads[1].resolve({ data: sourceOverview() })
+    await h.ready()
+    assert.equal(h.api.goodReady.value, true)
+    assert.equal(h.api.form.description, 'Описание изменено во время загрузки')
+    assert.equal(h.api.goodForm.denominator, 25)
+    assert.deepEqual(h.api.goodForm.products, [12])
+    h.api.goodForm.denominator = 10
+    h.api.goodForm.country_id = null
+    h.api.goodForm.hs_code = null
+    h.api.goodForm.fields = []
+    h.api.form.parent_id = 99
+    const save = h.api.save()
+    assert.equal(h.requests.length, 1)
+    assert.deepEqual(h.requests[0].data.good, { denominator: 10, country_id: null, hs_code: null, fields: [] })
+    assert.equal(h.requests[0].data.parent_id, 99)
+    assert.equal(Object.hasOwn(h.requests[0].data, 'image'), false)
+    assert.equal(Object.hasOwn(h.requests[0].data.good, 'products'), false, 'An unchanged product list must not undo an explicit parent move')
+    h.requests[0].resolve(sourceNode())
+    await save
+})
+
+test('a failed overview stays retryable without overwriting catalog edits and late node responses are discarded', async t => {
+    const h = harness(t, { node: sourceNode() }, 'CatalogNodeDialog', { deferReads: true })
+    h.api.form.name = 'Несохранённое название'
+    h.reads[0].resolve(goodMetadata)
+    h.reads[1].reject({ response: { data: { message: 'Не удалось получить товар' } } })
+    await h.ready()
+    assert.equal(h.api.goodError.value, 'Не удалось получить товар')
+    assert.equal(h.api.canSave.value, false)
+    const retry = h.api.loadGoodOverview()
+    h.reads[2].resolve(goodMetadata)
+    h.reads[3].resolve({ data: sourceOverview() })
+    await retry
+    assert.equal(h.api.goodReady.value, true)
+    assert.equal(h.api.form.name, 'Несохранённое название')
+    const stale = h.api.loadGoodOverview()
+    const previous = h.reads.slice(4)
+    h.props.node = sourceNode({ id: 8, entity_id: 43, name: 'Другой товар' })
+    assert.ok(previous.every(request => request.options.signal.aborted))
+    previous[0].resolve(goodMetadata)
+    previous[1].resolve({ data: sourceOverview({ denominator: 999 }) })
+    await stale
+    assert.equal(h.api.goodReady.value, false)
+    assert.notEqual(h.api.goodForm.denominator, 999)
+    h.reads[6].resolve(goodMetadata)
+    h.reads[7].resolve({ data: sourceOverview({ id: 43, denominator: 3 }) })
+    await h.ready()
+    assert.equal(h.api.goodForm.denominator, 3)
+    const pending = h.api.loadGoodOverview()
+    h.props.modelValue = false
+    h.reads[8].resolve(goodMetadata)
+    h.reads[9].resolve({ data: sourceOverview({ id: 43, denominator: 777 }) })
+    await pending
+    assert.equal(h.api.goodReady.value, false)
+    assert.notEqual(h.api.goodForm.denominator, 777)
+})
+
+test('good relationship edits share the catalog mutation and validation keeps all drafts open', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    const overview = findVNode(h.render(), node => node.type === 'CatalogGoodOverview')
+    updateModel(overview, { ...h.api.goodForm, products: [12, 13], fields: [3, 4], vat_rate_id: null, gtin: '00012345600012' })
+    h.api.form.properties.origin = 'Казахстан'
+    assert.equal(h.api.dirty.value, true)
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    const save = h.api.save()
+    assert.deepEqual(h.requests[0].data.good, { vat_rate_id: null, gtin: '00012345600012', products: [12, 13], fields: [3, 4] })
+    assert.deepEqual(h.requests[0].data.properties, { origin: 'Казахстан' })
+    h.requests[0].reject({ response: { data: { errors: { 'good.products': ['Сначала объедините размещения.'], 'good.gtin': ['Некорректный GTIN.'] } } } })
+    await save
+    assert.equal(h.props.modelValue, true)
+    assert.deepEqual(h.api.goodErrors.value.products, ['Сначала объедините размещения.'])
+    assert.deepEqual(h.api.goodForm.products, [12, 13])
+    assert.equal(h.api.form.properties.origin, 'Казахстан')
+})
+
+test('new goods load only options, infer their optional parent product and save extras atomically', async t => {
+    const h = harness(t, { initialEntityType: 'good', initialParentId: 11, nodes: [
+        { id: 10, entity_type: 'product', entity_id: 12, name: 'Мука' },
+        { id: 11, parent_id: 10, entity_type: null, name: 'Высший сорт' },
+    ] })
+    await h.ready()
+    assert.deepEqual(h.reads.map(request => request.url), ['/api/goods'])
+    assert.deepEqual(h.api.goodForm.products, [12])
+    assert.equal(h.api.dirty.value, false)
+    h.api.form.name = 'Новая мука'
+    h.api.goodForm.denominator = 25
+    h.api.goodForm.fields = [3]
+    const save = h.api.save()
+    assert.equal(h.requests[0].method, 'post')
+    assert.equal(h.requests[0].data.good.denominator, 25)
+    assert.deepEqual(h.requests[0].data.good.products, [12])
+    assert.deepEqual(h.requests[0].data.good.fields, [3])
+    h.requests[0].resolve(sourceNode({ id: 19, parent_id: 11 }))
+    await save
+})
+
+test('new good parent changes replace inferred product defaults while retaining intentional multi-product choices', async t => {
+    const h = harness(t, { initialEntityType: 'good', initialParentId: 10, nodes: [
+        { id: 10, entity_type: 'product', entity_id: 12, name: 'Мука' },
+        { id: 11, entity_type: 'product', entity_id: 13, name: 'Крупа' },
+    ] })
+    await h.ready()
+    const parent = findVNode(h.render(), node => node.type === 'v-autocomplete' && node.props.label === 'Расположение в каталоге')
+    updateModel(parent, 11)
+    assert.deepEqual(h.api.goodForm.products, [13])
+    updateModel(parent, null)
+    assert.deepEqual(h.api.goodForm.products, [])
+    h.api.updateGoodForm({ ...h.api.goodForm, products: [14] })
+    updateModel(parent, 10)
+    assert.deepEqual(h.api.goodForm.products, [14, 12])
+    updateModel(parent, 11)
+    assert.deepEqual(h.api.goodForm.products, [14, 12, 13])
+})
+
+test('reset confirms unsaved good data and restores saved overview without flagging freshly loaded fields dirty', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    assert.equal(h.api.dirty.value, false)
+    h.api.goodForm.denominator = 99
+    h.api.requestReset()
+    assert.equal(h.api.resetOpen.value, true)
+    assert.equal(h.api.goodForm.denominator, 99)
+    h.api.confirmReset()
+    await h.ready()
+    assert.equal(h.api.goodForm.denominator, 25)
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('non-goods never load commerce defaults and retain direct image editing', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product' }) })
+    assert.equal(h.reads.length, 0)
+    assert.ok(findVNode(h.render(), node => node.type === 'v-text-field' && node.props.label === 'Ссылка на изображение'))
+    h.api.form.image = '/storage/product.png'
+    const save = h.api.save()
+    assert.equal(h.requests[0].data.image, '/storage/product.png')
+    assert.equal(Object.hasOwn(h.requests[0].data, 'good'), false)
+    h.requests[0].resolve(sourceNode({ entity_type: 'product' }))
+    await save
 })
