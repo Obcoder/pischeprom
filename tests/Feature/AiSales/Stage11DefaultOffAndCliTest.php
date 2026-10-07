@@ -46,7 +46,7 @@ class Stage11DefaultOffAndCliTest extends TestCase
     public function test_existing_product_yandex_card_is_not_duplicated_by_find_buyers_ui(): void
     {
         $productPage = file_get_contents(resource_path('js/Pages/Ameise/Product_02.vue'));
-        $goodPage = file_get_contents(resource_path('js/Pages/Ameise/Good.vue'));
+        $goodOperations = file_get_contents(resource_path('js/Components/Catalog/CatalogGoodOperations.vue'));
         $productAiSalesCard = file_get_contents(resource_path('js/Components/AiSales/ProductAiSalesCampaignCard.vue'));
         $yandexCard = file_get_contents(resource_path('js/Components/ProductYandexSearchCard.vue'));
         $wizard = file_get_contents(resource_path('js/Components/AiSales/FindBuyersWizard.vue'));
@@ -54,7 +54,7 @@ class Stage11DefaultOffAndCliTest extends TestCase
         $this->assertSame(1, substr_count($productPage, '<ProductYandexSearchCard'));
         $this->assertSame(1, substr_count($productPage, '<ProductAiSalesCampaignCard'));
         $this->assertSame(1, substr_count($productAiSalesCard, '<FindBuyersLauncher'));
-        $this->assertSame(1, substr_count($goodPage, '<FindBuyersLauncher'));
+        $this->assertSame(1, substr_count($goodOperations, '<FindBuyersLauncher'));
         $this->assertStringContainsString('Legacy manual Yandex search', $productPage);
         $this->assertStringContainsString('AI-поиск покупателей', $productAiSalesCard);
         $this->assertStringContainsString('/api/products/${props.productId}/yandex-search', $yandexCard);

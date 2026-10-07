@@ -67,6 +67,12 @@ test('products include category context, fields retain labels and saved counters
     assert.deepEqual(h.api.stats.value.map(stat => stat.count), [5, 4, 3, 2])
     assert.equal(h.api.statUrl('purchases'), '/ameise/good/42?tab=quotations')
     assert.ok(findVNode(h.render(), node => hasClass(node, 'catalog-good-overview__stat') && node.props.href === '/ameise/good/42?tab=media'))
+    h.props.inlineNavigation = true
+    let prevented = false
+    h.api.openStat({ preventDefault() { prevented = true } }, 'purchases')
+    assert.equal(prevented, true)
+    assert.deepEqual(h.emitted.at(-1), ['navigate', 'quotations'])
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'catalog-good-overview__stat') && node.props.href === '/ameise/good/42?tab=media').props.target, undefined)
     const country = findVNode(h.render(), node => node.type === 'v-autocomplete' && node.props.label === 'Страна происхождения')
     assert.equal(country.props.items[0].flag, '/ru.svg')
 })

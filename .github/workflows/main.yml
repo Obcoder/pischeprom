@@ -358,6 +358,8 @@ jobs:
         run: |
           vendor/bin/pint --test \
             app/Http/Controllers/API/GoodSeoAiController.php \
+            app/Http/Controllers/API/GoodSeoController.php \
+            app/Http/Controllers/API/Marketing/YandexDirectGoodController.php \
             app/Http/Requests/GenerateGoodSeoAiRequest.php \
             app/Services/Seo/GoodSeoAiException.php \
             app/Services/Seo/GoodSeoAiService.php \
@@ -395,7 +397,9 @@ jobs:
             database/migrations/2026_10_07_150000_create_catalog_tree_tables.php \
             database/migrations/2026_10_07_170000_make_catalog_classification_optional.php \
             database/migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php \
+            database/migrations/2026_10_07_190000_consolidate_catalog_good_seo.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/PublicCatalogTest.php \
@@ -549,6 +553,7 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \
             tests/Feature/ComponentCatalogManagementTest.php \

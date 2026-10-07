@@ -5,29 +5,31 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Services\Seo\GoodSeoAiService;
+use App\Services\Seo\GoodSeoService;
 use App\Services\Seo\GoodStructuredDataService;
 use App\Services\Seo\IndexNowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class GoodSeoController extends Controller
 {
     public function show(Good $good, GoodSeoAiService $ai): JsonResponse
     {
         $seo = $good->seo()->firstOrCreate([
-                                               'good_id' => $good->id,
-                                           ], [
-                                               'meta_title' => "{$good->name} купить оптом для пищевой промышленности",
-                                               'meta_description' => $good->description,
-                                               'h1' => $good->name,
-                                               'robots' => 'index,follow',
-                                               'focus_keyword' => $good->name,
-                                               'breadcrumbs_title' => $good->name,
-                                               'is_active' => true,
-                                               'include_in_sitemap' => true,
-                                               'include_in_yandex_feed' => true,
-                                               'availability_status' => 'on_request',
-                                           ]);
+            'good_id' => $good->id,
+        ], [
+            'meta_title' => "{$good->name} купить оптом для пищевой промышленности",
+            'meta_description' => $good->description,
+            'h1' => $good->name,
+            'robots' => 'index,follow',
+            'focus_keyword' => $good->name,
+            'breadcrumbs_title' => $good->name,
+            'is_active' => true,
+            'include_in_sitemap' => true,
+            'include_in_yandex_feed' => true,
+            'availability_status' => 'on_request',
+        ]);
 
         return response()->json([...$seo->toArray(), 'ai_generation' => $ai->availability()]);
     }
@@ -36,49 +38,65 @@ class GoodSeoController extends Controller
         Request $request,
         Good $good,
         IndexNowService $indexNowService,
+        GoodSeoService $seoService,
     ): JsonResponse {
+        $existing = $good->seo;
+        $sameAlias = $request->input('slug_override') === $existing?->slug_override;
+        $activating = $request->boolean('is_active') && ! $existing?->is_active;
+        $aliasRules = ['nullable', 'string', 'max:255'];
+        if (! $sameAlias) {
+            $aliasRules[] = 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
+        }
+        if (! $sameAlias || $activating) {
+            $aliasRules[] = Rule::unique('goods', 'slug')->ignore($good->id);
+            $aliasRules[] = Rule::unique('good_seos', 'slug_override')->ignore($good->id, 'good_id');
+        }
+        $canonicalRules = ['nullable', 'string', 'max:255'];
+        if ($request->input('canonical_url') !== $existing?->canonical_url) {
+            $canonicalRules[] = 'url:http,https';
+        }
         $validated = $request->validate([
-                                            'meta_title' => ['nullable', 'string', 'max:255'],
-                                            'meta_description' => ['nullable', 'string'],
-                                            'h1' => ['nullable', 'string', 'max:255'],
-                                            'slug_override' => ['nullable', 'string', 'max:255'],
-                                            'canonical_url' => ['nullable', 'string', 'max:255'],
-                                            'robots' => ['required', 'string', 'max:50'],
+            'meta_title' => ['nullable', 'string', 'max:255'],
+            'meta_description' => ['nullable', 'string'],
+            'h1' => ['nullable', 'string', 'max:255'],
+            'slug_override' => $aliasRules,
+            'canonical_url' => $canonicalRules,
+            'robots' => ['required', 'string', 'max:50'],
 
-                                            'og_title' => ['nullable', 'string', 'max:255'],
-                                            'og_description' => ['nullable', 'string'],
-                                            'og_image' => ['nullable', 'string', 'max:255'],
+            'og_title' => ['nullable', 'string', 'max:255'],
+            'og_description' => ['nullable', 'string'],
+            'og_image' => ['nullable', 'string', 'max:255'],
 
-                                            'twitter_title' => ['nullable', 'string', 'max:255'],
-                                            'twitter_description' => ['nullable', 'string'],
-                                            'twitter_image' => ['nullable', 'string', 'max:255'],
+            'twitter_title' => ['nullable', 'string', 'max:255'],
+            'twitter_description' => ['nullable', 'string'],
+            'twitter_image' => ['nullable', 'string', 'max:255'],
 
-                                            'short_seo_text' => ['nullable', 'string'],
-                                            'seo_text' => ['nullable', 'string'],
+            'short_seo_text' => ['nullable', 'string'],
+            'seo_text' => ['nullable', 'string'],
 
-                                            'semantic_core' => ['nullable', 'array'],
-                                            'keywords' => ['nullable', 'array'],
-                                            'search_queries' => ['nullable', 'array'],
-                                            'structured_data' => ['nullable', 'array'],
+            'semantic_core' => ['nullable', 'array'],
+            'keywords' => ['nullable', 'array'],
+            'search_queries' => ['nullable', 'array'],
+            'structured_data' => ['nullable', 'array'],
 
-                                            'focus_keyword' => ['nullable', 'string', 'max:255'],
-                                            'breadcrumbs_title' => ['nullable', 'string', 'max:255'],
+            'focus_keyword' => ['nullable', 'string', 'max:255'],
+            'breadcrumbs_title' => ['nullable', 'string', 'max:255'],
 
-                                            'is_active' => ['required', 'boolean'],
-                                            'include_in_sitemap' => ['nullable', 'boolean'],
-                                            'include_in_yandex_feed' => ['nullable', 'boolean'],
+            'is_active' => ['required', 'boolean'],
+            'include_in_sitemap' => ['nullable', 'boolean'],
+            'include_in_yandex_feed' => ['nullable', 'boolean'],
 
-                                            'yandex_direct_title_1' => ['nullable', 'string', 'max:255'],
-                                            'yandex_direct_title_2' => ['nullable', 'string', 'max:255'],
-                                            'yandex_direct_text' => ['nullable', 'string'],
-                                            'utm_template' => ['nullable', 'string'],
+            'yandex_direct_title_1' => ['nullable', 'string', 'max:255'],
+            'yandex_direct_title_2' => ['nullable', 'string', 'max:255'],
+            'yandex_direct_text' => ['nullable', 'string'],
+            'utm_template' => ['nullable', 'string'],
 
-                                            'availability_status' => ['nullable', 'string', 'max:50'],
-                                            'min_order' => ['nullable', 'string', 'max:255'],
-                                            'delivery_note' => ['nullable', 'string'],
-                                            'payment_note' => ['nullable', 'string'],
-                                            'faq' => ['nullable', 'array'],
-                                        ]);
+            'availability_status' => ['nullable', 'string', 'max:50'],
+            'min_order' => ['nullable', 'string', 'max:255'],
+            'delivery_note' => ['nullable', 'string'],
+            'payment_note' => ['nullable', 'string'],
+            'faq' => ['nullable', 'array'],
+        ]);
 
         $seo = $good->seo()->updateOrCreate(
             ['good_id' => $good->id],
@@ -91,10 +109,10 @@ class GoodSeoController extends Controller
         );
 
         if ($good->is_published && $seo->is_active && str_starts_with($seo->robots, 'index')) {
-            if ($indexNowService->submit([route('public.goods.show', $good)])) {
+            if ($indexNowService->submit([$seoService->publicUrl($good->fresh('seo'))])) {
                 $seo->update([
-                                 'index_now_sent_at' => now(),
-                             ]);
+                    'index_now_sent_at' => now(),
+                ]);
             }
         }
 
@@ -106,22 +124,22 @@ class GoodSeoController extends Controller
         GoodStructuredDataService $structuredDataService,
     ): JsonResponse {
         $good->load([
-                        'seo',
-                        'products.category',
-                        'vatRate',
-                        'publishedMedia',
-                        'priceTypeValues.priceType.currency',
-                        'priceTypeValues.currency',
-                    ]);
+            'seo',
+            'products.category',
+            'vatRate',
+            'publishedMedia',
+            'priceTypeValues.priceType.currency',
+            'priceTypeValues.currency',
+        ]);
 
         $seo = $good->seo()->firstOrCreate([
-                                               'good_id' => $good->id,
-                                           ]);
+            'good_id' => $good->id,
+        ]);
 
         $seo->update([
-                         'structured_data' => $structuredDataService->make($good, true),
-                         'last_generated_at' => now(),
-                     ]);
+            'structured_data' => $structuredDataService->make($good, true),
+            'last_generated_at' => now(),
+        ]);
 
         return response()->json($seo->fresh());
     }

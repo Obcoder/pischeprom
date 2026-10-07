@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class Good extends Model
@@ -56,11 +57,14 @@ class Good extends Model
         $base = Str::slug($source) ?: Str::random(8);
         $slug = $base;
         $i = 2;
+        $seoAliasesAvailable = Schema::hasTable('good_seos') && Schema::hasColumn('good_seos', 'slug_override');
 
         while (
             Good::where('slug', $slug)
                 ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
                 ->exists()
+            || ($seoAliasesAvailable && GoodSeo::where('slug_override', $slug)
+                ->when($exceptId, fn ($q) => $q->where('good_id', '!=', $exceptId))->exists())
         ) {
             $slug = "{$base}-{$i}";
             $i++;

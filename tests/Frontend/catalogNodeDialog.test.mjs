@@ -5,6 +5,7 @@ import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
 import { goodTradeCodeFields, goodTradeCodeValues } from '../../resources/js/utils/goodTradeCodes.js'
+import { goodRecordTabs } from '../../resources/js/Components/Catalog/recordTabs.js'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 
 const levels = [
@@ -31,7 +32,8 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const requests = []
     const reads = []
     const environment = {
-        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, CatalogGoodOverview: 'CatalogGoodOverview', _mergeModels: Vue.mergeModels,
+        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, CatalogGoodOverview: 'CatalogGoodOverview',
+        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
         _useModel: (props, name) => Vue.computed({
@@ -56,7 +58,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(environment)
-    const props = Vue.reactive({ modelValue: true, node: null, nodes: [], levels, initialParentId: null, initialLevelId: null, initialEntityType: 'custom', ...initialProps })
+    const props = Vue.reactive({ modelValue: true, node: null, nodes: [], levels, initialParentId: null, initialLevelId: null, initialEntityType: 'custom', initialTab: 'overview', ...initialProps })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...args) => emitted.push(args) }))
     t.after(() => scope.stop())
@@ -70,6 +72,100 @@ function updateModel(vnode, value) {
 function chooseLevel(h, id) {
     updateModel(findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Уровень классификации'), id)
 }
+
+test('goods use the full SEO tab regardless of their classification while other entities retain generic metadata', async t => {
+    const h = harness(t, { node: sourceNode({ level_id: null, meta_title: 'Устаревшее SEO' }), initialTab: 'seo' })
+    await h.ready()
+    assert.equal(h.api.activeTab.value, 'seo')
+    assert.equal(h.api.seoVisited.value, true)
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'Заголовок · Title'), null)
+    const saved = h.api.save()
+    assert.equal(Object.hasOwn(h.requests[0].data, 'meta_title'), false)
+    assert.equal(Object.hasOwn(h.requests[0].data, 'meta_description'), false)
+    h.requests[0].resolve(sourceNode())
+    await saved
+    const other = harness(t, { node: sourceNode({ entity_type: 'custom', entity_id: null, meta_title: 'SEO категории' }) })
+    assert.ok(findVNode(other.render(), node => node.props?.label === 'Заголовок · Title'))
+})
+
+test('changing tabs preserves the base draft and mounts each tool lazily', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    assert.equal(h.api.seoVisited.value, false)
+    assert.equal(h.api.operationsVisited.value, false)
+    h.api.form.name = 'Черновик названия'
+    h.api.goodForm.denominator = 12
+    h.api.selectTab('seo')
+    h.api.selectTab('media')
+    h.api.selectTab('overview')
+    assert.equal(h.api.seoVisited.value, true)
+    assert.equal(h.api.operationsVisited.value, true)
+    assert.equal(h.api.form.name, 'Черновик названия')
+    assert.equal(h.api.goodForm.denominator, 12)
+    assert.equal(h.reads.length, 2)
+})
+
+test('SEO validation precedes base writes and a partial SEO failure remains retryable in the same card', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    let valid = false, successful = false, attempts = 0
+    h.api.seoEditor.value = { validate: () => valid, async save() {
+        attempts++
+        if (successful) h.api.seoState.value.dirty = false
+        return successful
+    } }
+    h.api.seoState.value = { dirty: true, busy: false, ready: true, error: 'SEO: ошибка сервера' }
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.activeTab.value, 'seo')
+    valid = true
+    const first = h.api.save()
+    h.requests[0].resolve(sourceNode())
+    await first
+    assert.equal(h.props.modelValue, true)
+    assert.match(h.api.error.value, /Основные данные сохранены, но SEO не сохранено/)
+    assert.equal(h.api.seoState.value.dirty, true)
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    h.api.discardOpen.value = false
+    successful = true
+    const retry = h.api.save()
+    assert.equal(h.requests[1].method, 'patch')
+    h.requests[1].resolve(sourceNode())
+    await retry
+    assert.equal(attempts, 2)
+    assert.equal(h.props.modelValue, false)
+})
+
+test('unsaved operational drafts cannot be silently discarded by saving the base card', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    h.api.operationsState.value = { dirty: true, busy: false, dirtyTab: 'quotations' }
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.activeTab.value, 'quotations')
+    assert.equal(h.props.modelValue, true)
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    h.api.updateOperationsState({ dirty: false, busy: false, dirtyTab: null })
+    assert.equal(h.api.error.value, '')
+})
+
+test('media changes refresh clean avatar fields without replacing unsaved name or product data', async t => {
+    const h = harness(t, { node: sourceNode({ image: '/storage/original.jpg' }) })
+    await h.ready()
+    h.api.form.name = 'Черновик'
+    h.api.goodForm.denominator = 8
+    h.api.operationsChanged({ id: 42, ava_image: '/storage/new.jpg', ava_thumb: '/storage/thumb.jpg', media: [{ id: 1 }, { id: 2 }] })
+    assert.equal(h.api.form.image, '/storage/new.jpg')
+    assert.equal(h.api.record.value.image, '/storage/new.jpg')
+    assert.equal(h.api.form.name, 'Черновик')
+    assert.equal(h.api.goodForm.denominator, 8)
+    assert.equal(h.api.goodOverview.value.counts.media, 2)
+    h.api.updateGoodAvatar('https://images.test/draft.jpg')
+    h.api.operationsChanged({ id: 42, ava_image: '/storage/other.jpg' })
+    assert.equal(h.api.form.image, 'https://images.test/draft.jpg')
+})
 
 test('existing goods can use any level, restore archived properties, or remove classification without changing their source', async t => {
     const h = harness(t, { node: sourceNode() })

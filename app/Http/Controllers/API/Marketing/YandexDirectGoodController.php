@@ -13,6 +13,7 @@ class YandexDirectGoodController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate(['good_id' => ['sometimes', 'nullable', 'integer', 'min:1']]);
         $perPage = min(max((int) $request->input('per_page', 50), 1), 200);
         $search = trim((string) $request->input('search', ''));
         $categoryId = $request->input('category_id');
@@ -31,6 +32,10 @@ class YandexDirectGoodController extends Controller
             ->withCount([
                 'yandexDirectKeywords as direct_keywords_count' => fn ($q) => $q->where('is_negative', false),
             ]);
+
+        if (isset($validated['good_id'])) {
+            $query->whereKey($validated['good_id']);
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {

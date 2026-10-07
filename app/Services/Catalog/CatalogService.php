@@ -9,6 +9,7 @@ use App\Models\Good;
 use App\Models\Product;
 use App\Services\Goods\GoodAvatarImages;
 use App\Services\Goods\GoodTradeCodes;
+use App\Services\Seo\GoodSeoService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -80,8 +81,16 @@ class CatalogService
             ? route('public.catalog.show', ['node' => $node->id, 'slug' => $data['slug'] ?: Str::slug($data['name'])])
             : url('/catalog/'.$node->id.'/'.($data['slug'] ?: Str::slug($data['name'])));
         $data['offer_url'] = $source instanceof Good
-            ? route('public.goods.show', ['good' => $source->slug ?: $source->id])
+            ? app(GoodSeoService::class)->publicUrl($source)
             : null;
+        if ($source instanceof Good) {
+            $seo = app(GoodSeoService::class);
+            $data['public_url'] = $data['offer_url'];
+            $data['public_seo'] = [
+                'title' => $seo->title($source), 'description' => $seo->description($source),
+                'canonical' => $seo->canonical($source), 'robots' => $seo->robots($source),
+            ];
+        }
         $data['edit_url'] = match ($node->entity_type) {
             'product' => route('product.show', ['product' => $node->entity_id]),
             'good' => route('Ameise.good.show', ['id' => $node->entity_id]),
@@ -237,6 +246,13 @@ class CatalogService
             }
             if ($goodData !== null && $type !== 'good') {
                 throw ValidationException::withMessages(['good' => 'Дополнительные параметры доступны только для товара.']);
+            }
+            if ($type === 'good') {
+                // The full Good SEO editor owns these fields. A stale generic card
+                // must never overwrite SEO saved independently in its dedicated tab.
+                unset($data['meta_title'], $data['meta_description']);
+                $node->meta_title = null;
+                $node->meta_description = null;
             }
             $parentChanged = $creating || (array_key_exists('parent_id', $data) && $node->parent_id !== $data['parent_id']);
             $levelChanged = $node->level_id !== $level?->id;
@@ -483,10 +499,6 @@ class CatalogService
                 if ($source->ava_image !== $data['image']) {
                     $changes['ava_thumb'] = null;
                 }
-            }
-            $seo = array_intersect_key($data, array_flip(['meta_title', 'meta_description']));
-            if ($seo) {
-                $source->seo()->updateOrCreate(['good_id' => $source->id], $seo);
             }
         }
         $source->update($changes);

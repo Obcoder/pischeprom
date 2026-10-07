@@ -13,8 +13,9 @@ const props = defineProps({
     disabled: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
     editUrl: { type: String, default: '' },
+    inlineNavigation: { type: Boolean, default: false },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'navigate'])
 const clipboardMessage = ref('')
 const draft = computed(() => ({ ...props.context, ...props.modelValue, id: props.overview?.id, product_ids: props.modelValue.products || [] }))
 const categories = computed(() => new Map((props.options.categories || []).map(category => [String(category.id), category.name || category.rus])))
@@ -54,6 +55,11 @@ function statUrl(key) {
     const tab = key === 'purchases' ? 'quotations' : key
     return props.editUrl ? `${props.editUrl}${props.editUrl.includes('?') ? '&' : '?'}tab=${tab}` : undefined
 }
+function openStat(event, key) {
+    if (!props.inlineNavigation || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0) return
+    event.preventDefault()
+    emit('navigate', key === 'purchases' ? 'quotations' : key)
+}
 </script>
 
 <template>
@@ -75,7 +81,7 @@ function statUrl(key) {
                 </v-autocomplete>
                 <v-autocomplete :model-value="modelValue.fields" :items="fieldOptions" item-title="label" item-value="id" label="Подборки" multiple chips closable-chips clearable variant="outlined" density="compact" :disabled="disabled" :error-messages="errorFor('fields')" @update:model-value="update('fields', $event || [])" />
                 <div class="catalog-good-overview__stats" aria-label="Быстрая статистика">
-                    <a v-for="stat in stats" :key="stat.key" :href="statUrl(stat.key)" :target="editUrl ? '_blank' : undefined" :rel="editUrl ? 'noopener noreferrer' : undefined" class="catalog-good-overview__stat"><v-icon :icon="stat.icon" size="18" /><span>{{ stat.label }}</span><strong>{{ stat.count }}</strong></a>
+                    <a v-for="stat in stats" :key="stat.key" :href="statUrl(stat.key)" :target="editUrl && !inlineNavigation ? '_blank' : undefined" :rel="editUrl ? 'noopener noreferrer' : undefined" class="catalog-good-overview__stat" @click="openStat($event, stat.key)"><v-icon :icon="stat.icon" size="18" /><span>{{ stat.label }}</span><strong>{{ stat.count }}</strong></a>
                 </div>
                 <dl class="catalog-good-overview__metadata"><div><dt>Создан</dt><dd>{{ formatDate(overview?.created_at) }}</dd></div><div><dt>Обновлён</dt><dd>{{ formatDate(overview?.updated_at) }}</dd></div></dl>
                 <div v-for="image in [{ key: 'ava_image', label: 'Оригинал', copyLabel: 'Скопировать оригинал' }, { key: 'ava_thumb', label: 'Миниатюра', copyLabel: 'Скопировать миниатюру' }]" :key="image.key" class="catalog-good-overview__file"><span>{{ image.label }}</span><a :href="safeGalleryUrl(overview?.[image.key]) || undefined" target="_blank" rel="noopener noreferrer" :title="overview?.[image.key] || ''">{{ overview?.[image.key] || '—' }}</a><v-btn icon="mdi-content-copy" size="x-small" variant="text" :disabled="!overview?.[image.key]" :aria-label="image.copyLabel" @click="copy(overview?.[image.key], image.label)" /></div>

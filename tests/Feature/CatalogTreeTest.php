@@ -290,7 +290,7 @@ class CatalogTreeTest extends TestCase
         $payload = $this->getJson('/api/catalog')->assertOk()->json('nodes.0');
         $this->assertSame('/storage/full.png', $payload['image']);
         $this->assertSame('/storage/thumb.png', $payload['thumbnail_url']);
-        $this->assertStringContainsString('/catalog/', $payload['public_url']);
+        $this->assertStringContainsString('/g/', $payload['public_url']);
         $this->assertStringContainsString('/g/', $payload['offer_url']);
         $this->patchJson('/api/catalog/nodes/'.$payload['id'], ['name' => 'Новое имя', 'image' => $payload['image']])->assertOk();
         $this->assertSame('/storage/full.png', $good->fresh()->ava_image);

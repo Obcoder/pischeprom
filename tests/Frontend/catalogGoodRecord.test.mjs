@@ -84,11 +84,13 @@ test('missing catalog record produces a retryable error instead of a new or unre
 })
 
 function pageHarness(t, tab, api = {}) {
+    const location = { href: '' }
     const environment = {
         ...Vue, onMounted() {}, useHead() {}, useDate: () => ({ format: value => value }),
         usePage: () => ({ url: `/Ameise/goods/42?tab=${tab}`, props: { ziggy: { location: 'https://example.test/Ameise/goods/42' } } }),
         useForm: value => Vue.reactive(value), route: (name, id) => `${name}/${id ?? ''}`, axios: api,
-        ...Object.fromEntries(['VerwalterLayout', 'GoodQuotationCalculator', 'GoodSeoTab', 'GoodPriceCalculationsTab', 'GoodPriceTypesTab', 'GoodPriceTypeValuesTab', 'GoodMediaTab', 'CatalogGoodRecordDialog', 'FindBuyersLauncher'].map(name => [name, {}])),
+        window: { location },
+        ...Object.fromEntries(['VerwalterLayout', 'CatalogGoodRecordDialog', 'CatalogGoodOperations'].map(name => [name, name])),
     }
     const { definition, template } = component('resources/js/Pages/Ameise/Good.vue', environment)
     const props = { good: { id: 42 } }
@@ -96,8 +98,7 @@ function pageHarness(t, tab, api = {}) {
     const state = scope.run(() => definition.setup(props, { expose() {}, emit() {} }))
     t.after(() => scope.stop())
     state.goodData.value = { id: 42, name: 'Товар', fields: [] }
-    state.pageLoading.value = false
-    return { state, render: templateRenderer(template, state, props) }
+    return { state, location, render: templateRenderer(template, state, props) }
 }
 
 test('good page replaces Overview with the shared record action and supports statistic deep links', t => {
@@ -105,11 +106,26 @@ test('good page replaces Overview with the shared record action and supports sta
         const { state, render } = pageHarness(t, query)
         assert.equal(state.activeTab.value, expected)
         assert.equal(findVNode(render(), node => node.type === 'v-tab' && node.props.value === 'overview'), null)
+        assert.equal(findVNode(render(), node => node.type === 'v-tab' && node.props.value === 'seo'), null)
         const button = findVNode(render(), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-card-text-outline')
         assert.ok(button)
         button.props.onClick()
         assert.equal(state.recordOpen.value, true)
     }
+})
+
+test('the legacy SEO deep link opens the shared SEO card and collections return to its base fields', t => {
+    const { state, render } = pageHarness(t, 'seo')
+    assert.equal(state.activeTab.value, 'quotations')
+    assert.equal(state.recordOpen.value, true)
+    assert.equal(state.recordInitialTab.value, 'seo')
+    assert.equal(findVNode(render(), node => node.type === 'CatalogGoodRecordDialog').props['initial-tab'], 'seo')
+    const operations = findVNode(render(), node => node.type === 'CatalogGoodOperations')
+    assert.equal(operations.props.active, false)
+    state.recordOpen.value = false
+    operations.props.onRequestBasics()
+    assert.equal(state.recordOpen.value, true)
+    assert.equal(state.recordInitialTab.value, 'overview')
 })
 
 test('record refresh updates the accounting page and reports a failed refresh without losing saved data', async t => {
@@ -127,4 +143,14 @@ test('record refresh updates the accounting page and reports a failed refresh wi
     assert.equal(state.pageError.value, null)
     assert.equal(state.goodData.value.name, 'Сохранённый товар')
     assert.deepEqual(state.currentFields.value.map(field => field.id), [5])
+})
+
+test('accounting page redirects to the catalog after its shared record deletes the source good', async t => {
+    const { state, location } = pageHarness(t, 'prices')
+    state.operations.value = { async refresh(options) {
+        assert.equal(options.throwOnError, true)
+        throw { response: { status: 404 } }
+    } }
+    await state.refreshAfterRecord()
+    assert.equal(location.href, 'Ameise.products/')
 })

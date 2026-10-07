@@ -5,6 +5,7 @@ import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import * as tradeCodes from '../../resources/js/utils/goodTradeCodes.js'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
+import { goodRecordTabs } from '../../resources/js/Components/Catalog/recordTabs.js'
 
 const root = new URL('../../', import.meta.url)
 
@@ -230,7 +231,8 @@ function goodCardHarness() {
     const node = { id: 7, entity_type: 'good', entity_id: 42, name: good.name, image: good.ava_image, is_published: true }
     const props = Vue.reactive({ modelValue: true, node, nodes: [], levels: [], initialParentId: null, initialLevelId: null, initialEntityType: 'custom' })
     const environment = {
-        ...Vue, ...tradeCodes, descendantIds, CatalogGoodOverview: {}, _mergeModels: Vue.mergeModels,
+        ...Vue, ...tradeCodes, descendantIds, goodRecordTabs, CatalogGoodOverview: {}, CatalogGoodSeo: {},
+        CatalogGoodOperations: {}, CatalogRecordTabs: {}, _mergeModels: Vue.mergeModels,
         _useModel: (source, key) => Vue.computed({ get: () => source[key], set: value => { source[key] = value } }),
         axios: {
             async patch(url, body) { requests.push({ url, body }); return { data: { data: node } } },

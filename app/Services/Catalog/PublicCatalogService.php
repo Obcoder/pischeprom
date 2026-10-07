@@ -68,6 +68,7 @@ class PublicCatalogService
                 'description' => $node['meta_description'] ?: mb_substr(strip_tags($node['description'] ?: $node['name']), 0, 240),
                 'canonical' => $node['public_url'],
                 'image' => $this->image($node['image']),
+                ...($node['public_seo'] ?? []),
             ],
         ];
     }

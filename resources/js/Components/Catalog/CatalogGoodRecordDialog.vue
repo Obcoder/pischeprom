@@ -5,7 +5,7 @@ import CatalogNodeDialog from './CatalogNodeDialog.vue'
 import CatalogSchemaDialog from './CatalogSchemaDialog.vue'
 
 const open = defineModel({ type: Boolean, default: false })
-const props = defineProps({ goodId: { type: [Number, String], required: true } })
+const props = defineProps({ goodId: { type: [Number, String], required: true }, initialTab: { type: String, default: 'overview' } })
 const emit = defineEmits(['saved', 'deleted'])
 const node = ref(null)
 const nodes = ref([])
@@ -65,7 +65,7 @@ onScopeDispose(cancel)
             <v-card-actions><v-spacer /><v-btn @click="open = false">Закрыть</v-btn><v-btn v-if="error" :loading="loading" @click="load(true)">Повторить</v-btn></v-card-actions>
         </v-card>
     </v-dialog>
-    <CatalogNodeDialog v-if="node" :model-value="open" :node="node" :nodes="nodes" :levels="levels"
+    <CatalogNodeDialog v-if="node" :model-value="open" :node="node" :nodes="nodes" :levels="levels" :initial-tab="initialTab"
         @update:model-value="open = $event" @saved="emit('saved', $event)" @deleted="emit('deleted', $event)"
         @changed="load()" @schema="schemaOpen = true" />
     <CatalogSchemaDialog v-model="schemaOpen" :levels="levels" @changed="load()" />

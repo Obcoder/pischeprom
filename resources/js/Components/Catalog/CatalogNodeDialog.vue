@@ -4,6 +4,10 @@ import { computed, onScopeDispose, reactive, ref, watch } from 'vue'
 import { descendantIds } from './tree.js'
 import { goodTradeCodeFields, goodTradeCodeValues } from '../../utils/goodTradeCodes.js'
 import CatalogGoodOverview from './CatalogGoodOverview.vue'
+import CatalogGoodSeo from './CatalogGoodSeo.vue'
+import CatalogGoodOperations from './CatalogGoodOperations.vue'
+import CatalogRecordTabs from './CatalogRecordTabs.vue'
+import { goodRecordTabs } from './recordTabs.js'
 
 const open = defineModel({ type: Boolean, default: false })
 const props = defineProps({
@@ -13,6 +17,7 @@ const props = defineProps({
     initialParentId: { type: Number, default: null },
     initialLevelId: { type: Number, default: null },
     initialEntityType: { type: String, default: 'custom' },
+    initialTab: { type: String, default: 'overview' },
 })
 const emit = defineEmits(['saved', 'deleted', 'changed', 'schema'])
 const form = reactive({ properties: {} })
@@ -33,6 +38,15 @@ const goodReady = ref(false)
 const goodError = ref('')
 const goodBaseline = ref('{}')
 const resetOpen = ref(false)
+const activeTab = ref('overview')
+const seoVisited = ref(false)
+const operationsVisited = ref(false)
+const seoEditor = ref(null)
+const operations = ref(null)
+const seoState = ref({ dirty: false, busy: false, ready: false, error: '' })
+const operationsState = ref({ dirty: false, busy: false })
+const operationsDraftMessage = 'В рабочем разделе есть несохранённые изменения. Сохраните их кнопкой этого раздела или сбросьте перед сохранением карточки.'
+const partialErrorPhase = ref(null)
 let overviewVersion = 0
 let overviewController = null
 let inferredProductId = null
@@ -47,9 +61,15 @@ const entityTypes = [
 const currentLevel = computed(() => props.levels.find(level => level.id === form.level_id))
 const levelOptions = computed(() => [{ id: null, name: 'Без уровня' }, ...props.levels])
 const isGood = computed(() => form.entity_type === 'good')
+const busy = computed(() => saving.value || seoState.value.busy || operationsState.value.busy)
+const mainTab = computed(() => !isGood.value || activeTab.value === 'overview')
+const operationsTab = computed(() => isGood.value && !['overview', 'seo'].includes(activeTab.value))
+const seoGood = computed(() => ({ ...goodOverview.value, id: record.value?.entity_id, name: form.name, slug: form.slug,
+    description: form.description, is_published: form.is_published, ava_image: form.image,
+    ava_thumb: goodOverview.value?.ava_thumb || form.image }))
 const dirty = computed(() => JSON.stringify(form) !== baseline.value || Boolean(selectedFile.value)
-    || (isGood.value && JSON.stringify(goodForm) !== goodBaseline.value))
-const canSave = computed(() => !saving.value && (!isGood.value || goodReady.value))
+    || (isGood.value && (JSON.stringify(goodForm) !== goodBaseline.value || seoState.value.dirty || operationsState.value.dirty)))
+const canSave = computed(() => !busy.value && (!isGood.value || goodReady.value))
 const goodErrors = computed(() => Object.fromEntries(Object.entries(errors.value).filter(([key]) => key.startsWith('good.')).map(([key, value]) => [key.slice(5), value])))
 const selectedFile = computed(() => Array.isArray(imageFile.value) ? imageFile.value[0] : imageFile.value)
 const blockedParents = computed(() => record.value ? descendantIds(props.nodes, record.value.id) : new Set())
@@ -192,13 +212,58 @@ function updateGoodForm(values) {
     Object.assign(goodForm, values)
 }
 function requestReset() {
-    if (saving.value) return
+    if (busy.value) return
     if (dirty.value) resetOpen.value = true
-    else reset(record.value || props.node)
+    else resetCurrent()
 }
-function confirmReset() { resetOpen.value = false; reset(record.value || props.node) }
+function resetCurrent() {
+    const tab = activeTab.value
+    seoEditor.value?.reset()
+    operations.value?.reset()
+    reset(record.value || props.node, false)
+    activeTab.value = tab
+}
+function confirmReset() { resetOpen.value = false; resetCurrent() }
+function selectTab(tab) {
+    if (!goodRecordTabs.some(item => item.id === tab)) return
+    activeTab.value = tab
+    if (tab === 'seo') seoVisited.value = true
+    else if (tab !== 'overview') operationsVisited.value = true
+}
+function childSaved() {
+    if (partialErrorPhase.value === 'seo' && !seoState.value.dirty) { error.value = ''; partialErrorPhase.value = null }
+    if (record.value) emit('changed', record.value)
+}
+function updateOperationsState(state) {
+    operationsState.value = state
+    if (!state.dirty && error.value === operationsDraftMessage) error.value = ''
+}
+function operationsChanged(good) {
+    // Media actions update the shared avatar without discarding another tab's draft.
+    if (good && String(good.id) === String(record.value?.entity_id)) {
+        if (own(good, 'ava_image') || own(good, 'ava_thumb')) record.value = { ...record.value, image: good.ava_image || good.ava_thumb || '' }
+        const clean = JSON.parse(baseline.value)
+        const extras = JSON.parse(goodBaseline.value)
+        if (form.image === clean.image && !selectedFile.value && !goodForm.remove_ava
+            && goodForm.avatar_source_url === extras.avatar_source_url && goodForm.avatar_thumb_source_url === extras.avatar_thumb_source_url) {
+            form.image = good.ava_image || good.ava_thumb || ''
+            clean.image = form.image
+            baseline.value = JSON.stringify(clean)
+            const refreshed = defaultGood(good)
+            for (const key of ['avatar_source_url', 'avatar_thumb_source_url']) { goodForm[key] = refreshed[key]; extras[key] = refreshed[key] }
+            goodBaseline.value = JSON.stringify(extras)
+        }
+        goodOverview.value = { ...goodOverview.value, ava_image: good.ava_image, ava_thumb: good.ava_thumb,
+            updated_at: good.updated_at, counts: {
+                prices: (good.price_type_values || good.priceTypeValues || []).length,
+                purchases: (good.purchases || []).length, quotations: (good.quotations || []).length,
+                sales: (good.sales || []).length, media: (good.media || []).length,
+            } }
+    }
+    childSaved()
+}
 
-function reset(node = props.node) {
+function reset(node = props.node, resetTabs = true) {
     record.value = node
     Object.keys(form).forEach(key => delete form[key])
     Object.assign(form, {
@@ -218,8 +283,15 @@ function reset(node = props.node) {
     schemaSnapshot = definitions()
     if (!node && currentLevel.value?.is_domain) form.parent_id = null
     error.value = ''; errors.value = {}; imageFile.value = null
+    partialErrorPhase.value = null
     discardOpen.value = false; deleteOpen.value = false; resetOpen.value = false
     baseline.value = JSON.stringify(form)
+    if (resetTabs) {
+        seoVisited.value = false; operationsVisited.value = false
+        seoState.value = { dirty: false, busy: false, ready: false, error: '' }
+        operationsState.value = { dirty: false, busy: false }
+        selectTab(goodRecordTabs.some(tab => tab.id === props.initialTab) ? props.initialTab : 'overview')
+    }
     loadGoodOverview()
 }
 watch(open, value => { if (value) reset(); else cancelGoodOverview() }, { immediate: true, flush: 'sync' })
@@ -286,21 +358,30 @@ function fillBooleanDefaults() {
     booleanDefaults(form.properties, currentLevel.value?.fields || [])
 }
 function requestClose() {
-    if (saving.value) return
+    if (busy.value) return
     if (dirty.value) discardOpen.value = true
     else open.value = false
 }
 function discard() { discardOpen.value = false; open.value = false }
 
-async function save() {
+async function save(nextTab = null) {
     if (!canSave.value) return
-    saving.value = true; error.value = ''; errors.value = {}
+    if (operationsState.value.dirty) {
+        error.value = operationsDraftMessage
+        selectTab(operationsState.value.dirtyTab || 'recommendations')
+        return
+    }
+    if (isGood.value && seoState.value.dirty && !seoEditor.value?.validate()) { selectTab('seo'); return }
+    saving.value = true; error.value = ''; errors.value = {}; partialErrorPhase.value = null
     let saved = null
+    let phase = 'record'
     try {
         const payload = { ...form, properties: {} }
         if (record.value) delete payload.entity_type
         if (isGood.value) {
             delete payload.image
+            delete payload.meta_title
+            delete payload.meta_description
             const extras = goodPayload()
             if (Object.keys(extras).length) payload.good = extras
         }
@@ -322,23 +403,35 @@ async function save() {
         baseline.value = JSON.stringify(form)
         goodBaseline.value = JSON.stringify(goodForm)
         if (selectedFile.value) {
+            phase = 'image'
             const body = new FormData()
             body.append('image', selectedFile.value)
             const uploaded = await axios.post(`/api/catalog/nodes/${saved.id}/image`, body)
             saved = uploaded.data.data
             imageFile.value = null
         }
-        open.value = false
+        if (isGood.value && seoState.value.dirty) {
+            phase = 'seo'
+            if (!await seoEditor.value.save()) throw new Error(seoState.value.error || 'Не удалось сохранить SEO.')
+        }
+        if (operationsVisited.value) operations.value?.refresh()
+        if (typeof nextTab === 'string' && goodRecordTabs.some(tab => tab.id === nextTab)) {
+            await loadGoodOverview()
+            selectTab(nextTab)
+        } else open.value = false
         emit('saved', saved)
     } catch (failure) {
         errors.value = failure.response?.data?.errors || {}
-        const message = Object.values(errors.value).flat().join(' ') || failure.response?.data?.message || 'Не удалось сохранить запись.'
-        error.value = saved ? `Запись сохранена, но аватар не загружен. ${message}` : message
+        const message = Object.values(errors.value).flat().join(' ') || failure.response?.data?.message || failure.message || 'Не удалось сохранить запись.'
+        error.value = saved ? `${phase === 'seo' ? 'Основные данные сохранены, но SEO не сохранено.' : 'Запись сохранена, но аватар не загружен.'} ${message}` : message
+        partialErrorPhase.value = saved ? phase : null
+        if (phase === 'seo') selectTab('seo')
+        else if (!saved && Object.keys(errors.value).length) selectTab('overview')
         if (saved) emit('changed', saved)
     } finally { saving.value = false }
 }
 async function remove() {
-    if (!record.value || saving.value) return
+    if (!record.value || busy.value) return
     saving.value = true; error.value = ''
     try {
         const id = record.value.id
@@ -353,21 +446,23 @@ async function remove() {
 </script>
 
 <template>
-    <v-dialog :model-value="open" :max-width="isGood ? 1560 : 1380" scrollable :persistent="saving" @update:model-value="value => { if (!value) requestClose() }">
+    <v-dialog :model-value="open" :max-width="isGood ? 1640 : 1380" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
         <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood }">
             <v-card-title class="catalog-node-dialog__heading">
-                <div class="catalog-node-dialog__title"><span>{{ record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
+                <div class="catalog-node-dialog__title"><span>{{ isGood ? 'Карточка товара' : record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
                 <v-chip v-if="dirty" size="small" variant="tonal" class="catalog-node-dialog__dirty">Не сохранено</v-chip>
-                <v-btn icon="mdi-close" variant="text" :disabled="saving" aria-label="Закрыть карточку" @click="requestClose" />
+                <v-btn icon="mdi-close" variant="text" :disabled="busy" aria-label="Закрыть карточку" @click="requestClose" />
             </v-card-title>
             <v-divider />
+            <CatalogRecordTabs v-if="isGood" :model-value="activeTab" @update:model-value="selectTab" />
             <v-card-text class="catalog-node-dialog__body">
                 <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-5">{{ error }}</v-alert>
-                <v-form id="catalog-node-form" :disabled="saving" @submit.prevent="save">
+                <v-form v-show="mainTab" id="catalog-node-form" :disabled="busy" @submit.prevent="save">
                     <div class="catalog-node-dialog__columns">
                         <section class="catalog-node-dialog__section">
                             <h3><v-icon icon="mdi-file-tree-outline" size="18" /> Название и классификация</h3>
                             <v-text-field v-model="form.name" label="Название *" variant="outlined" density="compact" :error-messages="fieldErrors('name')" required maxlength="255" />
+                            <v-text-field v-if="isGood" v-model="form.slug" label="Основной адрес товара" variant="outlined" density="compact" :error-messages="fieldErrors('slug')" hint="Короткий адрес и настройки поиска — во вкладке SEO." persistent-hint class="mb-2" />
                             <v-select v-if="!record" v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :error-messages="fieldErrors('entity_type')" hint="Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект." persistent-hint class="mb-3" @update:model-value="loadGoodOverview" />
                             <div v-else class="catalog-node-dialog__identity"><v-chip size="small" variant="tonal">{{ entityTypes.find(type => type.value === (record.entity_type || 'custom'))?.title }}</v-chip><span v-if="record.entity_id">№ {{ record.entity_id }}</span></div>
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
@@ -397,7 +492,7 @@ async function remove() {
                             <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint :disabled="saving || (isGood && !goodReady)" />
                             <v-checkbox v-if="isGood" :model-value="goodForm.remove_ava" label="Удалить аватар" color="error" density="compact" hide-details :disabled="!goodReady || saving" :error-messages="goodErrors.remove_ava" @update:model-value="removeGoodAvatar" />
                         </section>
-                        <section class="catalog-node-dialog__section catalog-node-dialog__seo">
+                        <section v-if="!isGood" class="catalog-node-dialog__section catalog-node-dialog__seo">
                             <h3><v-icon icon="mdi-magnify" size="18" /> Поиск и SEO</h3>
                             <v-text-field v-model="form.slug" label="Адрес страницы" variant="outlined" density="compact" :error-messages="fieldErrors('slug')" hint="Латинские буквы, цифры и дефисы. Пустое значение создаст адрес автоматически." persistent-hint class="mb-3" />
                             <v-text-field v-model="form.meta_title" label="Заголовок · Title" variant="outlined" density="compact" maxlength="255" :error-messages="fieldErrors('meta_title')" />
@@ -409,7 +504,7 @@ async function remove() {
                         </section>
                     </div>
                     <div v-if="isGood && !goodReady" class="catalog-node-dialog__overview-loading" role="status"><v-progress-circular v-if="goodLoading" indeterminate size="20" width="2" color="#806592" /><v-icon v-else icon="mdi-alert-circle-outline" size="20" /><span>{{ goodLoading ? 'Загрузка данных товара…' : goodError }}</span><v-btn v-if="!goodLoading" variant="text" size="small" @click="loadGoodOverview">Повторить</v-btn></div>
-                    <CatalogGoodOverview v-if="isGood && goodReady" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :context="form" :errors="goodErrors" :disabled="saving" :active="open && goodReady" :edit-url="record?.edit_url || ''" @update:model-value="updateGoodForm" />
+                    <CatalogGoodOverview v-if="isGood && goodReady" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :context="form" :errors="goodErrors" :disabled="saving" :active="open && mainTab && goodReady" :edit-url="record?.edit_url || ''" :inline-navigation="Boolean(record)" @update:model-value="updateGoodForm" @navigate="selectTab" />
                     <section class="catalog-node-dialog__properties">
                         <div class="catalog-node-dialog__properties-heading"><h3>Свойства<span v-if="currentLevel"> · {{ currentLevel.name }}</span></h3><v-btn variant="text" size="small" prepend-icon="mdi-tune-variant" :disabled="saving" @click="emit('schema')">Уровни и поля</v-btn></div>
                         <p v-if="!currentLevel" class="catalog-node-dialog__hint">Выберите уровень, чтобы заполнить его дополнительные свойства.</p>
@@ -424,11 +519,22 @@ async function remove() {
                         </div>
                     </section>
                 </v-form>
+                <section v-if="isGood && !record && !mainTab" class="catalog-node-dialog__create-first">
+                    <v-icon :icon="activeTab === 'seo' ? 'mdi-magnify' : 'mdi-package-variant-closed'" size="30" />
+                    <h3>Сначала сохраните новый товар</h3>
+                    <p>После создания здесь появятся все инструменты выбранного раздела.</p>
+                    <v-btn variant="flat" color="#4d315e" :disabled="!canSave || !form.name.trim()" :loading="saving" @click="save(activeTab)">Создать товар и продолжить</v-btn>
+                    <v-btn variant="text" @click="selectTab('overview')">Основные данные</v-btn>
+                </section>
+                <CatalogGoodSeo v-if="isGood && record && seoVisited" v-show="activeTab === 'seo'" ref="seoEditor" :good="seoGood" :active="open && activeTab === 'seo'" :disabled="saving"
+                    @state="seoState = $event" @saved="childSaved" />
+                <CatalogGoodOperations v-if="isGood && record && operationsVisited" v-show="operationsTab" ref="operations" :good-id="record.entity_id" :active-tab="activeTab" :active="open && operationsTab"
+                    @state="updateOperationsState" @request-basics="selectTab('overview')" @changed="operationsChanged" />
             </v-card-text>
             <v-divider />
             <v-card-actions class="catalog-node-dialog__actions">
-                <v-btn v-if="record" color="error" variant="text" prepend-icon="mdi-delete-outline" :disabled="saving" @click="deleteOpen = true">Удалить</v-btn>
-                <v-spacer /><v-btn variant="text" :disabled="saving" @click="requestReset">Сбросить</v-btn><v-btn variant="text" :disabled="saving" @click="requestClose">Отмена</v-btn><v-btn type="submit" form="catalog-node-form" color="#4d315e" variant="flat" :loading="saving" :disabled="!canSave" prepend-icon="mdi-check">Сохранить</v-btn>
+                <v-btn v-if="record" color="error" variant="text" prepend-icon="mdi-delete-outline" :disabled="busy" @click="deleteOpen = true">Удалить</v-btn>
+                <v-spacer /><v-btn variant="text" :disabled="busy" @click="requestReset">Сбросить</v-btn><v-btn variant="text" :disabled="busy" @click="requestClose">{{ operationsTab ? 'Закрыть' : 'Отмена' }}</v-btn><v-btn v-if="!operationsTab" color="#4d315e" variant="flat" :loading="saving" :disabled="!canSave" prepend-icon="mdi-check" @click="save()">Сохранить</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>
@@ -445,10 +551,12 @@ async function remove() {
 .catalog-node-dialog__title h2 { font-size: 19px; line-height: 1.5; }
 .catalog-node-dialog__body { padding: 24px !important; background: #fdfcfe; }
 .catalog-node-dialog--good .catalog-node-dialog__body { padding: 18px 22px !important; }
-.catalog-node-dialog--good .catalog-node-dialog__columns { gap: 20px; }
+.catalog-node-dialog--good .catalog-node-dialog__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .catalog-node-dialog--good h3 { margin-bottom: 14px; }
 .catalog-node-dialog--good .catalog-node-dialog__avatar { margin-bottom: 12px; }
 .catalog-node-dialog__overview-loading { display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 12px 16px; background: #f5f0f8; border-radius: 8px; font-size: 12px; color: #806592; }
+.catalog-node-dialog__create-first { display: flex; min-height: 320px; align-items: center; justify-content: center; flex-direction: column; gap: 14px; color: #8c8294; font-size: 13px; text-align: center; }
+.catalog-node-dialog__create-first h3 { margin: 0; }
 .catalog-node-dialog__columns { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 24px; }
 .catalog-node-dialog__section { min-width: 0; }
 .catalog-node-dialog h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; font-size: 13px; font-weight: 650; color: #4d4058; }
@@ -472,7 +580,7 @@ async function remove() {
 .catalog-node-dialog__actions { padding: 12px 24px; }
 @media (max-width: 1050px) { .catalog-node-dialog__columns { grid-template-columns: repeat(2, minmax(0, 1fr)); } .catalog-node-dialog__seo { grid-column: 1 / -1; } .catalog-node-dialog__property-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) {
-    .catalog-node-dialog__columns, .catalog-node-dialog__property-grid { grid-template-columns: 1fr; }
+    .catalog-node-dialog__columns, .catalog-node-dialog--good .catalog-node-dialog__columns, .catalog-node-dialog__property-grid { grid-template-columns: 1fr; }
     .catalog-node-dialog__body { padding: 18px !important; }
     .catalog-node-dialog__heading { padding: 14px 18px; }
     .catalog-node-dialog__dirty { display: none; }

@@ -22,6 +22,7 @@ function displayValue(property) {
 <template>
     <Head :title="seo.title">
         <meta head-key="description" name="description" :content="seo.description">
+        <meta v-if="seo.robots" head-key="robots" name="robots" :content="seo.robots">
         <link head-key="canonical" rel="canonical" :href="seo.canonical">
         <meta head-key="og:title" property="og:title" :content="seo.title">
         <meta head-key="og:description" property="og:description" :content="seo.description">
