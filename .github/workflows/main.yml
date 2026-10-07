@@ -393,7 +393,9 @@ jobs:
             app/Models/Component.php \
             app/Services/Catalog \
             database/migrations/2026_10_07_150000_create_catalog_tree_tables.php \
+            database/migrations/2026_10_07_170000_make_catalog_classification_optional.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/PublicCatalogTest.php \
             tests/Feature/ComponentCatalogManagementTest.php
@@ -546,6 +548,7 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \
             tests/Feature/ComponentCatalogManagementTest.php \
             tests/Feature/GoodAvatarPerformanceTest.php \

@@ -39,10 +39,6 @@ watch(purchasedTab, value => { try { window.localStorage.setItem('ameise:product
         <v-defaults-provider :defaults="workspaceDefaults">
             <main class="products-page" aria-label="Товароведение">
                 <div class="products-page__shell">
-                    <div class="products-page__heading">
-                        <div><h1>Товароведение</h1><p>Структура каталога, свойства и публикация на сайте</p></div>
-                        <v-icon icon="mdi-file-tree-outline" size="26" color="#756682" />
-                    </div>
                     <v-card class="products-page__workspace" variant="outlined">
                         <v-tabs v-model="activeTab" class="products-page__tabs" color="#352345" height="40" show-arrows aria-label="Разделы товароведения">
                             <v-tab value="goods"><v-icon icon="mdi-file-tree-outline" size="17" class="mr-2" />Товары</v-tab>
@@ -81,7 +77,7 @@ watch(purchasedTab, value => { try { window.localStorage.setItem('ameise:product
     height: calc(100dvh - 58px);
     min-width: 0;
     min-height: 0;
-    padding: 10px 20px 12px;
+    padding: 8px 16px 10px;
     overflow: hidden;
     box-sizing: border-box;
     background: #f5f5f6;
@@ -104,9 +100,6 @@ watch(purchasedTab, value => { try { window.localStorage.setItem('ameise:product
     border-color: var(--catalog-line);
     background: #fff;
 }
-.products-page__heading { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; padding: 2px 0 10px; }
-.products-page__heading h1 { font-size: 20px; font-weight: 650; line-height: 1.4; }
-.products-page__heading p { font-size: 12px; color: #797180; margin: 2px 0 0; }
 .products-page__tabs { flex: 0 0 auto; background: #fff; }
 .products-page__tabs :deep(.v-tab) {
     min-width: 0;

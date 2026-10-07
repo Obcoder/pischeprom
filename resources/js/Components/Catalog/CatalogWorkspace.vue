@@ -1,306 +1,260 @@
 <script setup>
 import axios from 'axios'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
 import CatalogSchemaDialog from './CatalogSchemaDialog.vue'
-import { catalogTree, descendantIds } from './tree.js'
+import CatalogNodeDialog from './CatalogNodeDialog.vue'
+import { buildCatalogView } from './presentation.js'
 
 const nodes = ref([])
 const levels = ref([])
 const loading = ref(false)
-const saving = ref(false)
 const error = ref('')
-const errors = ref({})
-const notice = ref('')
-const noticeOpen = computed({ get: () => Boolean(notice.value), set: value => { if (!value) notice.value = '' } })
 const search = ref('')
 const publication = ref('all')
+const domainId = ref(null)
+const selections = ref({})
+const selectedBranchId = ref(null)
 const expanded = ref(new Set())
-const selectedId = ref(null)
-const editing = ref(false)
 const schemaOpen = ref(false)
-const deleteOpen = ref(false)
-const pendingSelection = ref(null)
-const discardOpen = ref(false)
-const imageFile = ref(null)
-const baseline = ref('')
-const form = reactive({})
-const selected = computed(() => nodes.value.find(node => node.id === selectedId.value))
+const editorOpen = ref(false)
+const editorNode = ref(null)
+const editorContext = reactive({ parentId: null, levelId: null, entityType: 'custom' })
+const page = ref(1)
+const notice = ref('')
+const noticeOpen = computed({ get: () => Boolean(notice.value), set: value => { if (!value) notice.value = '' } })
+const nodeMap = computed(() => new Map(nodes.value.map(node => [node.id, node])))
 const levelMap = computed(() => new Map(levels.value.map(level => [level.id, level])))
-const currentLevel = computed(() => levelMap.value.get(form.level_id))
-const editableLevels = computed(() => selectedId.value && !selected.value?.entity_type ? levels.value.filter(level => level.entity_type === 'custom') : levels.value)
-const rows = computed(() => catalogTree(nodes.value, { search: search.value, publication: publication.value, expanded: expanded.value }))
-const dirty = computed(() => editing.value && (JSON.stringify(form) !== baseline.value || Boolean(imageFile.value)))
-const blockedParents = computed(() => selectedId.value ? descendantIds(nodes.value, selectedId.value) : new Set())
-const parentOptions = computed(() => [{ id: null, name: 'Корень каталога' }, ...nodes.value.filter(node => !blockedParents.value.has(node.id)).map(node => ({ id: node.id, name: `${node.name} · ${levelMap.value.get(node.level_id)?.name || ''} · #${node.id}` }))])
-const breadcrumbs = computed(() => {
-    const byId = new Map(nodes.value.map(node => [node.id, node]))
-    const result = []
-    let parent = byId.get(form.parent_id)
-    const visited = new Set()
-    while (parent && !visited.has(parent.id)) {
-        result.unshift(parent.name)
-        visited.add(parent.id)
-        parent = byId.get(parent.parent_id)
-    }
-    return result.join(' / ')
-})
-const publishedCount = computed(() => nodes.value.filter(node => node.is_published).length)
+const domainLevels = computed(() => levels.value.filter(level => level.is_domain && level.display_mode === 'tabs'))
+const view = computed(() => buildCatalogView(nodes.value, levels.value, {
+    domainId: domainId.value, selections: selections.value, selectedBranchId: selectedBranchId.value,
+    expanded: expanded.value, search: search.value, publication: publication.value,
+}))
+const deepest = candidates => candidates.filter(Boolean).sort((a, b) => pathTo(b).length - pathTo(a).length)[0]
+const contextNode = computed(() => nodeMap.value.get(view.value.scopeNodeId))
+const contextPath = computed(() => pathTo(contextNode.value))
+const currentTitle = computed(() => contextNode.value?.name || (domainId.value === 'unassigned' ? 'Без домена' : 'Все объекты'))
+const headers = [
+    { key: 'name', title: 'Объект', minWidth: 220 },
+    { key: 'level_name', title: 'Уровень', width: 140 },
+    { key: 'path_label', title: 'Расположение', minWidth: 170 },
+    { key: 'is_published', title: 'Публикация', width: 155 },
+    { key: 'actions', title: '', sortable: false, width: 88 },
+]
+const tableItems = computed(() => view.value.items.map(node => {
+    const visible = Boolean(node.is_published) && (node.ancestors || []).every(ancestor => nodeMap.value.get(ancestor.id)?.is_published)
+    return { ...node, level_name: levelMap.value.get(node.level_id)?.name || 'Без уровня', visible,
+        status_label: !node.is_published ? 'Черновик' : visible ? 'На сайте' : 'Скрыт разделом' }
+}))
 const publicationOptions = [
-    { title: 'Все записи', value: 'all' }, { title: 'Опубликованные', value: 'published' },
+    { title: 'Все статусы', value: 'all' }, { title: 'Опубликованные', value: 'published' },
     { title: 'Черновики', value: 'draft' }, { title: 'На витрине', value: 'featured' },
 ]
-const iconFor = node => ({ category: 'mdi-folder-outline', product: 'mdi-package-variant-closed', good: 'mdi-tag-outline' }[node.entity_type] || 'mdi-file-tree-outline')
-const fieldErrors = key => errors.value[key] || []
-
+const iconFor = node => levelMap.value.get(node.level_id)?.is_domain ? 'mdi-earth' : ({ category: 'mdi-folder-outline', product: 'mdi-package-variant-closed', good: 'mdi-tag-outline' }[node.entity_type] || 'mdi-file-tree-outline')
+const levelName = node => levelMap.value.get(node.level_id)?.name || 'Без уровня'
+function pathTo(node) {
+    const path = [], seen = new Set()
+    while (node && !seen.has(node.id)) {
+        path.unshift(node); seen.add(node.id); node = nodeMap.value.get(node.parent_id)
+    }
+    return path
+}
+function propertiesSummary(node) {
+    return (levelMap.value.get(node.level_id)?.fields || []).filter(field => node.properties?.[field.key] !== null && node.properties?.[field.key] !== undefined && node.properties?.[field.key] !== '').slice(0, 2).map(field => {
+        const value = node.properties[field.key]
+        return `${field.label}: ${typeof value === 'boolean' ? (value ? 'Да' : 'Нет') : value}`
+    }).join(' · ')
+}
 async function load() {
-    loading.value = true
-    error.value = ''
+    if (loading.value) return
+    loading.value = true; error.value = ''
     try {
         const { data } = await axios.get('/api/catalog')
-        nodes.value = data.nodes
-        levels.value = data.levels
-        if (!expanded.value.size && !editing.value) expanded.value = new Set(data.nodes.filter(node => !node.parent_id).map(node => node.id))
+        nodes.value = data.nodes; levels.value = data.levels
+        const ids = new Set(data.nodes.map(node => node.id))
+        if (typeof domainId.value === 'number' && !ids.has(domainId.value)) domainId.value = null
+        if (!ids.has(selectedBranchId.value)) selectedBranchId.value = null
+        const validLevels = new Set(data.levels.map(level => level.id))
+        selections.value = Object.fromEntries(Object.entries(selections.value).filter(([levelId, id]) => validLevels.has(Number(levelId)) && ids.has(id)))
+        const normalized = view.value
+        domainId.value = normalized.domainId
+        selections.value = normalized.selections
+        selectedBranchId.value = normalized.selectedBranchId
     } catch (failure) { error.value = failure.response?.data?.message || 'Не удалось загрузить каталог. Повторите попытку.' }
     finally { loading.value = false }
 }
+function selectDomain(id) {
+    domainId.value = id; selections.value = {}; selectedBranchId.value = null; page.value = 1
+}
+function selectTab(levelId, id) {
+    const next = {}, index = view.value.tabRows.findIndex(row => row.levelId === levelId)
+    for (const row of view.value.tabRows.slice(0, index)) if (view.value.selections[row.levelId]) next[row.levelId] = view.value.selections[row.levelId]
+    if (id !== null) next[levelId] = id
+    selections.value = next; selectedBranchId.value = null; page.value = 1
+}
+function selectBranch(node) { selectedBranchId.value = node?.id ?? null; page.value = 1 }
 function toggle(node) {
     const next = new Set(expanded.value)
     next.has(node.id) ? next.delete(node.id) : next.add(node.id)
     expanded.value = next
 }
-function resetForm(node, parentId = null) {
-    Object.keys(form).forEach(key => delete form[key])
-    Object.assign(form, {
-        level_id: node?.level_id || levels.value[0]?.id,
-        parent_id: node?.parent_id ?? parentId,
-        name: node?.name || '', slug: node?.slug || '', image: node?.image || '',
-        description: node?.description || '', meta_title: node?.meta_title || '', meta_description: node?.meta_description || '',
-        is_published: node?.is_published ?? false, is_featured: node?.is_featured ?? false,
-        sort_order: node?.sort_order ?? 0,
-        properties: JSON.parse(JSON.stringify(node?.properties || {})),
-    })
-    selectedId.value = node?.id ?? null
-    editing.value = true
-    errors.value = {}
-    imageFile.value = null
-    baseline.value = JSON.stringify(form)
+function openEditor(node) {
+    editorNode.value = node; editorOpen.value = true
 }
-function requestSelection(node = null, parentId = null) {
-    if (saving.value) return
-    if (dirty.value) { pendingSelection.value = { node, parentId }; discardOpen.value = true; return }
-    resetForm(node, parentId)
+function create({ parentId = contextNode.value?.id ?? null, levelId = null, entityType = 'custom' } = {}) {
+    editorNode.value = null
+    Object.assign(editorContext, { parentId, levelId, entityType })
+    editorOpen.value = true
 }
-function discardAndSelect() {
-    const { node, parentId } = pendingSelection.value
-    discardOpen.value = false
-    resetForm(node, parentId)
+function createDomain() { create({ parentId: null, levelId: domainLevels.value[0]?.id ?? null }) }
+function createForTab(row) {
+    const previous = deepest([nodeMap.value.get(view.value.domainId), ...view.value.tabRows.slice(0, view.value.tabRows.indexOf(row)).map(item => nodeMap.value.get(view.value.selections[item.levelId]))])
+    create({ parentId: previous?.id ?? null, levelId: row.levelId })
 }
-function createChild() {
-    const parent = selected.value
-    requestSelection(null, parent?.id ?? null)
-    if (!discardOpen.value && parent) {
-        const type = parent.entity_type === 'category' ? 'product' : parent.entity_type === 'product' ? 'good' : 'custom'
-        form.level_id = levels.value.find(level => level.entity_type === type)?.id || form.level_id
-        baseline.value = JSON.stringify(form)
-    }
+function createGood() {
+    create({ levelId: levels.value.find(level => level.entity_type === 'good')?.id ?? null, entityType: 'good' })
 }
-function changeLevel() {
-    form.properties = {}
-    for (const field of currentLevel.value?.fields || []) {
-        if (field.type === 'boolean') form.properties[field.key] = false
-    }
+async function saved(node) {
+    if (node?.parent_id) expanded.value = new Set([...expanded.value, node.parent_id])
+    await load(); notice.value = 'Запись сохранена'
 }
-async function save() {
-    if (saving.value) return
-    saving.value = true
-    error.value = ''; errors.value = {}; notice.value = ''
-    try {
-        const payload = { ...form, properties: { ...form.properties } }
-        // Empty optional numeric/date/select fields are stored as null, never NaN.
-        for (const field of currentLevel.value?.fields || []) {
-            const value = payload.properties[field.key]
-            if (value === '' || value === undefined) payload.properties[field.key] = null
-            else if (field.type === 'number') payload.properties[field.key] = Number(value)
-        }
-        const { data } = selectedId.value
-            ? await axios.patch(`/api/catalog/nodes/${selectedId.value}`, payload)
-            : await axios.post('/api/catalog/nodes', payload)
-        const savedId = data.data.id
-        selectedId.value = savedId
-        baseline.value = JSON.stringify(form)
-        if (imageFile.value) {
-            const body = new FormData()
-            body.append('image', Array.isArray(imageFile.value) ? imageFile.value[0] : imageFile.value)
-            try { await axios.post(`/api/catalog/nodes/${savedId}/image`, body); imageFile.value = null }
-            catch (failure) {
-                await load()
-                throw failure
-            }
-        }
-        if (form.parent_id) expanded.value = new Set([...expanded.value, form.parent_id])
-        await load()
-        const saved = nodes.value.find(node => node.id === savedId)
-        if (saved) resetForm(saved)
-        notice.value = 'Запись сохранена'
-    } catch (failure) {
-        errors.value = failure.response?.data?.errors || {}
-        error.value = Object.values(errors.value).flat().join(' ') || failure.response?.data?.message || 'Не удалось сохранить запись.'
-    } finally { saving.value = false }
-}
-async function remove() {
-    if (!selectedId.value || saving.value) return
-    saving.value = true; error.value = ''
-    try {
-        await axios.delete(`/api/catalog/nodes/${selectedId.value}`)
-        deleteOpen.value = false; editing.value = false; selectedId.value = null
-        await load(); notice.value = 'Запись удалена'
-    } catch (failure) { error.value = failure.response?.data?.message || 'Не удалось удалить запись.'; deleteOpen.value = false }
-    finally { saving.value = false }
+async function deleted(id) {
+    if (selectedBranchId.value === id) selectedBranchId.value = null
+    await load(); notice.value = 'Запись удалена'
 }
 async function schemaChanged() {
     await load()
-    if (editing.value) {
-        const allowed = new Set((currentLevel.value?.fields || []).map(field => field.key))
-        for (const key of Object.keys(form.properties)) if (!allowed.has(key)) delete form.properties[key]
-    }
+    // Display preferences may have moved a selected classifier into another pane.
+    selectedBranchId.value = null; selections.value = {}
+    if (typeof domainId.value === 'number' && !domainLevels.value.some(level => level.id === nodeMap.value.get(domainId.value)?.level_id)) domainId.value = null
 }
+function resetFilters() { search.value = ''; publication.value = 'all' }
+watch([search, publication], () => { page.value = 1 })
 onMounted(load)
 </script>
 
 <template>
-    <section class="catalog-workspace" aria-label="Иерархия товаров">
-        <CatalogToolbar :count="rows.length" :total="nodes.length">
-            <v-text-field v-model="search" label="Поиск по дереву" prepend-inner-icon="mdi-magnify" clearable hide-details />
-            <v-select v-model="publication" :items="publicationOptions" label="Отображение" hide-details />
+    <section class="catalog-workspace" aria-label="Товароведение — классификация и объекты">
+        <CatalogToolbar :count="tableItems.length" :total="view.counts.total">
+            <v-text-field v-model="search" label="Поиск объектов и разделов" prepend-inner-icon="mdi-magnify" clearable hide-details class="catalog-toolbar__search" />
+            <v-select v-model="publication" :items="publicationOptions" label="Публикация" hide-details />
             <template #actions>
                 <v-btn prepend-icon="mdi-tune-variant" variant="text" @click="schemaOpen = true">Уровни и поля</v-btn>
-                <v-btn icon="mdi-refresh" variant="text" :loading="loading" :disabled="saving" aria-label="Обновить каталог" @click="load" />
-                <v-btn prepend-icon="mdi-plus" :disabled="!levels.length || saving" @click="requestSelection()">Добавить</v-btn>
+                <v-btn icon="mdi-refresh" variant="text" :loading="loading" aria-label="Обновить каталог" @click="load" />
+                <v-menu><template #activator="{ props }"><v-btn v-bind="props" prepend-icon="mdi-plus" append-icon="mdi-chevron-down">Создать</v-btn></template><v-list density="compact">
+                    <v-list-item title="Товар" prepend-icon="mdi-tag-plus-outline" @click="createGood" />
+                    <v-list-item title="Раздел или объект" prepend-icon="mdi-file-tree-outline" @click="create()" />
+                    <v-list-item v-if="domainLevels.length" title="Домен" prepend-icon="mdi-earth" @click="createDomain" />
+                    <v-divider /><v-list-item title="Уровень классификации" prepend-icon="mdi-tune-variant" @click="schemaOpen = true" />
+                </v-list></v-menu>
             </template>
         </CatalogToolbar>
         <v-alert v-if="error" type="error" variant="tonal" density="compact" closable @click:close="error = ''">{{ error }}</v-alert>
-        <v-progress-linear v-if="loading" indeterminate color="#352345" />
-        <div class="catalog-workspace__body">
-            <div class="catalog-tree-panel">
-                <div class="catalog-tree-panel__heading">
-                    <span>Структура каталога <small>{{ publishedCount }} опубликовано</small></span>
-                    <div>
-                        <v-btn icon="mdi-unfold-more-horizontal" variant="text" size="x-small" aria-label="Развернуть всё" title="Развернуть всё" @click="expanded = new Set(nodes.map(node => node.id))" />
-                        <v-btn icon="mdi-unfold-less-horizontal" variant="text" size="x-small" aria-label="Свернуть всё" title="Свернуть всё" @click="expanded = new Set()" />
-                    </div>
-                </div>
-                <div class="catalog-tree" role="tree" aria-label="Категории, продукты и товары">
-                    <div v-for="node in rows" :key="node.id" role="treeitem" :aria-level="node.depth + 1" :aria-expanded="node.hasChildren ? node.expanded : undefined" :aria-selected="selectedId === node.id" tabindex="0"
-                         class="catalog-tree__row" :class="{ 'is-selected': selectedId === node.id, 'is-context': node.context }"
-                         :style="{ '--depth': node.depth }" @click="requestSelection(node)" @keydown.enter.prevent="requestSelection(node)" @keydown.space.prevent="requestSelection(node)" @keydown.right.prevent="!node.expanded && toggle(node)" @keydown.left.prevent="node.expanded && toggle(node)">
-                        <button v-if="node.hasChildren" type="button" class="catalog-tree__toggle" :aria-label="`${node.expanded ? 'Свернуть' : 'Развернуть'} ${node.name}`" @click.stop="toggle(node)">
-                            <v-icon :icon="node.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" />
-                        </button>
-                        <span v-else class="catalog-tree__spacer" />
-                        <v-icon :icon="iconFor(node)" size="18" :color="node.is_published ? '#756682' : '#a29ca7'" />
-                        <div class="catalog-tree__name"><span>{{ node.name }}</span><small>{{ levelMap.get(node.level_id)?.name }}<template v-if="node.childCount"> · {{ node.childCount }}</template></small></div>
-                        <v-icon v-if="node.is_featured" icon="mdi-storefront-outline" size="15" color="#88651f" title="На витрине" />
-                        <span class="catalog-tree__status" :class="{ 'is-published': node.is_published }" :title="node.is_published ? 'Опубликовано' : 'Черновик'" :aria-label="node.is_published ? 'Опубликовано' : 'Черновик'" />
-                    </div>
-                    <div v-if="!rows.length && !loading" class="catalog-empty"><v-icon icon="mdi-file-tree-outline" size="36" /><strong>{{ nodes.length ? 'Ничего не найдено' : 'Каталог пока пуст' }}</strong><span>{{ nodes.length ? 'Измените поиск или фильтр.' : 'Создайте первую категорию или свой уровень.' }}</span><v-btn v-if="!nodes.length" variant="tonal" @click="requestSelection()">Добавить запись</v-btn></div>
-                </div>
-                <div class="catalog-tree-panel__legend"><span class="catalog-tree__status is-published" /> Опубликовано <span class="catalog-tree__status" /> Черновик <v-icon icon="mdi-storefront-outline" size="14" /> Витрина</div>
+        <v-progress-linear v-if="loading" indeterminate color="#352345" height="2" />
+        <div v-if="domainLevels.length" class="classification-row classification-row--domains">
+            <span class="classification-row__label"><v-icon icon="mdi-earth" size="15" />Домены</span>
+            <div class="classification-row__tabs" role="tablist" aria-label="Домены">
+                <button v-for="domain in view.domainTabs" :key="domain.id ?? 'all'" type="button" role="tab" :aria-selected="domainId === domain.id" :class="['classification-tab', { 'is-selected': domainId === domain.id }]" @click="selectDomain(domain.id)">
+                    {{ domain.name }}<span class="classification-tab__count">{{ domain.count }}</span>
+                </button>
             </div>
-            <div v-if="editing" class="catalog-editor">
-                <div class="catalog-editor__heading"><div><small>{{ selectedId ? 'Редактирование записи' : 'Новая запись' }}</small><h2>{{ selected?.name || 'Добавление в каталог' }}</h2></div><v-chip v-if="dirty" size="x-small" variant="tonal">Не сохранено</v-chip></div>
-                <div class="catalog-editor__scroll">
-                    <p v-if="breadcrumbs" class="catalog-editor__path">{{ breadcrumbs }}</p>
-                    <v-form id="catalog-node-form" @submit.prevent="save">
-                        <fieldset :disabled="saving" class="catalog-editor__fieldset">
-                            <div class="catalog-editor__grid">
-                                <v-select v-model="form.level_id" :items="editableLevels" item-title="name" item-value="id" label="Уровень классификации" :disabled="Boolean(selectedId && selected?.entity_type)" :error-messages="fieldErrors('level_id')" @update:model-value="changeLevel" />
-                                <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" :error-messages="fieldErrors('sort_order')" />
-                            </div>
-                            <v-text-field v-model="form.name" label="Название *" :error-messages="fieldErrors('name')" required maxlength="255" />
-                            <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Родительская запись" :error-messages="fieldErrors('parent_id')" hint="Выберите другую запись, чтобы перенести ветку" persistent-hint />
-                            <div class="catalog-editor__publication">
-                                <v-switch v-model="form.is_published" label="Публикация на сайте" color="#352345" hide-details density="compact" />
-                                <v-switch v-model="form.is_featured" label="Разместить на витрине" color="#352345" hide-details density="compact" />
-                                <small>Витрина показывает опубликованные записи. Скрытая родительская ветка скрывает вложенные разделы каталога.</small>
-                            </div>
-                            <h3>Содержание</h3>
-                            <v-textarea v-model="form.description" label="Описание" variant="outlined" rows="3" auto-grow :error-messages="fieldErrors('description')" />
-                            <div class="catalog-editor__avatar"><v-img v-if="form.image" :src="form.image" width="60" height="60" cover /><v-text-field v-model="form.image" label="Аватар · URL изображения" clearable :error-messages="fieldErrors('image')" /></div>
-                            <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint />
-                            <h3>SEO</h3>
-                            <v-text-field v-model="form.slug" label="Адрес страницы (slug)" :error-messages="fieldErrors('slug')" />
-                            <v-text-field v-model="form.meta_title" label="SEO · Title" :error-messages="fieldErrors('meta_title')" />
-                            <v-textarea v-model="form.meta_description" label="SEO · Description" variant="outlined" rows="2" :error-messages="fieldErrors('meta_description')" />
-                            <div class="catalog-editor__properties-title"><h3>Свойства · {{ currentLevel?.name }}</h3><v-btn variant="text" size="small" @click="schemaOpen = true">Настроить поля</v-btn></div>
-                            <p v-if="!currentLevel?.fields?.length" class="catalog-editor__hint">Добавьте свойства этого уровня: текст, число, дату, переключатель или список вариантов.</p>
-                            <template v-for="field in currentLevel?.fields || []" :key="field.id">
-                                <v-checkbox v-if="field.type === 'boolean'" v-model="form.properties[field.key]" :label="field.label + (field.required ? ' *' : '')" :error-messages="fieldErrors(`properties.${field.key}`)" density="compact" />
-                                <v-textarea v-else-if="field.type === 'textarea'" v-model="form.properties[field.key]" :label="field.label + (field.required ? ' *' : '')" variant="outlined" rows="3" :error-messages="fieldErrors(`properties.${field.key}`)" />
-                                <v-select v-else-if="field.type === 'select'" v-model="form.properties[field.key]" :items="field.options || []" :label="field.label + (field.required ? ' *' : '')" clearable :error-messages="fieldErrors(`properties.${field.key}`)" />
-                                <v-text-field v-else v-model="form.properties[field.key]" :label="field.label + (field.required ? ' *' : '')" :type="['number', 'date', 'url'].includes(field.type) ? field.type : 'text'" :step="field.type === 'number' ? 'any' : undefined" :error-messages="fieldErrors(`properties.${field.key}`)" />
-                            </template>
-                        </fieldset>
-                    </v-form>
-                </div>
-                <div class="catalog-editor__footer">
-                    <v-btn type="submit" form="catalog-node-form" :loading="saving" prepend-icon="mdi-check">Сохранить</v-btn>
-                    <v-btn v-if="selectedId" variant="tonal" :disabled="saving" prepend-icon="mdi-plus" @click="createChild">Подуровень</v-btn>
-                    <v-menu v-if="selectedId"><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-horizontal" variant="text" aria-label="Действия с записью" /></template><v-list density="compact">
-                        <v-list-item v-if="selected?.public_url && selected?.is_published" :href="selected.public_url" target="_blank" title="Открыть на сайте" prepend-icon="mdi-open-in-new" />
-                        <v-list-item v-if="selected?.edit_url" :href="selected.edit_url" target="_blank" title="Полная карточка" prepend-icon="mdi-card-text-outline" />
-                        <v-list-item title="Добавить соседнюю запись" prepend-icon="mdi-plus" @click="requestSelection(null, form.parent_id)" />
-                        <v-list-item title="Удалить" prepend-icon="mdi-delete-outline" base-color="error" :disabled="saving" @click="deleteOpen = true" />
-                    </v-list></v-menu>
-                </div>
-            </div>
-            <div v-else class="catalog-editor catalog-empty"><v-icon icon="mdi-file-tree-outline" size="52" color="#baafc4" /><strong>Каталог начинается со структуры</strong><span>Выберите запись слева для редактирования<br>или добавьте категорию, продукт, товар или свой раздел.</span><v-btn prepend-icon="mdi-plus" variant="tonal" :disabled="!levels.length" @click="requestSelection()">Добавить запись</v-btn></div>
+            <v-btn v-if="nodeMap.has(domainId)" icon="mdi-pencil-outline" variant="text" size="x-small" aria-label="Изменить выбранный домен" @click="openEditor(nodeMap.get(domainId))" />
+            <v-btn icon="mdi-plus" variant="text" size="x-small" aria-label="Добавить домен" @click="createDomain" />
         </div>
+        <div v-for="row in view.tabRows" :key="row.levelId" class="classification-row">
+            <span class="classification-row__label">{{ row.name }}</span>
+            <div class="classification-row__tabs" role="tablist" :aria-label="row.name">
+                <button type="button" role="tab" :aria-selected="!selections[row.levelId]" :class="['classification-tab', { 'is-selected': !selections[row.levelId] }]" @click="selectTab(row.levelId, null)">Все</button>
+                <button v-for="item in row.items" :key="item.id" type="button" role="tab" :aria-selected="selections[row.levelId] === item.id" :title="pathTo(item).map(node => node.name).join(' / ')" :class="['classification-tab', { 'is-selected': selections[row.levelId] === item.id }]" @click="selectTab(row.levelId, item.id)">
+                    <span v-if="!item.is_published" class="catalog-status-dot" title="Черновик" />{{ item.name }}<span class="classification-tab__count">{{ item.count }}</span>
+                </button>
+                <span v-if="!row.items.length" class="classification-row__empty">В выбранной ветке нет записей этого уровня</span>
+            </div>
+            <v-btn v-if="nodeMap.has(selections[row.levelId])" icon="mdi-pencil-outline" variant="text" size="x-small" :aria-label="`Изменить ${row.name}`" @click="openEditor(nodeMap.get(selections[row.levelId]))" />
+            <v-btn icon="mdi-plus" variant="text" size="x-small" :aria-label="`Добавить: ${row.name}`" @click="createForTab(row)" />
+        </div>
+        <div class="catalog-workspace__body">
+            <aside class="catalog-tree-panel" aria-label="Разделы выбранной ветки">
+                <div class="catalog-panel-heading"><span><v-icon icon="mdi-file-tree-outline" size="16" />Иерархия <small>{{ view.counts.branches }}</small></span><div>
+                    <v-btn icon="mdi-unfold-more-horizontal" variant="text" size="x-small" title="Развернуть всё" aria-label="Развернуть всё" @click="expanded = new Set(nodes.map(node => node.id))" />
+                    <v-btn icon="mdi-unfold-less-horizontal" variant="text" size="x-small" title="Свернуть всё" aria-label="Свернуть всё" @click="expanded = new Set()" />
+                </div></div>
+                <button type="button" class="catalog-tree-all" :class="{ 'is-selected': !view.selectedBranchId }" @click="selectBranch(null)"><v-icon icon="mdi-view-list-outline" size="17" />Все объекты выбранного раздела<v-icon v-if="!view.selectedBranchId" icon="mdi-check" size="16" /></button>
+                <div class="catalog-tree" role="tree" aria-label="Дерево классификаций">
+                    <div v-for="node in view.treeRows" :key="node.id" role="treeitem" :aria-level="node.depth + 1" :aria-expanded="node.hasTreeChildren ? node.expanded : undefined" :aria-selected="view.selectedBranchId === node.id" tabindex="0" :style="{ '--depth': node.depth }"
+                         :class="['catalog-tree__row', { 'is-selected': view.selectedBranchId === node.id, 'is-context': node.context }]"
+                         @click="selectBranch(node)" @keydown.enter.prevent="selectBranch(node)" @keydown.space.prevent="selectBranch(node)" @keydown.right.prevent="!node.expanded && toggle(node)" @keydown.left.prevent="node.expanded && toggle(node)" @dblclick="openEditor(node)">
+                        <button v-if="node.hasTreeChildren" type="button" class="catalog-tree__toggle" :aria-label="`${node.expanded ? 'Свернуть' : 'Развернуть'} ${node.name}`" @click.stop="toggle(node)"><v-icon :icon="node.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" /></button><span v-else class="catalog-tree__spacer" />
+                        <v-icon :icon="iconFor(node)" size="18" color="#84738f" />
+                        <div class="catalog-tree__name"><span>{{ node.name }}</span><small>{{ levelName(node) }}<span v-if="!node.is_published"> · Черновик</span></small></div>
+                        <span class="catalog-tree__count" title="Объектов в ветке">{{ node.count }}</span>
+                        <v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="x-small" variant="text" :aria-label="`Действия: ${node.name}`" @click.stop /></template><v-list density="compact">
+                            <v-list-item title="Редактировать" prepend-icon="mdi-pencil-outline" @click="openEditor(node)" />
+                            <v-list-item title="Добавить в раздел" prepend-icon="mdi-plus" @click="create({ parentId: node.id })" />
+                            <v-list-item v-if="node.is_published" title="Открыть на сайте" prepend-icon="mdi-open-in-new" :href="node.public_url" target="_blank" />
+                        </v-list></v-menu>
+                    </div>
+                    <div v-if="!view.treeRows.length && !loading" class="catalog-tree-empty"><v-icon icon="mdi-file-tree-outline" size="30" /><p>Вложенных разделов нет</p><small>Объекты доступны в таблице справа. При необходимости добавьте промежуточный раздел.</small><v-btn variant="text" size="small" prepend-icon="mdi-plus" @click="create()">Добавить раздел</v-btn></div>
+                </div>
+                <div class="catalog-tree-footer"><v-icon icon="mdi-information-outline" size="14" />Уровни можно пропускать в любой ветке</div>
+            </aside>
+            <section class="catalog-items-panel" aria-label="Конечные объекты каталога">
+                <div class="catalog-items-heading"><div class="catalog-items-heading__text"><nav v-if="contextPath.length" aria-label="Текущий раздел" class="catalog-path"><span v-for="(node, index) in contextPath" :key="node.id"><span v-if="index" class="catalog-path__separator">/</span>{{ node.name }}</span></nav><h2>{{ currentTitle }}<span>{{ tableItems.length }}</span></h2><p>Конечные записи всех вложенных веток</p></div>
+                    <div class="catalog-items-heading__actions"><v-btn v-if="contextNode" prepend-icon="mdi-pencil-outline" size="small" variant="text" @click="openEditor(contextNode)">Изменить раздел</v-btn><v-btn prepend-icon="mdi-plus" size="small" variant="tonal" @click="create()">Объект</v-btn></div>
+                </div>
+                <v-data-table v-model:page="page" :items="tableItems" :headers="headers" :items-per-page="50" :items-per-page-options="[25, 50, 100]" :loading="loading" item-value="id" density="compact" fixed-header hover class="catalog-items-table" items-per-page-text="На странице" loading-text="Загрузка каталога…">
+                    <template #item.name="{ item }"><div class="catalog-item-name"><div class="catalog-item-avatar"><img v-if="item.image" :src="item.image" alt="" loading="lazy"><v-icon v-else :icon="iconFor(item)" size="20" /></div><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }}</strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
+                    <template #item.level_name="{ item }"><button type="button" class="catalog-level-label" :class="{ 'is-unassigned': !item.level_id }" title="Изменить классификацию" @click="openEditor(item)">{{ item.level_name }}</button></template>
+                    <template #item.path_label="{ item }"><span class="catalog-item-path" :title="item.path_label">{{ item.path_label || 'Корень каталога' }}</span></template>
+                    <template #item.is_published="{ item }"><div class="catalog-item-status" :title="item.is_published && !item.visible ? 'Запись опубликована, но родительский раздел скрыт на сайте' : item.status_label"><span :class="['catalog-status-dot', { 'is-published': item.visible, 'is-hidden': item.is_published && !item.visible }]" />{{ item.status_label }}<v-icon v-if="item.is_featured" icon="mdi-storefront-outline" size="16" color="#927332" title="На витрине" /></div></template>
+                    <template #item.actions="{ item }"><div class="catalog-item-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="x-small" :aria-label="`Редактировать ${item.name}`" @click="openEditor(item)" /><v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" size="x-small" :aria-label="`Действия: ${item.name}`" /></template><v-list density="compact">
+                        <v-list-item title="Добавить вложенную запись" prepend-icon="mdi-plus" @click="create({ parentId: item.id })" />
+                        <v-list-item v-if="item.is_published" title="Открыть на сайте" prepend-icon="mdi-open-in-new" :href="item.public_url" target="_blank" />
+                        <v-list-item v-if="item.edit_url" title="Полная карточка" prepend-icon="mdi-card-text-outline" :href="item.edit_url" target="_blank" />
+                        <v-list-item title="Управление записью" prepend-icon="mdi-cog-outline" @click="openEditor(item)" />
+                    </v-list></v-menu></div></template>
+                    <template #no-data><div class="catalog-items-empty"><v-icon icon="mdi-view-list-outline" size="36" /><strong>{{ search || publication !== 'all' ? 'Объекты не найдены' : 'В этом разделе пока нет объектов' }}</strong><p>{{ search || publication !== 'all' ? 'Измените поисковый запрос или условия отображения.' : 'Создайте запись и назначьте ей нужный уровень. Промежуточные уровни необязательны.' }}</p><v-btn v-if="search || publication !== 'all'" variant="text" @click="resetFilters">Сбросить фильтры</v-btn><v-btn v-else variant="tonal" prepend-icon="mdi-plus" @click="create()">Создать объект</v-btn></div></template>
+                </v-data-table>
+            </section>
+        </div>
+        <CatalogNodeDialog v-model="editorOpen" :node="editorNode" :levels="levels" :nodes="nodes" :initial-parent-id="editorContext.parentId" :initial-level-id="editorContext.levelId" :initial-entity-type="editorContext.entityType" @saved="saved" @deleted="deleted" @changed="load" @schema="schemaOpen = true" />
         <CatalogSchemaDialog v-model="schemaOpen" :levels="levels" @changed="schemaChanged" />
-        <v-dialog v-model="deleteOpen" max-width="460"><v-card title="Удалить запись?"><v-card-text>«{{ selected?.name }}» будет удалена. Сначала перенесите вложенные записи. Связанные с операциями товары защищены от удаления.</v-card-text><v-card-actions><v-spacer /><v-btn :disabled="saving" @click="deleteOpen = false">Отмена</v-btn><v-btn color="error" :loading="saving" @click="remove">Удалить</v-btn></v-card-actions></v-card></v-dialog>
-        <v-dialog v-model="discardOpen" max-width="440"><v-card title="Есть несохранённые изменения"><v-card-text>Перейти к другой записи и отменить изменения?</v-card-text><v-card-actions><v-spacer /><v-btn @click="discardOpen = false">Остаться</v-btn><v-btn @click="discardAndSelect">Отменить изменения</v-btn></v-card-actions></v-card></v-dialog>
-        <v-snackbar v-model="noticeOpen" :timeout="3000" color="#352345">{{ notice }}</v-snackbar>
+        <v-snackbar v-model="noticeOpen" :timeout="2500" color="#352345">{{ notice }}</v-snackbar>
     </section>
 </template>
 
 <style scoped>
 .catalog-workspace { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; overflow: hidden; }
-.catalog-workspace__body { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(360px, 0.9fr); flex: 1 1 0; min-height: 0; }
-.catalog-tree-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #ded9e3; }
-.catalog-tree-panel__heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; background: #faf9fb; border-bottom: 1px solid #eeeaf1; font-weight: 600; }
-.catalog-tree-panel__heading small { font-size: 10px; color: #8c8394; font-weight: 400; margin-left: 8px; }
-.catalog-tree { flex: 1 1 0; min-height: 0; overflow: auto; padding: 6px 0; }
-.catalog-tree__row { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 12px 6px calc(8px + var(--depth) * 22px); cursor: pointer; border-bottom: 1px solid #f5f3f6; }
-.catalog-tree__row:hover { background: #faf8fc; }
-.catalog-tree__row.is-selected { background: #f0eaf5; box-shadow: inset 3px 0 #5d3b77; }
-.catalog-tree__row.is-context .catalog-tree__name { color: #8c8394; }
-.catalog-tree__toggle, .catalog-tree__spacer { flex: 0 0 20px; width: 20px; }
-.catalog-tree__name { display: flex; flex-direction: column; flex: 1; min-width: 140px; line-height: 1.5; font-weight: 500; }
-.catalog-tree__name small { font-size: 10px; color: #8a8291; font-weight: 400; }
-.catalog-tree__status { display: inline-block; flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: #c7c0cc; }
-.catalog-tree__status.is-published { background: #408368; }
-.catalog-tree-panel__legend { display: flex; gap: 7px; align-items: center; padding: 8px 12px; border-top: 1px solid #eeeaf1; color: #8c8394; font-size: 10px; }
-.catalog-editor { min-height: 0; min-width: 0; display: flex; flex-direction: column; background: #fdfcfe; }
-.catalog-editor__heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-bottom: 1px solid #eeeaf1; padding: 12px 18px; }
-.catalog-editor__heading small { font-size: 10px; color: #8c8394; }
-.catalog-editor__heading h2 { font-size: 16px; font-weight: 600; margin: 2px 0 0; }
-.catalog-editor__scroll { flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px 18px; }
-.catalog-editor__path { font-size: 11px; color: #8c8394; margin-bottom: 12px; }
-.catalog-editor__fieldset { border: 0; min-width: 0; }
-.catalog-editor__fieldset:disabled { opacity: .7; }
-.catalog-editor__grid { display: grid; grid-template-columns: 1fr 130px; gap: 10px; }
-.catalog-editor__publication { padding: 6px 12px 12px; margin: 14px 0; border: 1px solid #e5dfe9; background: #f8f5fa; }
-.catalog-editor__publication small { display: block; font-size: 10px; color: #84778f; }
-.catalog-editor h3 { font-size: 12px; font-weight: 650; margin: 12px 0; }
-.catalog-editor__avatar { display: flex; align-items: flex-start; gap: 10px; }
-.catalog-editor__avatar :deep(.v-img) { flex: 0 0 60px; }
-.catalog-editor__properties-title { display: flex; justify-content: space-between; align-items: center; }
-.catalog-editor__hint { font-size: 12px; color: #8c8394; margin-bottom: 14px; }
-.catalog-editor__footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 18px; border-top: 1px solid #ded9e3; background: #fff; }
-.catalog-editor__footer :deep(.v-btn) { font-size: 12px; }
-.catalog-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 36px 20px; color: #93899d; }
-.catalog-empty strong { font-size: 16px; color: #65566f; font-weight: 500; }
-.catalog-empty span { font-size: 12px; line-height: 1.8; }
-@media (max-width: 900px) { .catalog-workspace__body { grid-template-columns: minmax(240px, .8fr) minmax(320px, 1fr); } }
-@media (max-width: 680px) { .catalog-workspace__body { display: flex; flex-direction: column; overflow: auto; } .catalog-tree-panel { min-height: 250px; flex: 0 0 40%; border-right: 0; border-bottom: 1px solid #ded9e3; } .catalog-editor { min-height: 430px; flex: 1 0 auto; } .catalog-editor__scroll { flex: 1 0 auto; overflow: visible; } }
+.classification-row { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; min-height: 37px; padding: 0 10px; border-bottom: 1px solid #e3dfe8; background: #faf9fb; }
+.classification-row--domains { background: #f2eff6; }
+.classification-row__label { flex: 0 0 112px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 650; color: #7b6b88; }
+.classification-row__tabs { display: flex; align-items: stretch; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.classification-tab { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; font-size: 12px; color: #776b80; border-bottom: 2px solid transparent; white-space: nowrap; line-height: 17px; }
+.classification-tab:hover { background: #ede8f2; }
+.classification-tab.is-selected { color: #49315c; border-bottom-color: #65437d; background: #e8e1ef; font-weight: 600; }
+.classification-tab__count { min-width: 17px; padding: 0 4px; background: #ffffffa6; color: #95879e; font-size: 10px; line-height: 16px; text-align: center; font-weight: 500; }
+.classification-row__empty { align-self: center; color: #aaa1b0; font-size: 11px; white-space: nowrap; }
+.catalog-workspace__body { display: grid; grid-template-columns: minmax(265px, 30%) minmax(0, 1fr); flex: 1 1 0; min-height: 0; }
+.catalog-tree-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid #ded9e3; background: #fcfbfd; }
+.catalog-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #e9e5ee; font-size: 12px; font-weight: 600; }
+.catalog-panel-heading > span { display: flex; align-items: center; gap: 7px; }.catalog-panel-heading small { color: #a096a7; font-weight: 400; }
+.catalog-tree-all { display: flex; align-items: center; gap: 8px; text-align: left; padding: 12px; font-size: 11px; color: #8e8099; border-bottom: 1px solid #ece8f0; }
+.catalog-tree-all.is-selected { color: #68487e; background: #f1edf6; }.catalog-tree-all > :last-child { margin-left: auto; }
+.catalog-tree { flex: 1 1 0; min-height: 0; overflow: auto; padding: 4px 0; }
+.catalog-tree__row { display: flex; align-items: center; gap: 6px; min-height: 49px; padding: 6px 6px 6px calc(6px + var(--depth) * 18px); cursor: pointer; border-bottom: 1px solid #f0edf4; }
+.catalog-tree__row:hover { background: #f4f0f8; }.catalog-tree__row.is-selected { background: #eae3f1; box-shadow: inset 3px 0 #785491; }.catalog-tree__row.is-context { color: #95889f; }
+.catalog-tree__toggle, .catalog-tree__spacer { flex: 0 0 18px; width: 18px; }.catalog-tree__name { display: flex; flex-direction: column; flex: 1; min-width: 100px; gap: 3px; line-height: 1.4; font-size: 12px; font-weight: 500; }.catalog-tree__name small { font-size: 10px; color: #968b9f; font-weight: 400; }
+.catalog-tree__count { color: #85738f; font-size: 11px; font-variant-numeric: tabular-nums; background: #f0eaf6; padding: 2px 6px; }
+.catalog-tree-empty { text-align: center; padding: 32px 20px; color: #a095a9; }.catalog-tree-empty p { margin: 10px 0 6px; font-size: 12px; }.catalog-tree-empty small { display: block; font-size: 11px; line-height: 1.8; margin-bottom: 12px; }
+.catalog-tree-footer { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-top: 1px solid #e9e5ee; color: #a095a9; font-size: 10px; }
+.catalog-items-panel { min-height: 0; min-width: 0; display: flex; flex-direction: column; background: #fff; }
+.catalog-items-heading { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 75px; padding: 11px 16px; border-bottom: 1px solid #e5dfea; }
+.catalog-items-heading__text { min-width: 0; }.catalog-items-heading h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; line-height: 1.5; }.catalog-items-heading h2 > span { font-size: 11px; font-weight: 500; padding: 1px 6px; color: #907e9e; background: #f0eaf5; }.catalog-items-heading p { font-size: 10px; margin-top: 3px; color: #a095a9; }.catalog-items-heading__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
+.catalog-path { display: flex; flex-wrap: wrap; gap: 5px; font-size: 10px; color: #998ca3; margin-bottom: 3px; }.catalog-path__separator { margin-right: 5px; color: #c2b8ca; }
+.catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(td) { height: 58px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
+.catalog-item-name { display: flex; align-items: center; gap: 10px; min-width: 170px; padding: 7px 0; }.catalog-item-avatar { flex: 0 0 34px; width: 34px; height: 34px; display: grid; place-items: center; background: #f4f0f7; border: 1px solid #eee9f2; color: #aa9ab6; }.catalog-item-avatar img { width: 100%; height: 100%; object-fit: cover; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-level-label { padding: 3px 6px; font-size: 10px; color: #7b638e; background: #f3eef8; text-align: left; }.catalog-level-label.is-unassigned { background: #f4f4f4; color: #aaa; }.catalog-level-label:hover { background: #e8dff1; }.catalog-item-path { display: block; color: #9a8ba5; font-size: 11px; line-height: 1.5; max-width: 300px; }.catalog-item-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 11px; color: #8c7c96; }.catalog-status-dot { display: inline-block; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #c5bdcd; }.catalog-status-dot.is-published { background: #559c79; }.catalog-status-dot.is-hidden { background: #c59954; }.catalog-item-actions { display: flex; gap: 2px; }
+.catalog-items-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 50px 24px; color: #a092aa; }.catalog-items-empty strong { font-size: 16px; color: #7d698c; font-weight: 500; }.catalog-items-empty p { font-size: 12px; max-width: 400px; line-height: 1.8; }
+@media (max-width: 980px) { .catalog-workspace__body { grid-template-columns: minmax(225px, 30%) minmax(0, 1fr); }.catalog-items-heading__actions { flex-direction: column; align-items: flex-end; }.catalog-tree__name { min-width: 75px; } }
+@media (max-width: 680px) { .classification-row { gap: 4px; padding: 0 6px; }.classification-row__label { flex-basis: 74px; font-size: 10px; }.classification-tab { font-size: 11px; padding: 8px; }.catalog-workspace__body { display: flex; flex-direction: column; overflow: auto; }.catalog-tree-panel { flex: 0 0 200px; border-right: 0; border-bottom: 1px solid #ded9e3; }.catalog-items-panel { flex: 1 0 430px; min-height: 430px; }.catalog-items-heading { padding: 10px; }.catalog-items-heading h2 { font-size: 14px; }.catalog-items-heading__actions :deep(.v-btn) { font-size: 10px; }.catalog-tree-footer { display: none; } }
 </style>

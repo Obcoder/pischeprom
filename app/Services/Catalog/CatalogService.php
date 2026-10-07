@@ -24,7 +24,7 @@ class CatalogService
         $nodes = $this->nodes();
 
         return [
-            'levels' => CatalogLevel::with('fields')->orderBy('sort_order')->orderBy('id')->get(),
+            'levels' => CatalogLevel::with('fields')->orderByDesc('is_domain')->orderBy('sort_order')->orderBy('id')->get(),
             'nodes' => $nodes,
             'counts' => ['nodes' => $nodes->count(), 'published' => $nodes->where('is_published', true)->count()],
         ];
@@ -47,9 +47,10 @@ class CatalogService
     {
         $data = $node->only([
             'id', 'level_id', 'parent_id', 'entity_type', 'entity_id', 'name', 'slug', 'image',
-            'description', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties',
+            'description', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
         ]);
         $data['properties'] = $data['properties'] ?: (object) [];
+        $data['properties_by_level'] = (object) ($data['properties_by_level'] ?? []);
         $source = $resolved ? $source : $this->source($node);
         if ($node->entity_type && ! $source) {
             $data['is_published'] = false;
@@ -89,10 +90,8 @@ class CatalogService
     public function importMissing(): void
     {
         DB::transaction(function (): void {
-            $levels = CatalogLevel::whereIn('entity_type', ['category', 'product', 'good'])->orderBy('id')->lockForUpdate()->get()->keyBy('entity_type');
-            if ($levels->count() !== 3) {
-                return;
-            }
+            $levels = CatalogLevel::orderBy('id')->lockForUpdate()->get()->whereIn('entity_type', ['category', 'product', 'good'])->keyBy('entity_type');
+            CatalogNode::orderBy('id')->lockForUpdate()->get(['id']);
             $categories = Category::orderBy('id')->get()->keyBy('id');
             $products = Product::without(['category', 'manufacturers'])->orderBy('id')->get()->keyBy('id');
             $goods = Good::orderBy('id')->get()->keyBy('id');
@@ -108,13 +107,13 @@ class CatalogService
             $nodes = $allNodes->whereNotNull('import_key')->keyBy('import_key');
             foreach ($categories as $source) {
                 $key = 'category:'.$source->id;
-                $nodes[$key] ??= $this->importNode($levels['category'], $source, null, $key);
+                $nodes[$key] ??= $this->importNode($levels['category'] ?? null, 'category', $source, null, $key);
                 $allNodes[$nodes[$key]->id] = $nodes[$key];
             }
             foreach ($products as $source) {
                 $key = 'product:'.$source->id;
                 $parentId = $nodes['category:'.$source->category_id]->id ?? null;
-                $nodes[$key] ??= $this->importNode($levels['product'], $source, $parentId, $key);
+                $nodes[$key] ??= $this->importNode($levels['product'] ?? null, 'product', $source, $parentId, $key);
                 $allNodes[$nodes[$key]->id] = $nodes[$key];
                 if ($this->ancestorFromMap($nodes[$key], 'category', $allNodes)?->entity_id !== $source->category_id) {
                     $this->placeImported($nodes[$key], $parentId);
@@ -137,7 +136,7 @@ class CatalogService
                 foreach ($expected as $key => $parentId) {
                     $placement = $placements[$key] ?? $obsolete->shift();
                     if (! $placement) {
-                        $placement = $this->importNode($levels['good'], $source, $parentId, $key);
+                        $placement = $this->importNode($levels['good'] ?? null, 'good', $source, $parentId, $key);
                     } elseif ($placement->import_key !== $key) {
                         $this->placeImported($placement, $parentId);
                         $placement->update(['import_key' => $key]);
@@ -178,6 +177,9 @@ class CatalogService
 
     private function placeImported(CatalogNode $node, ?int $parentId): void
     {
+        if ($node->level?->is_domain) {
+            $parentId = null;
+        }
         try {
             $this->validateParent($node, $parentId);
         } catch (ValidationException) {
@@ -195,10 +197,10 @@ class CatalogService
         $node->delete();
     }
 
-    private function importNode(CatalogLevel $level, Model $source, ?int $parentId, string $key): CatalogNode
+    private function importNode(?CatalogLevel $level, string $type, Model $source, ?int $parentId, string $key): CatalogNode
     {
         return CatalogNode::firstOrCreate(['import_key' => $key], [
-            'level_id' => $level->id, 'parent_id' => $parentId, 'entity_type' => $level->entity_type,
+            'level_id' => $level?->id, 'parent_id' => $level?->is_domain ? null : $parentId, 'entity_type' => $type,
             'entity_id' => $source->id, 'name' => $source instanceof Product ? $source->rus : $source->name,
             'slug' => $source->slug ?? Str::slug($source->rus ?? $source->name),
             'is_published' => $source->is_published, 'is_featured' => $source->is_featured ?? false,
@@ -211,19 +213,36 @@ class CatalogService
         return DB::transaction(function () use ($data, $node): CatalogNode {
             // Serialize structural edits and imports; this also closes concurrent cycle creation.
             CatalogLevel::orderBy('id')->lockForUpdate()->get();
+            CatalogNode::orderBy('id')->lockForUpdate()->get(['id']);
             $creating = $node === null;
             $node = $node ? CatalogNode::lockForUpdate()->findOrFail($node->id) : new CatalogNode;
             abort_if(! $creating && $node->entity_type && ! $this->source($node, true), 409, 'Исходная сущность удалена. Обновите дерево.');
-            $level = CatalogLevel::with('fields')->findOrFail($data['level_id'] ?? $node->level_id);
-            $type = $level->entity_type === 'custom' ? null : $level->entity_type;
+            $levelId = array_key_exists('level_id', $data) ? $data['level_id'] : $node->level_id;
+            $level = $levelId === null ? null : CatalogLevel::with('fields')->findOrFail($levelId);
+            $type = array_key_exists('entity_type', $data)
+                ? ($data['entity_type'] === 'custom' ? null : $data['entity_type'])
+                : ($creating ? ($level?->entity_type === 'custom' ? null : $level?->entity_type) : $node->entity_type);
             if (! $creating && $type !== $node->entity_type) {
-                throw ValidationException::withMessages(['level_id' => 'Существующую сущность нельзя преобразовать в другой тип.']);
+                throw ValidationException::withMessages(['entity_type' => 'Тип учётной сущности менять нельзя; уровень классификации можно назначить любой.']);
+            }
+            $levelChanged = $node->level_id !== $level?->id;
+            $parentId = array_key_exists('parent_id', $data) ? $data['parent_id'] : $node->parent_id;
+            if ($level?->is_domain && $parentId !== null && ($creating || $levelChanged || $node->parent_id !== $parentId)) {
+                throw ValidationException::withMessages(['parent_id' => 'Домен должен находиться в корне классификации.']);
             }
             if (array_key_exists('parent_id', $data)) {
                 $this->validateParent($node, $data['parent_id']);
             }
             if ($creating || array_key_exists('properties', $data) || array_key_exists('level_id', $data)) {
-                $data['properties'] = $this->validateProperties($level, array_key_exists('properties', $data) ? ($data['properties'] ?? []) : ($node->properties ?? []));
+                $archive = $node->properties_by_level ?? [];
+                if ($levelChanged && $node->level_id !== null) {
+                    $archive[(string) $node->level_id] = $node->properties ?? [];
+                    $node->properties_by_level = $archive;
+                }
+                $values = array_key_exists('properties', $data)
+                    ? ($data['properties'] ?? [])
+                    : ($levelChanged ? ($archive[(string) $level?->id] ?? []) : ($node->properties ?? []));
+                $data['properties'] = $this->validateProperties($level, $values);
             }
             $subtree = $creating ? collect() : $this->subtree($node);
             $oldParents = $subtree->mapWithKeys(fn (CatalogNode $item): array => [$item->id => $this->nearestAncestor($item, 'product')?->entity_id]);
@@ -257,9 +276,9 @@ class CatalogService
         }, 3);
     }
 
-    public function validateProperties(CatalogLevel $level, array $values): array
+    public function validateProperties(?CatalogLevel $level, array $values): array
     {
-        $fields = $level->fields;
+        $fields = $level?->fields ?? collect();
         $unknown = array_diff(array_keys($values), $fields->pluck('key')->all());
         if ($unknown) {
             throw ValidationException::withMessages(['properties' => 'Неизвестные свойства: '.implode(', ', $unknown)]);

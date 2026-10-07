@@ -32,7 +32,7 @@ class CatalogTreeTest extends TestCase
         $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))
             ->getJson('/api/catalog')->assertForbidden();
         $this->staff();
-        $this->getJson('/api/catalog')->assertOk()->assertJsonCount(3, 'levels');
+        $this->getJson('/api/catalog')->assertOk()->assertJsonCount(4, 'levels');
     }
 
     public function test_import_preserves_drafts_unassigned_entries_and_multiple_product_links(): void

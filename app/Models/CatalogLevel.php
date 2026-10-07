@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CatalogLevel extends Model
 {
-    protected $fillable = ['name', 'entity_type', 'sort_order'];
+    protected $fillable = ['name', 'entity_type', 'sort_order', 'display_mode', 'is_domain'];
 
-    protected $casts = ['sort_order' => 'integer'];
+    protected $casts = ['sort_order' => 'integer', 'is_domain' => 'boolean'];
 
     public function fields(): HasMany
     {

@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CatalogTreeController extends Controller
 {
@@ -28,8 +29,13 @@ class CatalogTreeController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'entity_type' => ['sometimes', 'in:custom'],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
+            'display_mode' => ['sometimes', Rule::in(['tabs', 'tree', 'list'])],
+            'is_domain' => ['sometimes', 'boolean'],
         ]);
-        $level = CatalogLevel::create(['entity_type' => 'custom', 'sort_order' => 0, ...$data]);
+        $level = CatalogLevel::create([
+            'entity_type' => 'custom', 'sort_order' => 0, 'is_domain' => false,
+            'display_mode' => ($data['is_domain'] ?? false) ? 'tabs' : 'tree', ...$data,
+        ]);
 
         return response()->json(['data' => $level->load('fields')], 201);
     }
@@ -40,8 +46,20 @@ class CatalogTreeController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'entity_type' => ['sometimes', Rule::in([$level->entity_type])],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
+            'display_mode' => ['sometimes', Rule::in(['tabs', 'tree', 'list'])],
+            'is_domain' => ['sometimes', 'boolean'],
         ]);
-        $level->update($data);
+        DB::transaction(function () use ($level, $data): void {
+            CatalogLevel::orderBy('id')->lockForUpdate()->get();
+            $level = CatalogLevel::findOrFail($level->id);
+            if (($data['is_domain'] ?? false) && ! $level->is_domain) {
+                if ($level->nodes()->whereNotNull('parent_id')->exists()) {
+                    throw ValidationException::withMessages(['is_domain' => 'Сначала перенесите элементы этого уровня в корень классификации.']);
+                }
+                $data['display_mode'] ??= 'tabs';
+            }
+            $level->update($data);
+        });
 
         return response()->json(['data' => $level->fresh()->load('fields')]);
     }
@@ -50,7 +68,6 @@ class CatalogTreeController extends Controller
     {
         DB::transaction(function () use ($level): void {
             $level = CatalogLevel::lockForUpdate()->findOrFail($level->id);
-            abort_if($level->entity_type !== 'custom', 409, 'Базовый уровень связан с учётом. Его можно переименовать.');
             abort_if($level->nodes()->exists(), 409, 'Сначала перенесите или удалите элементы этого уровня.');
             $level->delete();
         });
@@ -78,8 +95,13 @@ class CatalogTreeController extends Controller
             $oldKey = $field->key;
             $field->update($data);
             $level = $field->level()->with('fields')->firstOrFail();
-            foreach ($level->nodes()->get() as $node) {
-                $values = $node->properties ?? [];
+            foreach (CatalogNode::where('level_id', $level->id)->orWhereNotNull('properties_by_level')->get() as $node) {
+                $active = $node->level_id === $level->id;
+                $archive = $node->properties_by_level ?? [];
+                if (! $active && ! array_key_exists($level->id, $archive)) {
+                    continue;
+                }
+                $values = $active ? ($node->properties ?? []) : $archive[$level->id];
                 if ($oldKey !== $field->key && array_key_exists($oldKey, $values)) {
                     $values[$field->key] = $values[$oldKey];
                     unset($values[$oldKey]);
@@ -92,7 +114,14 @@ class CatalogTreeController extends Controller
                     $validated = $this->catalog->validateProperties($singleFieldLevel, [$field->key => $values[$field->key]]);
                     $values[$field->key] = $validated[$field->key];
                 }
-                $node->update(['properties' => $values]);
+                if ($active) {
+                    $node->properties = $values;
+                }
+                if (array_key_exists($level->id, $archive)) {
+                    $archive[$level->id] = $values;
+                    $node->properties_by_level = $archive;
+                }
+                $node->save();
             }
         });
 
@@ -103,10 +132,18 @@ class CatalogTreeController extends Controller
     {
         DB::transaction(function () use ($field): void {
             CatalogLevel::orderBy('id')->lockForUpdate()->get();
-            foreach (CatalogNode::where('level_id', $field->level_id)->get() as $node) {
+            foreach (CatalogNode::where('level_id', $field->level_id)->orWhereNotNull('properties_by_level')->get() as $node) {
                 $values = $node->properties ?? [];
-                unset($values[$field->key]);
-                $node->update(['properties' => $values]);
+                if ($node->level_id === $field->level_id) {
+                    unset($values[$field->key]);
+                    $node->properties = $values;
+                }
+                $archive = $node->properties_by_level ?? [];
+                if (array_key_exists($field->level_id, $archive)) {
+                    unset($archive[$field->level_id][$field->key]);
+                    $node->properties_by_level = $archive;
+                }
+                $node->save();
             }
             $field->delete();
         });
@@ -166,7 +203,8 @@ class CatalogTreeController extends Controller
         $required = $node ? 'sometimes' : 'required';
 
         return $request->validate([
-            'level_id' => [$required, 'integer', 'exists:catalog_levels,id'],
+            'level_id' => ['sometimes', 'nullable', 'integer', 'exists:catalog_levels,id'],
+            'entity_type' => ['sometimes', 'nullable', Rule::in(['category', 'product', 'good', 'custom'])],
             'parent_id' => ['sometimes', 'nullable', 'integer', 'exists:catalog_nodes,id'],
             'name' => [$required, 'required', 'string', 'max:255'],
             'slug' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
