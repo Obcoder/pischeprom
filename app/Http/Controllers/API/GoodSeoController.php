@@ -10,7 +10,7 @@ use App\Services\Seo\GoodStructuredDataService;
 use App\Services\Seo\IndexNowService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class GoodSeoController extends Controller
@@ -23,6 +23,8 @@ class GoodSeoController extends Controller
             'meta_title' => "{$good->name} купить оптом для пищевой промышленности",
             'meta_description' => $good->description,
             'h1' => $good->name,
+            'slug_override' => $good->slug,
+            'canonical_url' => app(GoodSeoService::class)->publicUrl($good),
             'robots' => 'index,follow',
             'focus_keyword' => $good->name,
             'breadcrumbs_title' => $good->name,
@@ -32,7 +34,7 @@ class GoodSeoController extends Controller
             'availability_status' => 'on_request',
         ]);
 
-        return response()->json([...$seo->toArray(), 'ai_generation' => $ai->availability()]);
+        return response()->json([...$seo->toArray(), 'primary_slug' => $good->slug, 'ai_generation' => $ai->availability()]);
     }
 
     public function upsert(
@@ -41,27 +43,10 @@ class GoodSeoController extends Controller
         IndexNowService $indexNowService,
         GoodSeoService $seoService,
     ): JsonResponse {
-        $existing = $good->seo;
-        $sameAlias = $request->input('slug_override') === $existing?->slug_override;
-        $activating = $request->boolean('is_active') && ! $existing?->is_active;
-        $aliasRules = ['nullable', 'string', 'max:255'];
-        if (! $sameAlias) {
-            $aliasRules[] = 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/';
-        }
-        if (! $sameAlias || $activating) {
-            $aliasRules[] = Rule::unique('goods', 'slug')->ignore($good->id);
-            $aliasRules[] = Rule::unique('good_seos', 'slug_override')->ignore($good->id, 'good_id');
-        }
-        $canonicalRules = ['nullable', 'string', 'max:255'];
-        if ($request->input('canonical_url') !== $existing?->canonical_url) {
-            $canonicalRules[] = 'url:http,https';
-        }
         $validated = $request->validate([
             'meta_title' => ['nullable', 'string', 'max:255'],
             'meta_description' => ['nullable', 'string'],
             'h1' => ['nullable', 'string', 'max:255'],
-            'slug_override' => $aliasRules,
-            'canonical_url' => $canonicalRules,
             'robots' => ['required', 'string', 'max:50'],
 
             'og_title' => ['nullable', 'string', 'max:255'],
@@ -104,17 +89,23 @@ class GoodSeoController extends Controller
             'faq' => ['nullable', 'array'],
         ]);
 
-        $validated = $this->synchronizeSemanticCore($validated, $existing?->semantic_core_rows ?? []);
+        $seo = DB::transaction(function () use (&$good, $validated) {
+            $good = Good::whereKey($good->id)->lockForUpdate()->firstOrFail();
+            $good->synchronizeSeoAddress();
+            $validated = $this->synchronizeSemanticCore($validated, $good->seo?->semantic_core_rows ?? []);
 
-        $seo = $good->seo()->updateOrCreate(
-            ['good_id' => $good->id],
-            [
-                ...$validated,
-                'include_in_sitemap' => $validated['include_in_sitemap'] ?? true,
-                'include_in_yandex_feed' => $validated['include_in_yandex_feed'] ?? true,
-                'availability_status' => $validated['availability_status'] ?? 'on_request',
-            ]
-        );
+            return $good->seo()->updateOrCreate(
+                ['good_id' => $good->id],
+                [
+                    ...$validated,
+                    'slug_override' => $good->slug,
+                    'canonical_url' => route('public.goods.show', ['good' => $good->slug ?: (string) $good->id]),
+                    'include_in_sitemap' => $validated['include_in_sitemap'] ?? true,
+                    'include_in_yandex_feed' => $validated['include_in_yandex_feed'] ?? true,
+                    'availability_status' => $validated['availability_status'] ?? 'on_request',
+                ]
+            );
+        });
 
         if ($good->is_published && $seo->is_active && str_starts_with($seo->robots, 'index')) {
             if ($indexNowService->submit([$seoService->publicUrl($good->fresh('seo'))])) {
@@ -124,7 +115,7 @@ class GoodSeoController extends Controller
             }
         }
 
-        return response()->json($seo->fresh());
+        return response()->json([...$seo->fresh()->toArray(), 'primary_slug' => $good->slug]);
     }
 
     private function synchronizeSemanticCore(array $attributes, array $existingRows): array

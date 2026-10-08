@@ -211,6 +211,7 @@ class CatalogTreeController extends Controller
             $request->merge(['good' => [...$request->input('good'), ...GoodTradeCodes::normalize($request->input('good'))]]);
         }
         $goodRules = [
+            'incoming_code' => ['sometimes', 'nullable', 'string', 'max:255'],
             'denominator' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:1000000000'],
             'country_id' => ['sometimes', 'nullable', 'integer', 'exists:countries,id'],
             'vat_rate_id' => ['sometimes', 'nullable', 'integer', 'exists:vat_rates,id'],

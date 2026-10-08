@@ -114,33 +114,38 @@ test('blocked clipboard offers selectable plain text and late rejection cannot r
     assert.equal(h.api.copyingPrompt.value, false)
 })
 
-test('canonical preserves a loaded custom address, follows explicit slug edits and automatic base addresses', async t => {
+test('SEO address and canonical are readonly derivatives of manual primary URL edits', async t => {
     const h = harness(t)
-    await h.ready(seo({ canonical_url: 'https://example.test/custom' }))
-    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
+    await h.ready(seo({ canonical_url: 'https://example.test/custom', primary_slug: 'trout' }))
+    assert.equal(h.api.previewCanonical.value, 'https://example.test/g/trout')
+    assert.equal(h.api.previewSlug.value, 'trout', 'Legacy SEO values are replaced by derivatives of the primary address')
     assert.equal(h.api.dirty.value, false)
-    h.props.good.slug = 'base-change'
-    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
-    updateInput(h, 'catalog-seo-slug', 'new-seo-slug')
-    assert.equal(h.api.form.canonical_url, 'https://example.test/g/new-seo-slug')
-    updateInput(h, 'catalog-seo-slug', '')
-    assert.equal(h.api.form.canonical_url, 'https://example.test/g/base-change')
-    h.props.good.slug = 'latest-base'
-    assert.equal(h.api.form.canonical_url, 'https://example.test/g/latest-base')
-    updateInput(h, 'catalog-seo-canonical', 'https://example.test/manual')
-    h.props.good.slug = 'last-base'
-    assert.equal(h.api.form.canonical_url, 'https://example.test/manual')
-    h.api.useAutomaticCanonical()
-    assert.equal(h.api.form.canonical_url, 'https://example.test/g/last-base')
+    for (const id of ['catalog-seo-slug', 'catalog-seo-canonical']) {
+        const input = findVNode(h.render(), node => node.props?.id === id)
+        assert.ok(input.props.readonly !== undefined)
+        assert.equal(input.props.onInput, undefined)
+        assert.equal(input.props['onUpdate:modelValue'], undefined)
+    }
+    h.props.good.slug = 'manual-trout'
+    assert.equal(h.api.previewSlug.value, 'manual-trout')
+    assert.equal(h.api.previewCanonical.value, 'https://example.test/g/manual-trout')
+    assert.equal(h.api.previewUrl.value, 'https://example.test/g/manual-trout')
+    assert.equal(h.api.dirty.value, false, 'The product form owns the URL edit')
+    h.api.form.is_active = false
+    assert.equal(h.api.previewCanonical.value, 'https://example.test/g/manual-trout')
+    const payload = h.api.payload()
+    assert.equal(Object.hasOwn(payload, 'slug_override'), false, 'A stale SEO payload cannot overwrite a saved product URL')
+    assert.equal(Object.hasOwn(payload, 'canonical_url'), false)
     h.exposed.reset()
-    assert.equal(h.api.form.canonical_url, 'https://example.test/custom')
-    assert.equal(h.api.dirty.value, false)
+    assert.equal(h.api.previewCanonical.value, 'https://example.test/g/manual-trout')
+    h.props.good.slug = 'trout'
+    assert.equal(h.api.previewCanonical.value, 'https://example.test/g/trout')
     const blank = harness(t)
     await blank.ready(seo({ canonical_url: '', slug_override: '' }))
-    assert.equal(blank.api.form.canonical_url, 'https://example.test/g/trout')
+    assert.equal(blank.api.previewCanonical.value, 'https://example.test/g/trout')
     assert.equal(blank.api.dirty.value, false)
     blank.props.good.slug = 'updated'
-    assert.equal(blank.api.form.canonical_url, 'https://example.test/g/updated')
+    assert.equal(blank.api.previewCanonical.value, 'https://example.test/g/updated')
 })
 
 test('grouped rows remain distinct by group while legacy and AI fields contain unique phrases only', async t => {
@@ -237,6 +242,7 @@ test('every SEO field is present in the compact tables and a single payload reta
     const expected = seo()
     expected.semantic_core_rows = expected.semantic_core.map(phrase => ({ group: '', phrase }))
     delete expected.id; delete expected.good_id; delete expected.ai_generation
+    delete expected.slug_override; delete expected.canonical_url
     assert.deepEqual(payload, expected)
     assert.equal(findVNode(h.render(), node => node.type === 'v-expansion-panels'), null)
     for (const id of ['h1', 'meta_title', 'meta_description', 'slug', 'canonical', 'breadcrumbs', 'robots', 'short_seo_text', 'seo_text', 'core-import', 'keywords_text', 'search_queries_text', 'faq', 'availability', 'min-order', 'delivery', 'payment', 'jsonld', 'yandex_direct_title_1', 'yandex_direct_title_2', 'yandex_direct_text', 'utm']) {

@@ -119,6 +119,7 @@ const form = useForm({
     ...goodTradeCodeValues(),
     id: null,
     name: '',
+    incoming_code: null,
     denominator: '',
     description: '',
     vat_rate_id: null,
@@ -228,6 +229,7 @@ function openCreate() {
     form.clearErrors()
     form.id = null
     form.name = ''
+    form.incoming_code = null
     form.denominator = ''
     form.description = ''
     form.vat_rate_id = null
@@ -246,6 +248,7 @@ function openEdit(g) {
     Object.assign(form, goodTradeCodeValues(g))
     form.id = g.id
     form.name = g.name ?? ''
+    form.incoming_code = g.incoming_code ?? null
     form.denominator = g.denominator ?? ''
     form.description = g.description ?? ''
     form.vat_rate_id = g.vat_rate_id ?? null

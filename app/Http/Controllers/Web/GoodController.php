@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\Field;
 use App\Models\Good;
+use App\Models\GoodUrlAlias;
 use App\Services\Goods\GoodStockService;
 use App\Services\Goods\PublicGoodOffer;
 use App\Services\MaxMessengerService;
@@ -150,6 +151,11 @@ class GoodController extends Controller
                     });
             })
             ->first();
+
+        if (! $good) {
+            $alias = GoodUrlAlias::where('slug', $requestedSlug)->first();
+            $good = $alias ? Good::with(['seo', 'stockAvailability'])->find($alias->good_id) : null;
+        }
 
         // Existing slugs and SEO aliases take precedence over legacy numeric URLs.
         if (! $good && ctype_digit($requestedSlug)) {

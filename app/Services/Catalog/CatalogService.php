@@ -25,6 +25,11 @@ class CatalogService
     {
         $this->importMissing();
         $nodes = $this->nodes();
+        // snapshot() is the staff API; nodes() also serves the public catalog.
+        $pricing = app(CatalogGoodPricing::class)->forGoods($nodes->where('entity_type', 'good')->pluck('entity_id')->all());
+        $nodes = $nodes->map(fn (array $node): array => $node['entity_type'] === 'good'
+            ? [...$node, 'pricing' => $pricing->get($node['entity_id'])]
+            : $node);
 
         return [
             'levels' => CatalogLevel::with('fields')->orderByDesc('is_domain')->orderBy('sort_order')->orderBy('id')->get(),
@@ -317,7 +322,7 @@ class CatalogService
             'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.category_id']),
             'fields:id,title',
         ])->withCount(['priceTypeValues', 'sales', 'purchases', 'media', 'quotations'])->findOrFail($node->entity_id);
-        $data = $good->only(['id', 'denominator', 'country_id', 'vat_rate_id', 'ava_image', 'ava_thumb', 'created_at', 'updated_at', ...GoodTradeCodes::FIELDS]);
+        $data = $good->only(['id', 'incoming_code', 'denominator', 'country_id', 'vat_rate_id', 'ava_image', 'ava_thumb', 'created_at', 'updated_at', ...GoodTradeCodes::FIELDS]);
         $data['country'] = $good->country;
         $data['vat_rate'] = $good->vatRate;
         $data['products'] = $good->products->map(fn (Product $product): array => $product->only(['id', 'rus', 'category_id']));
@@ -333,7 +338,7 @@ class CatalogService
     private function saveGoodOverview(CatalogNode $node, array $data, bool $parentChanged): CatalogNode
     {
         $good = Good::lockForUpdate()->findOrFail($node->entity_id);
-        $good->update(array_intersect_key($data, array_flip(['denominator', 'country_id', 'vat_rate_id', ...GoodTradeCodes::FIELDS])));
+        $good->update(array_intersect_key($data, array_flip(['incoming_code', 'denominator', 'country_id', 'vat_rate_id', ...GoodTradeCodes::FIELDS])));
         if (array_key_exists('fields', $data)) {
             $good->fields()->sync($data['fields']);
         }

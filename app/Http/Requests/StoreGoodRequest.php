@@ -16,6 +16,7 @@ class StoreGoodRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'incoming_code' => ['nullable', 'string', 'max:255'],
             'slug' => ['nullable', 'string', 'max:255', 'unique:goods,slug'],
             'denominator' => ['nullable', 'numeric'],
             'description' => ['nullable', 'string'],

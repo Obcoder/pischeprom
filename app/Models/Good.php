@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -23,6 +24,7 @@ class Good extends Model
         'ava_thumb',
         'description',
         'slug',
+        'incoming_code',
         'is_published',
         'vat_rate_id',
         'country_id',
@@ -40,7 +42,8 @@ class Good extends Model
         static::saving(function (Good $good) {
             $good->forceFill(GoodTradeCodes::normalize($good->getAttributes()));
 
-            if (! $good->isDirty('name') && ! $good->isDirty('slug') && filled($good->slug)) {
+            // A saved address belongs to the product, independently of its name.
+            if (! $good->isDirty('slug') && filled($good->slug)) {
                 return;
             }
 
@@ -50,6 +53,40 @@ class Good extends Model
 
             $good->slug = static::uniqueSlug((string) $source, $good->exists ? $good->id : null);
         });
+
+        static::saved(function (Good $good) {
+            $good->synchronizeSeoAddress($good->getOriginal('slug'));
+        });
+    }
+
+    public function synchronizeSeoAddress(?string $previousSlug = null): void
+    {
+        // Earlier data migrations also save products before URL history exists.
+        if (! Schema::hasTable('good_seos') || ! Schema::hasTable('good_url_aliases')) {
+            return;
+        }
+
+        DB::transaction(function () use ($previousSlug): void {
+            // Both product saves and SEO writes serialize around the current
+            // primary address, including when their model snapshots are stale.
+            $current = static::whereKey($this->id)->lockForUpdate()->firstOrFail();
+            $seo = $current->seo()->first();
+            $previousSlugs = [$previousSlug, $this->slug, $seo?->slug_override];
+            foreach (array_unique(array_filter($previousSlugs, fn ($slug) => filled($slug))) as $slug) {
+                if ($slug !== $current->slug) {
+                    GoodUrlAlias::firstOrCreate(['slug' => $slug], ['good_id' => $current->id]);
+                }
+            }
+
+            $seo?->fill([
+                'slug_override' => $current->slug,
+                'canonical_url' => route('public.goods.show', ['good' => $current->slug ?: (string) $current->id]),
+            ]);
+            if ($seo?->isDirty(['slug_override', 'canonical_url'])) {
+                $seo->save();
+            }
+        });
+        $this->unsetRelation('seo');
     }
 
     private static function uniqueSlug(string $source, ?int $exceptId = null): string
@@ -58,12 +95,15 @@ class Good extends Model
         $slug = $base;
         $i = 2;
         $seoAliasesAvailable = Schema::hasTable('good_seos') && Schema::hasColumn('good_seos', 'slug_override');
+        $urlAliasesAvailable = Schema::hasTable('good_url_aliases');
 
         while (
             Good::where('slug', $slug)
                 ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
                 ->exists()
             || ($seoAliasesAvailable && GoodSeo::where('slug_override', $slug)
+                ->when($exceptId, fn ($q) => $q->where('good_id', '!=', $exceptId))->exists())
+            || ($urlAliasesAvailable && GoodUrlAlias::where('slug', $slug)
                 ->when($exceptId, fn ($q) => $q->where('good_id', '!=', $exceptId))->exists())
         ) {
             $slug = "{$base}-{$i}";

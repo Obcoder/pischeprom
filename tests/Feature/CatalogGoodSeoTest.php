@@ -94,41 +94,113 @@ class CatalogGoodSeoTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_seo_aliases_reject_collisions_and_new_goods_reserve_existing_aliases(): void
+    public function test_seo_address_fields_cannot_override_the_primary_product_url(): void
     {
-        $first = Good::create(['name' => 'Первый', 'slug' => 'first-product']);
-        $second = Good::create(['name' => 'Второй', 'slug' => 'second-product']);
-        GoodSeo::create(['good_id' => $second->id, 'slug_override' => 'reserved-alias', 'is_active' => true]);
-        foreach (['second-product', 'reserved-alias', 'bad slug'] as $alias) {
-            $this->putJson('/api/goods/'.$first->id.'/seo', ['robots' => 'index,follow', 'is_active' => true, 'slug_override' => $alias])
-                ->assertUnprocessable()->assertJsonValidationErrors('slug_override');
-        }
-        $this->putJson('/api/goods/'.$first->id.'/seo', ['robots' => 'index,follow', 'is_active' => true,
-            'slug_override' => 'first-product', 'canonical_url' => 'javascript:alert(1)'])
-            ->assertUnprocessable()->assertJsonValidationErrors('canonical_url');
-        $this->putJson('/api/goods/'.$first->id.'/seo', ['robots' => 'index,follow', 'is_active' => true, 'slug_override' => 'first-product'])
-            ->assertOk()->assertJsonPath('slug_override', 'first-product');
-        $third = Good::create(['name' => 'Reserved alias', 'slug' => 'reserved-alias']);
-        $this->assertSame('reserved-alias-2', $third->slug);
+        $good = Good::create(['name' => 'Первый', 'slug' => 'first-product']);
+        $canonical = route('public.goods.show', $good->slug);
+        $this->putJson('/api/goods/'.$good->id.'/seo', [
+            'robots' => 'index,follow', 'is_active' => true,
+            'slug_override' => 'different-address', 'canonical_url' => 'https://elsewhere.test/product',
+        ])->assertOk()->assertJsonPath('slug_override', 'first-product')->assertJsonPath('canonical_url', $canonical);
+        $this->getJson('/api/goods/'.$good->id.'/seo')->assertOk()->assertJsonPath('primary_slug', 'first-product');
         Http::assertNothingSent();
     }
 
-    public function test_unchanged_legacy_aliases_and_inactive_seo_keep_their_public_behavior(): void
+    public function test_manual_primary_url_survives_renames_and_updates_derived_seo_with_redirects(): void
+    {
+        $good = Good::create(['name' => 'Форель', 'slug' => 'manual-trout', 'is_published' => true]);
+        $node = $this->placement($good);
+        $seo = GoodSeo::create(['good_id' => $good->id, 'slug_override' => 'old-public-trout',
+            'canonical_url' => 'https://old.example.test/trout', 'meta_title' => 'Особый заголовок', 'is_active' => true]);
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['name' => 'Форель охлаждённая'])
+            ->assertOk()->assertJsonPath('data.slug', 'manual-trout');
+        $this->assertSame('manual-trout', $seo->fresh()->slug_override);
+        $this->assertSame(route('public.goods.show', 'manual-trout'), $seo->fresh()->canonical_url);
+
+        $canonical = route('public.goods.show', 'fresh-manual-trout');
+        $this->patchJson('/api/catalog/nodes/'.$node->id, ['slug' => 'fresh-manual-trout'])
+            ->assertOk()->assertJsonPath('data.slug', 'fresh-manual-trout')
+            ->assertJsonPath('data.public_url', $canonical)->assertJsonPath('data.public_seo.canonical', $canonical);
+        $this->assertSame('fresh-manual-trout', $seo->fresh()->slug_override);
+        $this->assertSame($canonical, $seo->fresh()->canonical_url);
+        $this->assertSame('Особый заголовок', $seo->fresh()->meta_title);
+        foreach (['manual-trout', 'old-public-trout'] as $previous) {
+            $this->get(route('public.goods.show', $previous))->assertStatus(301)->assertRedirect($canonical);
+            $this->get(route('public.goods.redirect', $previous))->assertStatus(301)
+                ->assertRedirect(route('public.goods.show', $previous));
+        }
+        $this->get($canonical)->assertOk();
+
+        // SEO loaded before the primary URL save cannot put back old addresses.
+        $this->putJson('/api/goods/'.$good->id.'/seo', ['robots' => 'index,follow', 'is_active' => true,
+            'slug_override' => 'old-public-trout', 'canonical_url' => 'https://old.example.test/trout', 'h1' => 'Свежая форель'])
+            ->assertOk()->assertJsonPath('slug_override', 'fresh-manual-trout')->assertJsonPath('canonical_url', $canonical);
+        $good->refresh()->update(['slug' => 'trout-next']);
+        foreach (['manual-trout', 'old-public-trout', 'fresh-manual-trout'] as $previous) {
+            $this->get(route('public.goods.show', $previous))->assertStatus(301)
+                ->assertRedirect(route('public.goods.show', 'trout-next'));
+        }
+        $good->update(['is_published' => false]);
+        $this->get(route('public.goods.show', 'old-public-trout'))->assertNotFound();
+        Http::assertNothingSent();
+    }
+
+    public function test_primary_urls_reserve_other_products_current_and_previous_aliases(): void
+    {
+        $first = Good::create(['name' => 'Первый', 'slug' => 'first-product']);
+        GoodSeo::create(['good_id' => $first->id, 'slug_override' => 'first-alias', 'is_active' => true]);
+        $other = Good::create(['name' => 'Другой', 'slug' => 'first-alias']);
+        $this->assertSame('first-alias-2', $other->slug);
+        $first->update(['slug' => 'first-new']);
+        $other->update(['slug' => 'first-product']);
+        $this->assertSame('first-product-2', $other->slug);
+        $other->update(['slug' => 'first-alias']);
+        $this->assertSame('first-alias-2', $other->slug);
+        $first->update(['slug' => 'first-product']);
+        $this->assertSame('first-product', $first->slug, 'A product can reclaim its own URL');
+        $this->get(route('public.goods.show', 'first-alias'))->assertStatus(301)
+            ->assertRedirect(route('public.goods.show', 'first-product'));
+        $first->delete();
+        $this->assertDatabaseMissing('good_url_aliases', ['good_id' => $first->id]);
+        Http::assertNothingSent();
+    }
+
+    public function test_saving_seo_normalizes_legacy_addresses_and_keeps_alias_redirects_when_seo_is_disabled(): void
     {
         $good = Good::create(['name' => 'Публичный товар', 'is_published' => true]);
         GoodSeo::create(['good_id' => $good->id, 'slug_override' => 'Прежний-Адрес', 'meta_title' => 'Исходный заголовок', 'is_active' => true]);
         $this->putJson('/api/goods/'.$good->id.'/seo', ['robots' => 'index,follow', 'is_active' => true,
             'slug_override' => 'Прежний-Адрес', 'meta_title' => 'Обновлённый заголовок'])->assertOk();
         $canonical = app(GoodSeoService::class)->publicUrl($good->fresh('seo'));
-        $this->get(route('public.goods.show', $good->slug))->assertRedirect($canonical);
+        $this->assertSame(route('public.goods.show', $good->slug), $canonical);
+        $this->get(route('public.goods.show', 'Прежний-Адрес'))->assertStatus(301)->assertRedirect($canonical);
         $this->get($canonical)->assertOk();
         $good->seo()->update(['is_active' => false]);
         $node = $this->placement($good);
         $payload = app(CatalogService::class)->nodePayload($node);
         $this->assertSame(route('public.goods.show', $good->slug), $payload['public_url']);
         $this->assertSame('noindex,follow', $payload['public_seo']['robots']);
-        $this->get($canonical)->assertNotFound();
+        $this->get($canonical)->assertOk();
+        $this->get(route('public.goods.show', 'Прежний-Адрес'))->assertStatus(301)->assertRedirect($canonical);
         Http::assertNothingSent();
+    }
+
+    public function test_unchanged_product_saves_normalize_seo_and_stale_models_cannot_restore_old_addresses(): void
+    {
+        $good = Good::create(['name' => 'Товар', 'slug' => 'primary-product']);
+        $seo = GoodSeo::create(['good_id' => $good->id, 'slug_override' => 'legacy-alias',
+            'canonical_url' => 'https://elsewhere.test/product', 'is_active' => true]);
+        $stale = $good->fresh('seo');
+        $good->save();
+        $this->assertSame('primary-product', $seo->fresh()->slug_override);
+        $this->assertSame(route('public.goods.show', 'primary-product'), $seo->fresh()->canonical_url);
+        $this->assertDatabaseHas('good_url_aliases', ['good_id' => $good->id, 'slug' => 'legacy-alias']);
+        $good->update(['slug' => 'latest-product']);
+        $stale->synchronizeSeoAddress();
+        $this->assertSame('latest-product', $seo->fresh()->slug_override);
+        $this->assertSame(route('public.goods.show', 'latest-product'), $seo->fresh()->canonical_url);
+        $this->get(route('public.goods.show', 'legacy-alias'))->assertStatus(301)
+            ->assertRedirect(route('public.goods.show', 'latest-product'));
     }
 
     public function test_direct_lookup_identifies_exact_good_beyond_name_search_pagination(): void

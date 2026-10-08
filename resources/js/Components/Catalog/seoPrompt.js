@@ -23,7 +23,7 @@ export function buildGoodSeoPrompt({ good = {}, form = {}, publicUrl = '' } = {}
         'Оплата': text(form.payment_note, 2000),
         'Доступность': text(form.availability_status, 50),
     }
-    const existing = Object.fromEntries(['h1', 'meta_title', 'meta_description', 'focus_keyword', 'slug_override', 'canonical_url',
+    const existing = Object.fromEntries(['h1', 'meta_title', 'meta_description', 'focus_keyword',
         'breadcrumbs_title', 'short_seo_text', 'seo_text', 'og_title', 'og_description', 'og_image', 'twitter_title', 'twitter_description', 'twitter_image',
         'yandex_direct_title_1', 'yandex_direct_title_2', 'yandex_direct_text'].map(field => [field, text(form[field])]).filter(([, value]) => value))
     existing.semantic_core_rows = normalizeSemanticCoreRows(form.semantic_core_rows).slice(0, 2000)
@@ -37,10 +37,10 @@ export function buildGoodSeoPrompt({ good = {}, form = {}, publicUrl = '' } = {}
 — Сохраняй точное название, вид товара, размер/сорт, обработку, фасовку и происхождение, если они указаны. Не подменяй продукт похожим.
 — Не выдумывай цены, остатки, частотность запросов, сертификаты, производителя, сроки, географию доставки или свойства. Уточнения, которых не хватает, перечисли отдельно; не вставляй предположения в готовые поля.
 — Учитывай коммерческий поиск и оптовые поставки, если это соответствует данным. Пиши понятно, без переспама и неподтверждённых обещаний. Существующие тексты — черновик для улучшения, а не источник новых фактов.
-— Slug: латинские строчные буквы, цифры и дефисы. Canonical: адрес сайта из публичного URL + /g/ + slug, без параметров. Укажи рекомендуемый адрес; не придумывай другой домен.
+— Основной адрес задаётся вручную в карточке товара. SEO-адрес (slug_override) и Canonical (canonical_url) формируются из него автоматически. Используй указанный публичный URL без изменения.
 
 Верни результат в следующем порядке:
-1. Компактная таблица «Поле | Значение»: h1, meta_title (ориентир 50–70 символов), meta_description (120–160), focus_keyword, slug_override, canonical_url, breadcrumbs_title, og_title, og_description, twitter_title, twitter_description. H1 и Title — не более 255 символов. Для изображений используй только существующие URL из данных, если они подходят; иначе оставь поле пустым.
+1. Компактная таблица «Поле | Значение»: h1, meta_title (ориентир 50–70 символов), meta_description (120–160), focus_keyword, breadcrumbs_title, og_title, og_description, twitter_title, twitter_description. H1 и Title — не более 255 символов. Для изображений используй только существующие URL из данных, если они подходят; иначе оставь поле пустым.
 2. short_seo_text и seo_text — отдельными готовыми текстами с ясными подзаголовками, без HTML. Не придумывай условия заказа.
 3. Семантическое ядро — ОТДЕЛЬНАЯ Markdown-таблица ровно из двух колонок:
 | Группа | Поисковая фраза |

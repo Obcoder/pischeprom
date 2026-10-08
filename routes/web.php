@@ -113,9 +113,9 @@ Route::post('/g/{good}/inquiries', [GoodInquiryController::class, 'store'])
 Route::get('/подборки/{field}', [WebFieldController::class, 'show'])
     ->name('public.fields.show');
 
-Route::get('/товар/{good:slug}', function (\App\Models\Good $good) {
+Route::get('/товар/{good}', function (string $good) {
     return redirect()->route('public.goods.show', [
-        'good' => $good->slug,
+        'good' => $good,
     ], 301);
 })->name('public.goods.redirect');
 

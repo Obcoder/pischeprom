@@ -6,6 +6,7 @@ import CatalogSchemaDialog from './CatalogSchemaDialog.vue'
 import CatalogNodeDialog from './CatalogNodeDialog.vue'
 import CatalogAvatar from './CatalogAvatar.vue'
 import CatalogGalleryDialog from './CatalogGalleryDialog.vue'
+import CatalogGoodPricing from './CatalogGoodPricing.vue'
 import { buildCatalogView } from './presentation.js'
 
 const nodes = ref([])
@@ -43,6 +44,8 @@ const headers = [
     { key: 'level_name', title: 'Уровень', width: 140 },
     { key: 'path_label', title: 'Расположение', minWidth: 170 },
     { key: 'is_published', title: 'Публикация', width: 155 },
+    { key: 'purchase_price', title: 'Закупка', width: 76, sortable: false },
+    { key: 'sales_prices', title: 'Продажа', width: 225, sortable: false },
     { key: 'actions', title: '', sortable: false, width: 88 },
 ]
 const tableItems = computed(() => view.value.items.map(node => {
@@ -221,6 +224,8 @@ onMounted(load)
                             <small v-if="item.is_published && !item.visible" class="catalog-item-hidden-section">{{ item.hidden_sections_label }}</small>
                         </div>
                     </template>
+                    <template #item.purchase_price="{ item }"><CatalogGoodPricing v-if="item.entity_type === 'good'" :pricing="item.pricing" mode="purchase" /></template>
+                    <template #item.sales_prices="{ item }"><CatalogGoodPricing v-if="item.entity_type === 'good'" :pricing="item.pricing" /></template>
                     <template #item.actions="{ item }"><div class="catalog-item-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="x-small" :aria-label="`Редактировать ${item.name}`" @click="openEditor(item)" /><v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" size="x-small" :aria-label="`Действия: ${item.name}`" /></template><v-list density="compact">
                         <v-list-item title="Добавить вложенную запись" prepend-icon="mdi-plus" @click="create({ parentId: item.id })" />
                         <v-list-item v-if="item.is_published" title="Открыть на сайте" prepend-icon="mdi-open-in-new" :href="item.public_url" target="_blank" />
@@ -266,7 +271,7 @@ onMounted(load)
 .catalog-items-heading { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 75px; padding: 11px 16px; border-bottom: 1px solid #e5dfea; }
 .catalog-items-heading__text { min-width: 0; }.catalog-items-heading h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; line-height: 1.5; }.catalog-items-heading h2 > span { font-size: 11px; font-weight: 500; padding: 1px 6px; color: #907e9e; background: #f0eaf5; }.catalog-items-heading p { font-size: 10px; margin-top: 3px; color: #a095a9; }.catalog-items-heading__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
 .catalog-path { display: flex; flex-wrap: wrap; gap: 5px; font-size: 10px; color: #998ca3; margin-bottom: 3px; }.catalog-path__separator { margin-right: 5px; color: #c2b8ca; }
-.catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(td) { height: 68px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(tbody td:first-child) { padding: 0 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
+.catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(.v-data-table__td) { height: 68px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(.v-data-table__td:first-child) { padding: 0 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
 .catalog-item-name { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 0; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-level-label { padding: 3px 6px; font-size: 10px; color: #7b638e; background: #f3eef8; text-align: left; }.catalog-level-label.is-unassigned { background: #f4f4f4; color: #aaa; }.catalog-level-label:hover { background: #e8dff1; }.catalog-item-path { display: block; color: #9a8ba5; font-size: 11px; line-height: 1.5; max-width: 300px; }.catalog-item-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 11px; color: #8c7c96; }.catalog-status-dot { display: inline-block; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #c5bdcd; }.catalog-status-dot.is-published { background: #559c79; }.catalog-status-dot.is-hidden { background: #c59954; }.catalog-item-actions { display: flex; gap: 2px; }
 .catalog-item-publication { padding: 4px 0; }

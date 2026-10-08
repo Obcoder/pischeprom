@@ -7,6 +7,7 @@ import CatalogGoodOverview from './CatalogGoodOverview.vue'
 import CatalogGoodSeo from './CatalogGoodSeo.vue'
 import CatalogGoodOperations from './CatalogGoodOperations.vue'
 import CatalogRecordTabs from './CatalogRecordTabs.vue'
+import GoodTradeCodeFields from '../Goods/GoodTradeCodeFields.vue'
 import { goodRecordTabs } from './recordTabs.js'
 
 const open = defineModel({ type: Boolean, default: false })
@@ -128,6 +129,7 @@ function nearestProductId() {
 }
 function defaultGood(source = {}) {
     return {
+        incoming_code: source.incoming_code ?? null,
         denominator: source.denominator ?? null, country_id: source.country_id ?? source.country?.id ?? null,
         vat_rate_id: source.vat_rate_id ?? source.vat_rate?.id ?? null,
         products: (source.products || []).map(product => typeof product === 'object' ? product.id : product),
@@ -184,7 +186,7 @@ async function loadGoodOverview() {
 function goodPayload() {
     const previous = JSON.parse(goodBaseline.value)
     const payload = {}
-    for (const key of ['denominator', 'country_id', 'vat_rate_id', ...goodTradeCodeFields.map(field => field.key)]) {
+    for (const key of ['incoming_code', 'denominator', 'country_id', 'vat_rate_id', ...goodTradeCodeFields.map(field => field.key)]) {
         if (!record.value || !same(goodForm[key], previous[key])) payload[key] = goodForm[key] === '' ? null : goodForm[key]
     }
     for (const key of ['products', 'fields']) {
@@ -475,13 +477,14 @@ async function remove() {
                         <section class="catalog-node-dialog__section">
                             <h3><v-icon icon="mdi-file-tree-outline" size="18" /> Название и классификация</h3>
                             <v-text-field v-model="form.name" label="Название *" variant="outlined" density="compact" :error-messages="fieldErrors('name')" required maxlength="255" />
-                            <v-text-field v-if="isGood" v-model="form.slug" label="Основной адрес товара" variant="outlined" density="compact" :error-messages="fieldErrors('slug')" hint="Короткий адрес и настройки поиска — во вкладке SEO." persistent-hint class="mb-2" />
+                            <v-text-field v-if="isGood" v-model="form.slug" label="Основной адрес товара" prefix="/g/" variant="outlined" density="compact" maxlength="255" :error-messages="fieldErrors('slug')" hint="Задайте вручную. SEO-адрес и Canonical формируются из него." persistent-hint class="mb-2" />
                             <v-select v-if="!record" v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :error-messages="fieldErrors('entity_type')" hint="Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект." persistent-hint class="mb-3" @update:model-value="loadGoodOverview" />
                             <div v-else class="catalog-node-dialog__identity"><v-chip size="small" variant="tonal">{{ entityTypes.find(type => type.value === (record.entity_type || 'custom'))?.title }}</v-chip><span v-if="record.entity_id">№ {{ record.entity_id }}</span></div>
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
                             <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent" />
                             <p v-if="parentPath" class="catalog-node-dialog__path">{{ parentPath }}</p>
                             <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" min="0" max="1000000" variant="outlined" density="compact" :error-messages="fieldErrors('sort_order')" />
+                            <GoodTradeCodeFields v-if="isGood && goodReady" class="catalog-node-dialog__trade-codes" compact :model-value="goodForm" :context="seoGood" :errors="goodErrors" :disabled="busy" :active="open && mainTab && goodReady" @update:model-value="updateGoodForm" />
                             <div class="catalog-node-dialog__publication">
                                 <h3><v-icon icon="mdi-web" size="18" /> Отображение на сайте</h3>
                                 <v-switch v-model="form.is_published" label="Опубликовано" color="#4d315e" density="compact" hide-details />
@@ -578,6 +581,7 @@ async function remove() {
 .catalog-node-dialog h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; font-size: 13px; font-weight: 650; color: #4d4058; }
 .catalog-node-dialog__identity { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; color: #8c8294; font-size: 12px; }
 .catalog-node-dialog__path { margin: -12px 0 16px; color: #8c8294; font-size: 11px; overflow-wrap: anywhere; }
+.catalog-node-dialog__trade-codes { margin-bottom: 14px; }
 .catalog-node-dialog__publication { border: 1px solid #e6e0eb; border-radius: 10px; background: #f8f5fb; padding: 16px; }
 .catalog-node-dialog__publication h3 { margin-bottom: 0; }
 .catalog-node-dialog__publication p { font-size: 11px; line-height: 1.6; color: #8c8294; margin-top: 8px; }

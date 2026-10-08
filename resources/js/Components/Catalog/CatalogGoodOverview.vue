@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref } from 'vue'
-import GoodTradeCodeFields from '../Goods/GoodTradeCodeFields.vue'
 import GoodVatCheck from '../Goods/GoodVatCheck.vue'
 import { safeGalleryUrl } from './gallery.js'
 
@@ -39,9 +38,6 @@ const formatDate = value => {
 }
 function update(key, value) {
     if (!props.disabled) emit('update:modelValue', { ...props.modelValue, [key]: value })
-}
-function updateCodes(value) {
-    if (!props.disabled) emit('update:modelValue', { ...props.modelValue, ...value })
 }
 async function copy(value, label) {
     if (!value) return
@@ -87,7 +83,6 @@ function openStat(event, key) {
                 <div v-for="image in [{ key: 'ava_image', label: 'Оригинал', copyLabel: 'Скопировать оригинал' }, { key: 'ava_thumb', label: 'Миниатюра', copyLabel: 'Скопировать миниатюру' }]" :key="image.key" class="catalog-good-overview__file"><span>{{ image.label }}</span><a :href="safeGalleryUrl(overview?.[image.key]) || undefined" target="_blank" rel="noopener noreferrer" :title="overview?.[image.key] || ''">{{ overview?.[image.key] || '—' }}</a><v-btn icon="mdi-content-copy" size="x-small" variant="text" :disabled="!overview?.[image.key]" :aria-label="image.copyLabel" @click="copy(overview?.[image.key], image.label)" /></div>
                 <p v-if="clipboardMessage" class="catalog-good-overview__copied" role="status">{{ clipboardMessage }}</p>
             </section>
-            <section class="catalog-good-overview__codes"><GoodTradeCodeFields :model-value="modelValue" :context="draft" :errors="errors" :disabled="disabled" :active="active" @update:model-value="updateCodes" /></section>
         </div>
     </section>
 </template>
@@ -97,7 +92,7 @@ function openStat(event, key) {
 .catalog-good-overview__heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; }
 .catalog-good-overview__heading h3 { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4d4058; font-weight: 650; }
 .catalog-good-overview__heading > span { color: #8c8294; font-size: 11px; }
-.catalog-good-overview__grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.15fr) minmax(0, 1.45fr); gap: 20px; }
+.catalog-good-overview__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .catalog-good-overview__grid > section { min-width: 0; }
 .catalog-good-overview__country { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
 .catalog-good-overview__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 0 0 12px; }
@@ -113,8 +108,5 @@ function openStat(event, key) {
 .catalog-good-overview__copied { font-size: 10px; color: #806592; margin-top: 5px; }
 .catalog-good-overview :deep(.v-chip) { max-width: 100%; }
 .catalog-good-overview :deep(.v-chip__content) { overflow: hidden; text-overflow: ellipsis; }
-.catalog-good-overview :deep(.good-code-registry .v-btn) { max-width: 100%; min-width: 0; height: auto; min-height: 30px; padding-block: 7px; }
-.catalog-good-overview :deep(.good-code-registry .v-btn__content) { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
-@media (max-width: 1150px) { .catalog-good-overview__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .catalog-good-overview__codes { grid-column: 1 / -1; } }
-@media (max-width: 700px) { .catalog-good-overview__grid { grid-template-columns: 1fr; gap: 16px; } .catalog-good-overview__codes { grid-column: auto; } }
+@media (max-width: 700px) { .catalog-good-overview__grid { grid-template-columns: 1fr; gap: 16px; } }
 </style>

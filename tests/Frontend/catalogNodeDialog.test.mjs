@@ -32,7 +32,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const requests = []
     const reads = []
     const environment = {
-        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, CatalogGoodOverview: 'CatalogGoodOverview',
+        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
         CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
@@ -103,6 +103,26 @@ test('changing tabs preserves the base draft and mounts each tool lazily', async
     assert.equal(h.api.form.name, 'Черновик названия')
     assert.equal(h.api.goodForm.denominator, 12)
     assert.equal(h.reads.length, 2)
+})
+
+test('classification trade codes save the incoming code with leading zeroes and keep unsaved product context', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    h.api.form.name = 'Название до сохранения'
+    const codes = findVNode(h.render(), node => node.type === 'GoodTradeCodeFields')
+    assert.equal(codes.props.compact, '')
+    assert.equal(codes.props.context.name, 'Название до сохранения')
+    assert.equal(codes.props.context.id, 42)
+    updateModel(codes, { ...h.api.goodForm, incoming_code: '00042-А/7', hs_code: null })
+    assert.equal(h.api.dirty.value, true)
+    h.api.selectTab('seo')
+    h.api.selectTab('overview')
+    assert.equal(h.api.goodForm.incoming_code, '00042-А/7')
+    const save = h.api.save()
+    assert.deepEqual(h.requests[0].data.good, { incoming_code: '00042-А/7', hs_code: null })
+    h.requests[0].resolve(sourceNode())
+    await save
+    assert.equal(h.props.modelValue, false)
 })
 
 test('SEO validation precedes base writes and a partial SEO failure remains retryable in the same card', async t => {

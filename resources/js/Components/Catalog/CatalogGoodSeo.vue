@@ -13,7 +13,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['state', 'saved'])
 const { goodPublicUrl } = usePublicGoodUrl()
-const stringFields = ['meta_title', 'meta_description', 'h1', 'slug_override', 'canonical_url', 'og_title', 'og_description', 'og_image',
+const stringFields = ['meta_title', 'meta_description', 'h1', 'og_title', 'og_description', 'og_image',
     'twitter_title', 'twitter_description', 'twitter_image', 'short_seo_text', 'seo_text', 'focus_keyword', 'breadcrumbs_title',
     'yandex_direct_title_1', 'yandex_direct_title_2', 'yandex_direct_text', 'utm_template', 'min_order', 'delivery_note', 'payment_note']
 const listFields = ['keywords', 'search_queries']
@@ -47,7 +47,6 @@ const semanticTabs = [{ key: 'core', label: 'Семантическое ядро
 const importText = ref('')
 const importMode = ref('append')
 const importError = ref('')
-const canonicalIsAuto = ref(false)
 const copyingPrompt = ref(false)
 const clipboardMessage = ref('')
 const clipboardDialog = ref(false)
@@ -61,7 +60,6 @@ let directController = null
 let aiController = null
 let disposed = false
 let savedFaq = []
-let filling = false
 
 const dirty = computed(() => ready.value && (JSON.stringify(form) !== baseline.value || Boolean(importText.value.trim())))
 const busy = computed(() => loading.value || saving.value || generating.value || aiGenerating.value || directActionLoading.value)
@@ -78,7 +76,9 @@ const robotsOptions = ['index,follow', 'noindex,follow', 'index,nofollow', 'noin
 const availabilityOptions = [{ value: 'in_stock', label: 'В наличии' }, { value: 'on_request', label: 'По запросу' }, { value: 'preorder', label: 'Под заказ' }, { value: 'out_of_stock', label: 'Нет в наличии' }]
 const directFields = [{ key: 'yandex_direct_title_1', label: 'Заголовок 1', limit: 56 }, { key: 'yandex_direct_title_2', label: 'Заголовок 2', limit: 30 }, { key: 'yandex_direct_text', label: 'Объявление', limit: 81, rows: 2 }]
 const directLimitErrors = computed(() => directFields.filter(field => form[field.key].length > field.limit).map(field => `${field.label}: ${form[field.key].length}/${field.limit}`))
-const previewUrl = computed(() => goodPublicUrl({ ...props.good, slug: form.is_active && form.slug_override.trim() ? form.slug_override.trim() : props.good.slug }))
+const previewSlug = computed(() => props.good.slug || '')
+const previewUrl = computed(() => goodPublicUrl({ ...props.good, slug: previewSlug.value }))
+const previewCanonical = previewUrl
 const previewTitle = computed(() => form.meta_title.trim() || `${props.good.name || 'Товар'} купить оптом для пищевой промышленности`)
 const previewDescription = computed(() => String(form.meta_description.trim() || props.good.description || `${props.good.name || 'Товар'}: оптовые поставки для пищевой промышленности, HoReCa, производств и дистрибьюторов.`).replace(/<[^>]*>/g, '').trim().slice(0, 160))
 const indexingLabel = computed(() => !props.good.is_published ? 'Товар не опубликован' : !form.is_active ? 'SEO отключено' : form.robots.startsWith('noindex') ? 'Индексация запрещена' : 'Индексация разрешена')
@@ -88,7 +88,6 @@ const errorFor = key => (validationErrors.value[key] || []).join(' ')
 const importPreview = computed(() => importText.value.trim() ? parseSemanticCoreTable(importText.value) : { rows: [], errors: [], duplicates: 0 })
 
 function fill(data = {}) {
-    filling = true
     Object.assign(form, defaults())
     for (const key of stringFields) form[key] = data[key] == null ? '' : String(data[key])
     for (const key of listFields) form[`${key}_text`] = Array.isArray(data[key]) ? data[key].join('\n') : ''
@@ -102,9 +101,6 @@ function fill(data = {}) {
     form.structured_data_text = data.structured_data ? JSON.stringify(data.structured_data, null, 2) : ''
     savedFaq = JSON.parse(JSON.stringify(Array.isArray(data.faq) ? data.faq : []))
     form.faq_text = savedFaq.map(item => `${item.question || ''} | ${item.answer || ''}`).join('\n')
-    canonicalIsAuto.value = !form.canonical_url.trim() || form.canonical_url.trim() === previewUrl.value
-    if (!form.canonical_url.trim()) form.canonical_url = previewUrl.value
-    filling = false
 }
 function payload() {
     if (importText.value.trim()) throw new Error('Примените или очистите вставленную таблицу семантического ядра перед сохранением.')
@@ -131,15 +127,6 @@ function payload() {
         semantic_core_rows: semanticRows, semantic_core: semanticCorePhrases(semanticRows), structured_data, faq,
         robots: form.robots, availability_status: form.availability_status, is_active: form.is_active,
         include_in_sitemap: form.include_in_sitemap, include_in_yandex_feed: form.include_in_yandex_feed }
-}
-function updateSeoSlug(value) {
-    form.slug_override = value || ''
-    form.canonical_url = previewUrl.value
-    canonicalIsAuto.value = true
-}
-function useAutomaticCanonical() {
-    form.canonical_url = previewUrl.value
-    canonicalIsAuto.value = true
 }
 function addSemanticRow() {
     if (!controlsDisabled.value && form.semantic_core_rows.length < 2000) form.semantic_core_rows.push({ group: '', phrase: '' })
@@ -256,10 +243,7 @@ async function save() {
 function reset() {
     if (saving.value || generating.value || directActionLoading.value) return
     cancelAi()
-    filling = true
     if (baseline.value) Object.assign(form, JSON.parse(baseline.value))
-    canonicalIsAuto.value = !form.canonical_url.trim() || form.canonical_url.trim() === previewUrl.value
-    filling = false
     clearImport()
     error.value = ''; message.value = ''; validationErrors.value = {}; aiError.value = ''
 }
@@ -383,17 +367,13 @@ async function runDirect(action) {
 
 watch(() => props.good?.id, () => {
     identityVersion++; cancelReads(); cancelAi()
-    filling = true
     Object.assign(form, defaults()); ready.value = false; baseline.value = ''; savedFaq = []; error.value = ''; message.value = ''; validationErrors.value = {}
-    canonicalIsAuto.value = false; filling = false
     clearImport(); semanticTab.value = 'core'; clipboardDialog.value = false; clipboardText.value = ''; clipboardMessage.value = ''; copyingPrompt.value = false
     saving.value = false; generating.value = false; directActionLoading.value = false
     aiAvailability.value = null; directAdId.value = null; directStatus.value = null; directStats.value = {}; directError.value = ''; directMessage.value = ''
     if (props.active) { load(); loadDirectInfo() }
 }, { immediate: true, flush: 'sync' })
 watch(() => props.active, active => { if (active) { load(); loadDirectInfo() } else { cancelReads(); cancelAi(); clipboardDialog.value = false } }, { flush: 'sync' })
-watch(previewUrl, value => { if (ready.value && !filling && canonicalIsAuto.value) form.canonical_url = value }, { flush: 'sync' })
-watch(() => form.canonical_url, value => { if (!filling) canonicalIsAuto.value = !value.trim() || value.trim() === previewUrl.value }, { flush: 'sync' })
 watch([dirty, busy, ready, error], () => emit('state', { dirty: dirty.value, busy: busy.value, ready: ready.value, error: error.value }), { immediate: true, flush: 'sync' })
 onScopeDispose(() => { disposed = true; identityVersion++; cancelReads(); cancelAi() })
 defineExpose({ save, validate, reset, load, dirty, busy, ready, error })
@@ -424,8 +404,8 @@ defineExpose({ save, validate, reset, load, dirty, busy, ready, error })
             <section class="catalog-good-seo__section">
                 <h3><v-icon icon="mdi-web" size="16" /> Адрес и индексация</h3>
                 <table class="catalog-good-seo__table"><tbody>
-                    <tr><th><label for="catalog-seo-slug">SEO-адрес</label></th><td><input id="catalog-seo-slug" :value="form.slug_override" maxlength="255" :placeholder="good.slug || 'Адрес товара'" :disabled="controlsDisabled" @input="updateSeoSlug($event.target.value)" /><small>Альтернативный адрес при активном SEO.</small></td></tr>
-                    <tr><th><label for="catalog-seo-canonical">Canonical</label></th><td><div class="catalog-good-seo__canonical"><input id="catalog-seo-canonical" v-model="form.canonical_url" maxlength="255" :placeholder="previewUrl" :disabled="controlsDisabled" /><v-btn size="x-small" variant="text" :disabled="controlsDisabled" title="Заполнить по текущему адресу товара" @click="useAutomaticCanonical">Из адреса</v-btn></div></td></tr>
+                    <tr><th><label for="catalog-seo-slug">SEO-адрес</label></th><td><input id="catalog-seo-slug" :value="previewSlug" readonly /><small>Формируется из основного адреса товара.</small></td></tr>
+                    <tr><th><label for="catalog-seo-canonical">Canonical</label></th><td><input id="catalog-seo-canonical" :value="previewCanonical" readonly /><small>Основной адрес страницы для поисковых систем.</small></td></tr>
                     <tr><th><label for="catalog-seo-breadcrumbs">Хлебные крошки</label></th><td><input id="catalog-seo-breadcrumbs" v-model="form.breadcrumbs_title" maxlength="255" :disabled="controlsDisabled" /></td></tr>
                     <tr><th><label for="catalog-seo-robots">Robots</label></th><td><select id="catalog-seo-robots" v-model="form.robots" :disabled="controlsDisabled"><option v-for="option in robotsOptions" :key="option" :value="option">{{ option }}</option></select></td></tr>
                     <tr><th>Каналы</th><td><div class="catalog-good-seo__checks"><label class="catalog-good-seo__check"><input v-model="form.include_in_sitemap" type="checkbox" :disabled="controlsDisabled" /> Sitemap</label><label class="catalog-good-seo__check"><input v-model="form.include_in_yandex_feed" type="checkbox" :disabled="controlsDisabled" /> Фид Яндекс.Директа</label></div></td></tr>
@@ -524,9 +504,6 @@ defineExpose({ save, validate, reset, load, dirty, busy, ready, error })
 .catalog-good-seo__table textarea { resize: vertical; }
 .catalog-good-seo__table input:focus, .catalog-good-seo__table textarea:focus, .catalog-good-seo__table select:focus { outline: 1px solid #9d80af; outline-offset: 1px; }
 .catalog-good-seo__table :disabled { opacity: .62; background: #faf8fc; }
-.catalog-good-seo__canonical { display: flex; align-items: center; gap: 4px; }
-.catalog-good-seo__canonical input { flex: 1; min-width: 0; }
-.catalog-good-seo__canonical :deep(.v-btn) { flex: 0 0 auto; font-size: 9px; padding-inline: 5px; }
 .catalog-good-seo__semantic-tabs { display: flex; width: 100%; border-bottom: 1px solid #e7dfec; background: #fcfafd; }
 .catalog-good-seo__semantic-tabs button { flex: 1 1 auto; min-width: 0; padding: 7px 5px; color: #9985a5; font-size: 10px; line-height: 1.35; border-bottom: 2px solid transparent; cursor: pointer; }
 .catalog-good-seo__semantic-tabs button[aria-selected=true] { color: #6b487f; border-bottom-color: #9b78af; background: #f6f0f9; }

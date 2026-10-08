@@ -139,6 +139,7 @@ class GoodController extends Controller
 
         $good = Good::create([
             'name' => $validated['name'],
+            'incoming_code' => $validated['incoming_code'] ?? null,
             'slug' => $validated['slug'] ?? null,
             'denominator' => $validated['denominator'] ?? null,
             'description' => $validated['description'] ?? null,

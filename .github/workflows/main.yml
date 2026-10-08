@@ -365,6 +365,7 @@ jobs:
             app/Services/Seo/GoodSeoAiService.php \
             app/Services/Seo/GoodSeoService.php \
             app/Models/GoodSeo.php \
+            app/Models/GoodUrlAlias.php \
             app/Http/Controllers/API/GoodTradeCodesAiController.php \
             app/Http/Controllers/API/GoodTradeCodeRegistryController.php \
             app/Http/Requests/VerifyGoodTradeCodesRequest.php \
@@ -401,8 +402,12 @@ jobs:
             database/migrations/2026_10_07_180000_place_trout_fillet_goods_under_product.php \
             database/migrations/2026_10_07_190000_consolidate_catalog_good_seo.php \
             database/migrations/2026_10_07_200000_add_semantic_core_rows_to_good_seos.php \
+            database/migrations/2026_10_08_120000_add_incoming_code_to_goods_table.php \
+            database/migrations/2026_10_08_150000_create_good_url_aliases_table.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
+            tests/Feature/CatalogGoodPricingTest.php \
+            tests/Feature/GoodIncomingCodeTest.php \
             tests/Feature/GoodsSeoSemanticCoreTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
@@ -558,6 +563,8 @@ jobs:
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
+            tests/Feature/CatalogGoodPricingTest.php \
+            tests/Feature/GoodIncomingCodeTest.php \
             tests/Feature/GoodsSeoSemanticCoreTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \

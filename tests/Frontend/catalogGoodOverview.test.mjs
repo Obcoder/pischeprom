@@ -30,7 +30,7 @@ function harness(t) {
     return { api, props, emitted, render: templateRenderer(template, api, props) }
 }
 
-test('goods overview keeps VAT and trade-code assistants connected to unsaved catalog data and preserves their editable fields', t => {
+test('goods overview keeps the VAT assistant connected to unsaved catalog data and preserves trade codes', t => {
     const h = harness(t)
     const vat = findVNode(h.render(), node => node.type === 'GoodVatCheck')
     assert.equal(vat.props.draft.id, 42)
@@ -40,12 +40,8 @@ test('goods overview keeps VAT and trade-code assistants connected to unsaved ca
     assert.equal(vat.props.draft.hs_code, '030111')
     vat.props.onApply(2)
     assert.equal(h.props.modelValue.vat_rate_id, 2)
-    const codes = findVNode(h.render(), node => node.type === 'GoodTradeCodeFields')
-    assert.equal(codes.props.readonly, undefined)
-    assert.equal(codes.props.context.name, 'Филе без кожи')
-    codes.props['onUpdate:modelValue']({ ...h.props.modelValue, hs_code: null, gtin: '00012345600012' })
-    assert.equal(h.props.modelValue.hs_code, null)
-    assert.equal(h.props.modelValue.gtin, '00012345600012')
+    assert.equal(findVNode(h.render(), node => node.type === 'GoodTradeCodeFields'), null)
+    assert.equal(h.props.modelValue.hs_code, '030111')
     assert.equal(h.props.modelValue.denominator, 25)
     h.props.disabled = true
     vat.props.onApply(1)

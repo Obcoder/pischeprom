@@ -77,6 +77,7 @@ export function useGoods() {
                 const fd = new FormData()
 
                 fd.append('name', form.name ?? '')
+                fd.append('incoming_code', form.incoming_code ?? '')
                 fd.append('denominator', form.denominator ?? '')
                 fd.append('description', form.description ?? '')
                 fd.append('vat_rate_id', form.vat_rate_id ?? '')
@@ -115,6 +116,7 @@ export function useGoods() {
                     avatar_source_url: form.avatar_source_url || null,
                     avatar_thumb_source_url: form.avatar_thumb_source_url || null,
                     name: form.name,
+                    incoming_code: form.incoming_code ?? null,
                     denominator: form.denominator,
                     description: form.description,
                     vat_rate_id: form.vat_rate_id,

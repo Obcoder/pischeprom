@@ -306,7 +306,7 @@ test('API failures allow retry, keep manual codes and do not expose unsafe sourc
 
 test('the shared code editor applies a single filtered patch and uses current codes with Good card context', () => {
     const props = Vue.reactive({
-        modelValue: { name: 'Товар', tn_ved_code: '0301110000', cn_code: null },
+        modelValue: { name: 'Товар', incoming_code: '00001-АБ', tn_ved_code: '0301110000', cn_code: null },
         context: { id: 42, name: 'Товар', product_ids: [7], tn_ved_code: 'Stale context' },
         active: true, disabled: false, readonly: false, errors: {},
     })
@@ -317,8 +317,8 @@ test('the shared code editor applies a single filtered patch and uses current co
     assert.equal(api.recommendationDraft.value.id, 42)
     assert.deepEqual(api.recommendationDraft.value.product_ids, [7])
     assert.equal(api.recommendationDraft.value.tn_ved_code, '0301110000')
-    api.applyRecommendations({ hs_code: '030111', cn_code: '03011100', name: 'Unexpected rename' })
-    assert.deepEqual(emitted, [['update:modelValue', { name: 'Товар', tn_ved_code: '0301110000', hs_code: '030111', cn_code: '03011100' }]])
+    api.applyRecommendations({ hs_code: '030111', cn_code: '03011100', name: 'Unexpected rename', incoming_code: 'Unexpected supplier code' })
+    assert.deepEqual(emitted, [['update:modelValue', { name: 'Товар', incoming_code: '00001-АБ', tn_ved_code: '0301110000', hs_code: '030111', cn_code: '03011100' }]])
     assert.equal(api.expanded.value, true, 'applied optional codes become visible')
     props.active = false
     api.applyRecommendations({ hs_code: '030222' })
