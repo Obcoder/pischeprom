@@ -46,8 +46,10 @@ const headers = [
     { key: 'actions', title: '', sortable: false, width: 88 },
 ]
 const tableItems = computed(() => view.value.items.map(node => {
-    const visible = Boolean(node.is_published) && (node.ancestors || []).every(ancestor => nodeMap.value.get(ancestor.id)?.is_published)
+    const hiddenAncestors = (node.ancestors || []).filter(ancestor => !nodeMap.value.get(ancestor.id)?.is_published)
+    const visible = Boolean(node.is_published) && hiddenAncestors.length === 0
     return { ...node, level_name: levelMap.value.get(node.level_id)?.name || 'Без уровня', visible,
+        hidden_sections_label: hiddenAncestors.map(ancestor => ancestor.name).join(' · '),
         status_label: !node.is_published ? 'Черновик' : visible ? 'На сайте' : 'Скрыт разделом' }
 }))
 const publicationOptions = [
@@ -213,7 +215,12 @@ onMounted(load)
                     <template #item.name="{ item }"><div class="catalog-item-name"><CatalogAvatar :node="item" :icon="iconFor(item)" @open="openGallery" /><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }}</strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
                     <template #item.level_name="{ item }"><button type="button" class="catalog-level-label" :class="{ 'is-unassigned': !item.level_id }" title="Изменить классификацию" @click="openEditor(item)">{{ item.level_name }}</button></template>
                     <template #item.path_label="{ item }"><span class="catalog-item-path" :title="item.path_label">{{ item.path_label || 'Корень каталога' }}</span></template>
-                    <template #item.is_published="{ item }"><div class="catalog-item-status" :title="item.is_published && !item.visible ? 'Запись опубликована, но родительский раздел скрыт на сайте' : item.status_label"><span :class="['catalog-status-dot', { 'is-published': item.visible, 'is-hidden': item.is_published && !item.visible }]" />{{ item.status_label }}<v-icon v-if="item.is_featured" icon="mdi-storefront-outline" size="16" color="#927332" title="На витрине" /></div></template>
+                    <template #item.is_published="{ item }">
+                        <div class="catalog-item-publication">
+                            <div class="catalog-item-status" :title="item.is_published && !item.visible ? 'Запись опубликована, но родительский раздел скрыт на сайте' : item.status_label"><span :class="['catalog-status-dot', { 'is-published': item.visible, 'is-hidden': item.is_published && !item.visible }]" />{{ item.status_label }}<v-icon v-if="item.is_featured" icon="mdi-storefront-outline" size="16" color="#927332" title="На витрине" /></div>
+                            <small v-if="item.is_published && !item.visible" class="catalog-item-hidden-section">{{ item.hidden_sections_label }}</small>
+                        </div>
+                    </template>
                     <template #item.actions="{ item }"><div class="catalog-item-actions"><v-btn icon="mdi-pencil-outline" variant="text" size="x-small" :aria-label="`Редактировать ${item.name}`" @click="openEditor(item)" /><v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" variant="text" size="x-small" :aria-label="`Действия: ${item.name}`" /></template><v-list density="compact">
                         <v-list-item title="Добавить вложенную запись" prepend-icon="mdi-plus" @click="create({ parentId: item.id })" />
                         <v-list-item v-if="item.is_published" title="Открыть на сайте" prepend-icon="mdi-open-in-new" :href="item.public_url" target="_blank" />
@@ -262,6 +269,8 @@ onMounted(load)
 .catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(td) { height: 68px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(tbody td:first-child) { padding: 0 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
 .catalog-item-name { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 0; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-level-label { padding: 3px 6px; font-size: 10px; color: #7b638e; background: #f3eef8; text-align: left; }.catalog-level-label.is-unassigned { background: #f4f4f4; color: #aaa; }.catalog-level-label:hover { background: #e8dff1; }.catalog-item-path { display: block; color: #9a8ba5; font-size: 11px; line-height: 1.5; max-width: 300px; }.catalog-item-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 11px; color: #8c7c96; }.catalog-status-dot { display: inline-block; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #c5bdcd; }.catalog-status-dot.is-published { background: #559c79; }.catalog-status-dot.is-hidden { background: #c59954; }.catalog-item-actions { display: flex; gap: 2px; }
+.catalog-item-publication { padding: 4px 0; }
+.catalog-item-hidden-section { display: block; margin: 3px 0 0 13px; max-width: 155px; font-size: 10px; line-height: 1.35; color: #968b9f; white-space: normal; overflow-wrap: anywhere; }
 .catalog-items-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 50px 24px; color: #a092aa; }.catalog-items-empty strong { font-size: 16px; color: #7d698c; font-weight: 500; }.catalog-items-empty p { font-size: 12px; max-width: 400px; line-height: 1.8; }
 @media (max-width: 980px) { .catalog-workspace__body { grid-template-columns: minmax(225px, 30%) minmax(0, 1fr); }.catalog-items-heading__actions { flex-direction: column; align-items: flex-end; }.catalog-tree__name { min-width: 75px; } }
 @media (max-width: 680px) { .classification-row { gap: 4px; padding: 0 6px; }.classification-row__label { flex-basis: 74px; font-size: 10px; }.classification-tab { font-size: 11px; padding: 8px; }.catalog-workspace__body { display: flex; flex-direction: column; overflow: auto; }.catalog-tree-panel { flex: 0 0 200px; border-right: 0; border-bottom: 1px solid #ded9e3; }.catalog-items-panel { flex: 1 0 430px; min-height: 430px; }.catalog-items-heading { padding: 10px; }.catalog-items-heading h2 { font-size: 14px; }.catalog-items-heading__actions :deep(.v-btn) { font-size: 10px; }.catalog-tree-footer { display: none; } }
