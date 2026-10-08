@@ -31,9 +31,14 @@
         rel="stylesheet"
     >
 
-    {{-- Inertia использует нестандартный атрибут "inertia".
-         Выводим тег через PHP, чтобы IDE не подсвечивала HTML-ошибку. --}}
-    <?php echo '<title inertia>' . e($appName) . '</title>'; ?>
+    @php
+        // @inertiaHead and @inertia reuse this request's cached SSR response.
+        // Emit a fallback only when the rendered page did not provide a title.
+        $renderedHead = app(\Inertia\Ssr\SsrState::class)->setPage($page)->dispatch()?->head ?? '';
+    @endphp
+    @if (! preg_match('/<title(?:\s|>)/i', $renderedHead))
+        <title data-inertia>{{ $appName }}</title>
+    @endif
 
     <?php if ($metricaCounterId !== null): ?>
     <script>

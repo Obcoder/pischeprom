@@ -1,0 +1,51 @@
+{
+  "checked_on": "2026-10-08",
+  "store_origin": "https://xn----dtbhbbn3apgclecj7i.xn--p1ai",
+  "landing_product_id": 124,
+  "catalog_product_ids": [
+    201
+  ],
+  "goods": [
+    {
+      "id": 75,
+      "key": "faroe-600",
+      "name": "Скумбрия 600+ неразделанная Фарерские Острова",
+      "slug": "scomber-scombrus-600-round-foroyar",
+      "caliber": "600+",
+      "country": "Фарерские острова",
+      "source_product_id": 201,
+      "url": "https://xn----dtbhbbn3apgclecj7i.xn--p1ai/g/scomber-scombrus-600-round-foroyar"
+    },
+    {
+      "id": 104,
+      "key": "peru-500",
+      "name": "Скумбрия 500+ неразделанная Перу",
+      "slug": "skumbriya-500-nerazdelannaya-peru",
+      "caliber": "500+",
+      "country": "Перу",
+      "source_product_id": 201,
+      "url": "https://xn----dtbhbbn3apgclecj7i.xn--p1ai/g/skumbriya-500-nerazdelannaya-peru"
+    },
+    {
+      "id": 172,
+      "key": "china-500-700",
+      "name": "Скумбрия 500–700 неразделанная Китай",
+      "slug": "scomber-japonicus-500-700-round-china",
+      "caliber": "500–700",
+      "country": "Китай",
+      "source_product_id": 201,
+      "url": "https://xn----dtbhbbn3apgclecj7i.xn--p1ai/g/scomber-japonicus-500-700-round-china"
+    },
+    {
+      "id": 95,
+      "key": "china-300-500",
+      "name": "Скумбрия 300–500 неразделанная Китай",
+      "slug": "skumbriia-300-500-nr-110-kitai",
+      "caliber": "300–500",
+      "country": "Китай",
+      "source_product_id": 201,
+      "url": "https://xn----dtbhbbn3apgclecj7i.xn--p1ai/g/skumbriia-300-500-nr-110-kitai"
+    }
+  ],
+  "note": "Read-only snapshot for implementation. Do not use for live stock or pricing; load current published Goods and server-generated URLs."
+}

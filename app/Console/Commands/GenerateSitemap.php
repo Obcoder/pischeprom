@@ -2,38 +2,23 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Seo\SitemapService;
 use Illuminate\Console\Command;
-use Spatie\Sitemap\Sitemap;
-use Spatie\Sitemap\Tags\Url;
+use Illuminate\Support\Facades\File;
 
 class GenerateSitemap extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'app:generate-sitemap';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Generate the sitemap for the website';
+    protected $description = 'Generate a private sitemap snapshot; the public sitemap stays live.';
 
-    /**
-     * Execute the console command.
-     */
-
-
-    public function handle()
+    public function handle(SitemapService $sitemap): int
     {
-        $sitemap = Sitemap::create()
-            ->add(Url::create('/')->setPriority(1.0));
+        $path = storage_path('app/private/seo/sitemap.xml');
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, $sitemap->xml());
+        $this->info('Sitemap snapshot saved in storage/app/private/seo/sitemap.xml. /sitemap.xml is served dynamically.');
 
-        $sitemap->writeToFile(public_path('sitemap.xml'));
-
-        $this->info('✅ Sitemap generated successfully!');
+        return self::SUCCESS;
     }
 }

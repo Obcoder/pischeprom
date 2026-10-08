@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,6 +17,7 @@ class ProductController extends Controller
     public function show(
         Product $product,
         GoodStockService $stock,
+        PublicClassPage $classPages,
     ): Response {
         abort_unless($product->is_published, 404);
 
@@ -50,10 +52,13 @@ class ProductController extends Controller
             ->get();
 
         $stock->appendAvailability($goods);
+        $classPage = $classPages->for($product);
 
         return Inertia::render('Products/Show', [
             'product' => $product,
             'goods' => $goods,
+            'classPage' => $classPage,
+            'seo' => $classPage['seo'] ?? $classPages->seo($product),
         ]);
     }
 }

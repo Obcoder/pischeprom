@@ -1,0 +1,50 @@
+{
+  "verified_on": "2026-10-08",
+  "assets": [
+    {
+      "suggested_use": "hero",
+      "local_path": "assets/mackerel-hero.jpg",
+      "title": "Atlantic mackerel (Scomber scombrus).jpg",
+      "author": "Petar Milošević",
+      "author_url": "https://commons.wikimedia.org/wiki/User:PetarM",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Atlantic_mackerel_(Scomber_scombrus).jpg",
+      "direct_file_url": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Atlantic_mackerel_%28Scomber_scombrus%29.jpg",
+      "width": 4138,
+      "height": 2898,
+      "species": "Scomber scombrus",
+      "species_evidence": "The source page explicitly identifies Atlantic mackerel (Scomber scombrus).",
+      "derivatives_allowed": true,
+      "derivative_conditions": "Credit the author, link the license, indicate modifications, and distribute modified image contributions under the same or a compatible license.",
+      "visual_notes": "Three glossy silver raw mackerel on a white plate with cobalt/green stripes. Tight diagonal close-up; strong scale and eye detail. Suitable for a large crop, though the source is not on ice or a dark surface.",
+      "attribution_example_ru": "Фото: Petar Milošević / Wikimedia Commons, CC BY-SA 4.0. Кадрировано.",
+      "modifications": "Resized and JPEG optimized; CSS display crop. Adaptation remains under original CC BY-SA license."
+    },
+    {
+      "suggested_use": "application: smoked mackerel",
+      "local_path": "assets/mackerel-smoked.jpg",
+      "title": "Smoked mackerel-01.jpg",
+      "author": "Jocian",
+      "author_url": "https://commons.wikimedia.org/wiki/User:Jocian",
+      "license": "CC BY-SA 3.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "source_page": "https://commons.wikimedia.org/wiki/File:Smoked_mackerel-01.jpg",
+      "direct_file_url": "https://upload.wikimedia.org/wikipedia/commons/3/3d/Smoked_mackerel-01.jpg",
+      "width": 2702,
+      "height": 2026,
+      "species": "Scomber scombrus",
+      "species_evidence": "The source description explicitly calls this smoked Scomber scombrus with salad.",
+      "derivatives_allowed": true,
+      "derivative_conditions": "Credit the author, link the license, indicate modifications, and distribute modified image contributions under the same or a compatible license.",
+      "visual_notes": "Golden whole smoked mackerel laid diagonally on a white plate with green salad, sliced cucumber and red tomato; clearly a prepared dish.",
+      "attribution_example_ru": "Фото: Jocian / Wikimedia Commons, CC BY-SA 3.0. Кадрировано.",
+      "modifications": "Resized and JPEG optimized; CSS display crop. Adaptation remains under original CC BY-SA license."
+    }
+  ],
+  "notes": [
+    "Original photographs downloaded without modification and dimensions checked locally.",
+    "All selected source pages explicitly allow adaptation; share-alike requirements apply to the first two modified images.",
+    "Attribution examples assume the implementation crops the image; omit the crop note when the original is displayed unchanged."
+  ]
+}

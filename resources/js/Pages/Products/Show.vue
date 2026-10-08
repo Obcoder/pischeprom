@@ -1,11 +1,12 @@
 <script setup>
 import LayoutDefault from "@/Layouts/LayoutDefault.vue";
-import { Link } from "@inertiajs/vue3";
-import { useHead } from "@unhead/vue";
-import { computed } from "vue";
+import { Head, Link } from "@inertiajs/vue3";
+import { computed, h } from "vue";
 import { route } from "ziggy-js";
 import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue";
 import { canSubscribeToGoodStock } from "@/Pages/Helpers/goodAvailability";
+import ClassLanding from '@/Components/Products/ClassPage/ClassLanding.vue';
+import { resolveClassGuide } from '@/Components/Products/ClassPage/guides.js';
 
 defineOptions({
     layout: LayoutDefault,
@@ -20,21 +21,19 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    seo: { type: Object, default: () => ({}) },
+    classPage: { type: Object, default: null },
 });
 
 const productTitle = computed(() => {
     return props.product.rus || props.product.name || props.product.eng || `Product #${props.product.id}`;
 });
 
-useHead({
-    title: computed(() => `${productTitle.value} — ПИЩЕПРОМ-СЕРВЕР`),
-    meta: [
-        {
-            name: "description",
-            content: computed(() => `Товары по продукту: ${productTitle.value}`),
-        },
-    ],
-});
+const guide = computed(() => resolveClassGuide(props.classPage?.guide));
+const pageSeo = computed(() => guide.value ? props.classPage.seo : props.seo);
+const pageTitle = computed(() => pageSeo.value.title || `${productTitle.value} — ПИЩЕПРОМ-СЕРВЕР`);
+const description = computed(() => pageSeo.value.description || `Товары по продукту: ${productTitle.value}`);
+const JsonLdHead = () => h('script', { 'head-key': 'product-structured-data', type: 'application/ld+json' }, JSON.stringify(pageSeo.value.jsonLd).replace(/</g, '\\u003c'));
 
 function goodImage(item) {
     const mediaImage = (item.published_media || []).find((media) => media.type === "image");
@@ -48,7 +47,18 @@ function canSubscribeToStock(good) {
 </script>
 
 <template>
-    <v-container class="py-8">
+    <Head :title="pageTitle">
+        <meta head-key="description" name="description" :content="description">
+        <meta v-if="pageSeo.robots" head-key="robots" name="robots" :content="pageSeo.robots">
+        <link v-if="pageSeo.canonical" head-key="canonical" rel="canonical" :href="pageSeo.canonical">
+        <meta head-key="og:title" property="og:title" :content="pageTitle">
+        <meta head-key="og:description" property="og:description" :content="description">
+        <meta v-if="pageSeo.canonical" head-key="og:url" property="og:url" :content="pageSeo.canonical">
+        <meta head-key="og:type" property="og:type" content="website">
+        <JsonLdHead v-if="pageSeo.jsonLd" />
+    </Head>
+    <ClassLanding v-if="guide" :key="`${product.id}-${classPage.guide}`" :page="classPage" :guide="guide" />
+    <v-container v-else class="py-8">
         <v-row>
             <v-col cols="12">
                 <div class="product-page-kicker">
@@ -56,7 +66,7 @@ function canSubscribeToStock(good) {
                 </div>
 
                 <h1 class="text-h3 font-weight-bold mb-3">
-                    {{ productTitle }}
+                    {{ pageSeo.h1 || productTitle }}
                 </h1>
 
                 <div

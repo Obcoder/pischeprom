@@ -423,6 +423,19 @@ jobs:
             database/migrations/2026_09_11_120000_create_entity_consumptions_table.php \
             tests/Feature/EntityConsumptionApiTest.php
 
+      - name: Check public class pages and sitemap PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Console/Commands/CheckClassPagesCommand.php \
+            app/Console/Commands/GenerateSitemap.php \
+            app/Services/Seo/ClassPageHtmlVerifier.php \
+            app/Services/Seo/SitemapService.php \
+            config/product-pages.php \
+            tests/Feature/PublicClassPageTest.php \
+            tests/Feature/ClassPageSsrTest.php \
+            tests/Feature/SitemapTest.php \
+            tests/Unit/Seo/ClassPageHtmlVerifierTest.php
+
       - name: Check product translations AI PHP style
         run: |
           vendor/bin/pint --test \
@@ -568,6 +581,8 @@ jobs:
             tests/Feature/GoodsSeoSemanticCoreTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \
+            tests/Feature/PublicClassPageTest.php \
+            tests/Feature/SitemapTest.php \
             tests/Feature/ComponentCatalogManagementTest.php \
             tests/Feature/GoodAvatarPerformanceTest.php \
             tests/Feature/GoodSearchTest.php \
@@ -615,6 +630,32 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=2048
         run: npm run build
+
+      - name: Verify class content in real server rendered HTML
+        env:
+          APP_ENV: testing
+          APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          CACHE_STORE: array
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          QUEUE_CONNECTION: sync
+          SESSION_DRIVER: array
+          RUN_CLASS_SSR_TEST: '1'
+        run: |
+          node bootstrap/ssr/ssr.js > /tmp/class-page-ssr.log 2>&1 &
+          class_ssr_pid=$!
+          trap 'kill "$class_ssr_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:13714/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:13714/health > /dev/null
+          if ! php artisan test --compact tests/Feature/ClassPageSsrTest.php; then
+            cat /tmp/class-page-ssr.log
+            exit 1
+          fi
 
       - name: Create verified frontend artifact
         run: |

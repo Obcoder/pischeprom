@@ -23,6 +23,7 @@ const drawer = ref(false)
 const categoryMenu = ref(false)
 const accountMenu = ref(false)
 const isCompact = ref(false)
+const mounted = ref(false)
 
 const siteName = 'ПИЩЕПРОМ-СЕРВЕР'
 const siteSubtitle = 'Маркетплейс для пищевой промышленности'
@@ -183,6 +184,7 @@ function logout() {
 }
 
 onMounted(() => {
+    mounted.value = true
     handleScroll()
 
     window.addEventListener('scroll', handleScroll, {
@@ -447,7 +449,7 @@ onBeforeUnmount(() => {
             </v-container>
         </div>
 
-        <Teleport to="body">
+        <Teleport v-if="mounted" to="body">
             <Transition name="app-header-drawer">
                 <div
                     v-if="drawer"
@@ -919,6 +921,41 @@ onBeforeUnmount(() => {
 @media (max-width: 600px) {
     .app-header__top-inner {
         min-height: 40px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 44px;
+        gap: 4px 8px;
+        padding-block: 6px;
+    }
+
+    .app-header__brand {
+        grid-column: 1;
+        grid-row: 1;
+        max-width: 100%;
+    }
+
+    .app-header__brand-text {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .app-header__city {
+        grid-column: 1;
+        grid-row: 2;
+        min-width: 0;
+        max-width: 100%;
+        margin-left: 0;
+    }
+
+    .app-header__city :deep(.city-selector__text) {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .app-header__burger {
+        grid-column: 2;
+        grid-row: 1 / 3;
+        width: 44px;
+        height: 44px;
     }
 
     .app-header__main-inner {

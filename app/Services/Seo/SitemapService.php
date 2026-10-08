@@ -4,6 +4,7 @@ namespace App\Services\Seo;
 
 use App\Models\Category;
 use App\Models\Good;
+use App\Models\Product;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use XMLWriter;
@@ -14,7 +15,7 @@ class SitemapService
 
     public function xml(): string
     {
-        $xml = new XMLWriter();
+        $xml = new XMLWriter;
 
         $xml->openMemory();
         $xml->startDocument('1.0', 'UTF-8');
@@ -45,6 +46,19 @@ class SitemapService
                         'weekly',
                         '0.8'
                     );
+                }
+            });
+
+        $guideIds = collect(config('product-pages.pages', []))
+            ->filter(fn ($page): bool => is_array($page) && filled($page['guide'] ?? null))
+            ->keys()->map(fn ($id): int => (int) $id)->filter()->unique()->values();
+
+        Product::query()->without(['category', 'manufacturers'])
+            ->whereIn('id', $guideIds)->where('is_published', true)->orderBy('id')
+            ->chunk(500, function ($products) use ($xml): void {
+                foreach ($products as $product) {
+                    $this->writeUrl($xml, route('shop.products.show', ['product' => $product->id]),
+                        $this->lastmod($product), 'weekly', '0.8');
                 }
             });
 

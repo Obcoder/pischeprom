@@ -397,6 +397,8 @@ tar -xzf "$frontend_archive" \
     --no-same-permissions
 
 php artisan optimize:clear
+# Old scheduled sitemap generators wrote here and bypassed Laravel's live route.
+rm -f -- "$target_dir/public/sitemap.xml"
 php artisan migrate --force --isolated
 php artisan db:seed --class=RolesAndPermissionsSeeder --force
 php artisan db:seed --class=LogisticsExpenseCategorySeeder --force
@@ -523,12 +525,16 @@ for attempt in 1 2 3 4 5; do
 done
 
 if (( ssr_ready == 0 )); then
-    log 'WARNING: Inertia SSR is unavailable; deployment continues with client-side rendering.'
+    fail 'Inertia SSR is unavailable; class guides require server-rendered content.'
 fi
 
 php artisan up
 maintenance_started=0
 code_switch_started=0
+
+log 'Checking published class guides in server-rendered HTML.'
+php artisan app:check-class-pages \
+    || fail 'Class guide SSR content, canonical URL or catalog links failed verification.'
 
 log 'Checking the mobile API schema and public authentication endpoints.'
 php "$target_dir/scripts/check-production-mobile.php" "$target_dir" \

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { router, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 
@@ -24,6 +24,8 @@ const {
 
 const submitting = ref(false)
 const checkoutOpen = ref(false)
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
 const errorMessage = ref('')
 const successMessage = ref('')
 const fieldErrors = ref({})
@@ -304,7 +306,7 @@ function submitOrder() {
             {{ errorMessage }}
         </div>
 
-        <Teleport to="body">
+        <Teleport v-if="mounted" to="body">
             <Transition name="order-checkout">
                 <div
                     v-if="checkoutOpen"

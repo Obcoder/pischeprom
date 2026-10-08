@@ -7,6 +7,7 @@ import '../css/app.css'
 import { createSSRApp, h } from 'vue'
 import { createPinia } from 'pinia'
 import { createInertiaApp } from '@inertiajs/vue3'
+import { pageTitle } from './utils/pageTitle.js'
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers'
 import { ZiggyVue } from 'ziggy-js'
 import { createHead } from '@unhead/vue/client'
@@ -20,9 +21,7 @@ const appName = import.meta.env?.['VITE_APP_NAME'] || 'ПИЩЕПРОМ-СЕРВ
 async function bootstrap() {
     try {
         await createInertiaApp({
-            title: (title) => title
-                ? `${title} — ПИЩЕПРОМ-СЕРВЕР`
-                : 'ПИЩЕПРОМ-СЕРВЕР — маркетплейс пищевой промышленности',
+            title: pageTitle,
 
             resolve: (name) => {
                 return resolvePageComponent(
