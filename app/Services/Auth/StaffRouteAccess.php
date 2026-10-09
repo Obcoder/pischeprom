@@ -24,6 +24,7 @@ class StaffRouteAccess
         'товар/{good}' => ['GET', 'HEAD'],
         'категория/{category}' => ['GET', 'HEAD'],
         'catalog/{node}/{slug?}' => ['GET', 'HEAD'],
+        'catalog/{path}' => ['GET', 'HEAD'],
         'подборки/{field}' => ['GET', 'HEAD'],
         'goods/published' => ['GET', 'HEAD'],
         'Seaprom' => ['GET', 'HEAD'],

@@ -8,6 +8,7 @@ use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
+use App\Services\Catalog\CatalogService;
 use App\Services\Catalog\PublicCatalogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -147,6 +148,122 @@ class PublicCatalogTest extends TestCase
             ->assertJsonPath('props.product.id', $product->id);
     }
 
+    public function test_human_paths_follow_ancestors_without_the_structural_domain_prefix(): void
+    {
+        $domainLevel = CatalogLevel::query()->create(['name' => 'Домен', 'is_domain' => true]);
+        $domain = $this->node('Продукты пищевые', ['level_id' => $domainLevel->id, 'slug' => 'produkty-pishhevye']);
+        $category = Category::query()->create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
+        $fish = $this->node('Устаревшее имя', [
+            'parent_id' => $domain->id, 'entity_type' => 'category', 'entity_id' => $category->id, 'slug' => 'obsolete',
+        ]);
+        $mackerel = $this->node('Скумбрия', ['parent_id' => $fish->id, 'slug' => 'skumbriia', 'is_featured' => true]);
+        $frozen = $this->node('Замороженная', ['parent_id' => $mackerel->id, 'slug' => 'zamorozhennaia']);
+        $hiddenCategory = Category::query()->create(['name' => 'Закрытая', 'is_published' => false]);
+        $this->node('Закрытая', ['entity_type' => 'category', 'entity_id' => $hiddenCategory->id]);
+        $canonical = url('/catalog/ryba/skumbriia');
+
+        $this->assertSame(url('/catalog/produkty-pishhevye'), $this->url($domain));
+        $this->assertSame($canonical, $this->url($mackerel));
+        $this->assertSame($canonical.'/zamorozhennaia', $this->url($frozen));
+        $this->assertSame($canonical, app(CatalogService::class)->nodePayload($mackerel)['public_url']);
+        $this->assertSame([$category->id => url('/catalog/ryba')], app(PublicCatalogService::class)->categoryUrls());
+
+        $this->get($canonical, ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('component', 'Catalog/Show')
+            ->assertJsonPath('props.node.id', $mackerel->id)
+            ->assertJsonPath('props.seo.canonical', $canonical)
+            ->assertJsonPath('props.breadcrumbs.1.public_url', url('/catalog/ryba'))
+            ->assertJsonPath('props.children.0.public_url', $canonical.'/zamorozhennaia')
+            ->assertJsonPath('props.publicCategoryUrls.'.$category->id, url('/catalog/ryba'))
+            ->assertJsonMissingPath('props.publicCategoryUrls.'.$hiddenCategory->id)
+            ->assertJsonMissingPath('props.node.catalog_path');
+
+        foreach ([null, 'skumbriia', 'old-slug'] as $slug) {
+            $this->get(route('public.catalog.show', ['node' => $mackerel->id, 'slug' => $slug]))
+                ->assertStatus(301)->assertRedirect($canonical);
+        }
+        $this->get('/catalog/produkty-pishhevye/ryba/skumbriia')->assertNotFound();
+        $this->get('/catalog/ryba/skumbriia/unrelated')->assertNotFound();
+
+        $domain->update(['is_published' => false]);
+        $this->get($canonical)->assertNotFound();
+        $this->get(route('public.catalog.show', ['node' => $mackerel->id]))->assertNotFound();
+        $this->assertSame([], app(PublicCatalogService::class)->categoryUrls());
+    }
+
+    public function test_duplicate_paths_are_disambiguated_before_descendants_and_remain_stable_when_hidden(): void
+    {
+        $first = $this->node('Рыба', ['slug' => 'fish']);
+        $second = $this->node('Другая рыба', ['slug' => 'fish']);
+        $firstChild = $this->node('Скумбрия', ['parent_id' => $first->id, 'slug' => 'mackerel']);
+        $secondChild = $this->node('Скумбрия', ['parent_id' => $second->id, 'slug' => 'mackerel']);
+        // A literal slug may already use the suffix chosen for another node.
+        $literal = $this->node('Буквальный суффикс', ['slug' => 'fish-node-'.$first->id]);
+
+        $this->assertSame(url('/catalog/fish-node-'.$first->id), $this->url($first));
+        $this->assertSame(url('/catalog/fish-node-'.$second->id), $this->url($second));
+        $this->assertSame(url('/catalog/fish-node-'.$first->id.'-node-'.$literal->id), $this->url($literal));
+        $this->assertSame($this->url($first).'/mackerel', $this->url($firstChild));
+        $this->assertSame($this->url($second).'/mackerel', $this->url($secondChild));
+        $this->get('/catalog/fish')->assertNotFound();
+
+        foreach ([$first, $second, $firstChild, $secondChild, $literal] as $node) {
+            $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.node.id', $node->id);
+        }
+
+        $canonical = $this->url($firstChild);
+        $second->update(['is_published' => false]);
+        $this->assertSame($canonical, $this->url($firstChild));
+        $this->get($this->url($secondChild))->assertNotFound();
+        $this->get(route('public.catalog.show', ['node' => $secondChild->id]))->assertNotFound();
+    }
+
+    public function test_duplicate_sibling_and_domain_omitted_paths_never_resolve_to_an_arbitrary_node(): void
+    {
+        $domainLevel = CatalogLevel::query()->create(['name' => 'Домен', 'is_domain' => true]);
+        $domain = $this->node('Домен', ['level_id' => $domainLevel->id, 'slug' => 'domain']);
+        $root = $this->node('Рыба без домена', ['slug' => 'fish']);
+        $otherRoot = $this->node('Рыба под доменом', ['slug' => 'fish', 'parent_id' => $domain->id]);
+        $first = $this->node('Один раздел', ['slug' => 'same', 'parent_id' => $root->id]);
+        $second = $this->node('Другой раздел', ['slug' => 'same', 'parent_id' => $root->id]);
+
+        $this->assertSame(url('/catalog/fish-node-'.$otherRoot->id), $this->url($otherRoot));
+        $this->assertSame($this->url($root).'/same-node-'.$first->id, $this->url($first));
+        $this->assertSame($this->url($root).'/same-node-'.$second->id, $this->url($second));
+        $this->get($this->url($root).'/same')->assertNotFound();
+        $this->get($this->url($first), ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.node.id', $first->id);
+        $this->get($this->url($second), ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.node.id', $second->id);
+    }
+
+    public function test_numeric_root_slug_cannot_shadow_the_legacy_id_route(): void
+    {
+        $root = $this->node('Числовой корень', ['slug' => '160']);
+        $child = $this->node('Числовой потомок', ['parent_id' => $root->id, 'slug' => '201']);
+
+        $this->assertSame(url('/catalog/160-node-'.$root->id), $this->url($root));
+        $this->assertSame($this->url($root).'/201', $this->url($child));
+        $this->get($this->url($child), ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.node.id', $child->id);
+        $this->get(route('public.catalog.show', ['node' => $child->id, 'slug' => $child->slug]))
+            ->assertStatus(301)->assertRedirect($this->url($child));
+    }
+
+    public function test_source_ancestor_rename_and_node_move_change_all_generated_urls_without_reimport(): void
+    {
+        $category = Category::query()->create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
+        $root = $this->node('Рыба', ['entity_type' => 'category', 'entity_id' => $category->id]);
+        $child = $this->node('Скумбрия', ['parent_id' => $root->id, 'slug' => 'skumbriia']);
+        $category->update(['slug' => 'fish']);
+
+        $this->assertSame(url('/catalog/fish/skumbriia'), app(CatalogService::class)->nodePayload($child)['public_url']);
+        $this->get(route('public.catalog.show', ['node' => $child->id, 'slug' => $child->slug]))
+            ->assertRedirect(url('/catalog/fish/skumbriia'));
+
+        $other = $this->node('Другая категория', ['slug' => 'other']);
+        $child->update(['parent_id' => $other->id]);
+        $this->assertSame(url('/catalog/other/skumbriia'), app(CatalogService::class)->nodePayload($child)['public_url']);
+        $this->get('/catalog/other/skumbriia', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.node.id', $child->id);
+    }
+
     private function node(string $name, array $attributes = []): CatalogNode
     {
         $level = CatalogLevel::query()->firstOrCreate(['name' => 'Произвольный уровень', 'entity_type' => 'custom']);
@@ -164,6 +281,6 @@ class PublicCatalogTest extends TestCase
 
     private function url(CatalogNode $node): string
     {
-        return route('public.catalog.show', ['node' => $node->id, 'slug' => $node->slug]);
+        return app(CatalogService::class)->nodes()->firstWhere('id', $node->id)['public_url'];
     }
 }

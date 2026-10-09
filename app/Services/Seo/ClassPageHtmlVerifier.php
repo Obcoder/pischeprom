@@ -31,6 +31,18 @@ class ClassPageHtmlVerifier
             && mb_strlen(trim($article->textContent)) > 200, 'The rendered guide article is missing or empty.');
         $headings = $xpath->query('.//h1', $root);
         $this->require($headings->length === 1 && trim($headings->item(0)->textContent) === $page['seo']['h1'], 'The rendered H1 is incorrect.');
+        $breadcrumbs = $page['breadcrumbs'];
+        $breadcrumbNavs = $xpath->query('.//nav[@aria-label="Хлебные крошки"]', $root);
+        $this->require($breadcrumbNavs->length === 1, 'The rendered catalog breadcrumbs are missing.');
+        $breadcrumbLinks = $xpath->query('.//a[@href]', $breadcrumbNavs->item(0));
+        $actualBreadcrumbs = [];
+        foreach ($breadcrumbLinks as $link) {
+            $actualBreadcrumbs[] = ['name' => trim($link->textContent), 'url' => $link->getAttribute('href')];
+        }
+        $this->require($actualBreadcrumbs === array_slice($breadcrumbs, 0, -1), 'The rendered breadcrumb links do not match the catalog hierarchy.');
+        $currentBreadcrumbs = $xpath->query('.//*[@aria-current="page"]', $breadcrumbNavs->item(0));
+        $this->require($currentBreadcrumbs->length === 1
+            && trim($currentBreadcrumbs->item(0)->textContent) === end($breadcrumbs)['name'], 'The current catalog breadcrumb is incorrect.');
 
         $catalogs = $xpath->query('.//*[@data-class-goods]', $root);
         $this->require($catalogs->length === 1, 'The rendered class catalog is missing.');
@@ -81,6 +93,12 @@ class ClassPageHtmlVerifier
         $this->require(($collection['url'] ?? null) === $page['seo']['canonical'] && isset($schemas['BreadcrumbList']), 'CollectionPage or breadcrumbs are missing from rendered JSON-LD.');
         $this->require(($list['numberOfItems'] ?? null) === $expectedGoods->count()
             && array_column($list['itemListElement'] ?? [], 'url') === $expectedGoods->pluck('url')->values()->all(), 'Rendered ItemList does not match the visible catalog.');
+        $expectedBreadcrumbSchema = array_map(fn (array $item, int $index): array => [
+            '@type' => 'ListItem', 'position' => $index + 1,
+            'name' => $item['name'], 'item' => $item['url'],
+        ], $breadcrumbs, array_keys($breadcrumbs));
+        $this->require(($schemas['BreadcrumbList'][0]['itemListElement'] ?? null) === $expectedBreadcrumbSchema,
+            'Rendered BreadcrumbList does not match the catalog hierarchy.');
     }
 
     private function collectSchemas(array $value, array &$schemas): void

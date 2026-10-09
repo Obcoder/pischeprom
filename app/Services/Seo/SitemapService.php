@@ -5,6 +5,7 @@ namespace App\Services\Seo;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
+use App\Services\Catalog\PublicClassPage;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use XMLWriter;
@@ -12,6 +13,8 @@ use XMLWriter;
 class SitemapService
 {
     private const SITEMAP_NAMESPACE = 'http://www.sitemaps.org/schemas/sitemap/0.9';
+
+    public function __construct(private readonly PublicClassPage $classPages) {}
 
     public function xml(): string
     {
@@ -53,12 +56,18 @@ class SitemapService
             ->filter(fn ($page): bool => is_array($page) && filled($page['guide'] ?? null))
             ->keys()->map(fn ($id): int => (int) $id)->filter()->unique()->values();
 
+        $writtenGuideUrls = [];
         Product::query()->without(['category', 'manufacturers'])
             ->whereIn('id', $guideIds)->where('is_published', true)->orderBy('id')
-            ->chunk(500, function ($products) use ($xml): void {
+            ->chunk(500, function ($products) use ($xml, &$writtenGuideUrls): void {
                 foreach ($products as $product) {
-                    $this->writeUrl($xml, route('shop.products.show', ['product' => $product->id]),
-                        $this->lastmod($product), 'weekly', '0.8');
+                    $page = $this->classPages->catalogPageForProduct($product);
+                    $url = $page['node']['public_url'] ?? null;
+                    if (! $url || isset($writtenGuideUrls[$url])) {
+                        continue;
+                    }
+                    $writtenGuideUrls[$url] = true;
+                    $this->writeUrl($xml, $url, $this->lastmod($product), 'weekly', '0.8');
                 }
             });
 

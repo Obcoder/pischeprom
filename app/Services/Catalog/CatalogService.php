@@ -48,11 +48,30 @@ class CatalogService
             'good' => Good::with('seo')->whereIn('id', $nodes->where('entity_type', 'good')->pluck('entity_id'))->get()->keyBy('id'),
         ];
 
-        return $nodes->map(fn (CatalogNode $node): array => $this->nodePayload($node, $sources[$node->entity_type][$node->entity_id] ?? null, true));
+        $payloads = $nodes->map(fn (CatalogNode $node): array => $this->nodePayload($node, $sources[$node->entity_type][$node->entity_id] ?? null, true));
+        $paths = app(CatalogPaths::class)->forNodes($payloads, CatalogLevel::where('is_domain', true)->pluck('id')->all());
+
+        return $payloads->map(function (array $node) use ($paths): array {
+            $node['catalog_path'] = $paths[$node['id']] ?? null;
+            if ($node['catalog_path'] !== null && $node['entity_type'] !== 'good') {
+                $node['public_url'] = route('public.catalog.path', ['path' => $node['catalog_path']]);
+            }
+
+            return $node;
+        });
     }
 
     public function nodePayload(CatalogNode $node, ?Model $source = null, bool $resolved = false): array
     {
+        // Mutation responses use the same complete-tree URL calculation as the
+        // next snapshot, including renamed ancestors and collision suffixes.
+        if (! $resolved && $node->exists) {
+            $payload = $this->nodes()->firstWhere('id', $node->id);
+            if ($payload) {
+                return $payload;
+            }
+        }
+
         $data = $node->only([
             'id', 'level_id', 'parent_id', 'entity_type', 'entity_id', 'name', 'slug', 'image',
             'description', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',

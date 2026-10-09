@@ -23,7 +23,12 @@ class CheckClassPagesCommand extends Command
             ->filter(fn ($page): bool => is_array($page) && filled($page['guide'] ?? null))
             ->keys()->map(fn ($id): int => (int) $id)->filter()->unique();
         $products = Product::query()->without('manufacturers')->whereIn('id', $ids)
-            ->where('is_published', true)->orderBy('id')->get();
+            ->where('is_published', true)->orderBy('id')->get()
+            ->mapWithKeys(function (Product $product) use ($pages): array {
+                $target = $pages->catalogPageForProduct($product);
+
+                return $target ? [$product->id => $target] : [];
+            });
         if ($products->isEmpty()) {
             $this->info('No published class guides are configured.');
 
@@ -38,8 +43,8 @@ class CheckClassPagesCommand extends Command
         $originalThrowSetting = config('inertia.ssr.throw_on_error');
         config()->set('inertia.ssr.throw_on_error', true);
         try {
-            foreach ($products as $product) {
-                $page = $pages->for($product);
+            foreach ($products as $productId => $target) {
+                $page = $pages->forCatalogPage($target);
                 $request = Request::create($page['seo']['canonical'], 'GET', server: [
                     'HTTP_ACCEPT' => 'text/html,application/xhtml+xml',
                 ]);
@@ -49,7 +54,7 @@ class CheckClassPagesCommand extends Command
                 $response = $kernel->handle($request);
                 try {
                     if ($response->getStatusCode() !== 200) {
-                        $this->error('Class guide '.$product->id.' returned HTTP '.$response->getStatusCode().'.');
+                        $this->error('Class guide '.$productId.' returned HTTP '.$response->getStatusCode().'.');
 
                         return self::FAILURE;
                     }
@@ -57,7 +62,7 @@ class CheckClassPagesCommand extends Command
                 } finally {
                     $kernel->terminate($request, $response);
                 }
-                $this->info('Class guide '.$product->id.': rendered article, catalog, metadata and current URLs verified.');
+                $this->info('Class guide '.$productId.' at catalog node '.$target['node']['id'].': rendered article, catalog, metadata and current URLs verified.');
             }
         } catch (Throwable $exception) {
             // A render error can include page props; avoid dumping it in deploy logs.

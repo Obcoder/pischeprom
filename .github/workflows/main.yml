@@ -434,6 +434,7 @@ jobs:
             tests/Feature/PublicClassPageTest.php \
             tests/Feature/ClassPageSsrTest.php \
             tests/Feature/SitemapTest.php \
+            tests/Support/CreatesClassCatalog.php \
             tests/Unit/Seo/ClassPageHtmlVerifierTest.php
 
       - name: Check product translations AI PHP style

@@ -13,14 +13,17 @@ use App\Models\GoodSeo;
 use App\Models\GoodStockAvailability;
 use App\Models\PriceType;
 use App\Models\Product;
+use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\PublicGoodOffer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Tests\Support\CreatesClassCatalog;
 use Tests\TestCase;
 
 class PublicClassPageTest extends TestCase
 {
+    use CreatesClassCatalog;
     use RefreshDatabase;
 
     protected function beforeRefreshingDatabase(): void
@@ -52,9 +55,9 @@ class PublicClassPageTest extends TestCase
         $nodeCount = CatalogNode::count();
 
         $response = $this->page($guide->id)->assertOk()
-            ->assertJsonPath('component', 'Products/Show')
+            ->assertJsonPath('component', 'Catalog/Show')
             ->assertJsonPath('props.classPage.guide', 'mackerel')
-            ->assertJsonCount(0, 'props.goods')
+            ->assertJsonMissingPath('props.goods')
             ->assertJsonCount(2, 'props.classPage.goods')
             ->assertJsonPath('props.classPage.goods.0.id', $first->id)
             ->assertJsonPath('props.classPage.goods.1.id', $second->id)
@@ -182,17 +185,56 @@ class PublicClassPageTest extends TestCase
         $source->goods()->attach($good);
         $response = $this->page($guide->id)->assertOk()
             ->assertJsonPath('props.seo.h1', 'Скумбрия')
-            ->assertJsonPath('props.seo.canonical', route('shop.products.show', $guide))
+            ->assertJsonPath('props.seo.canonical', $this->classUrl())
             ->assertJsonPath('props.seo.robots', 'index,follow')
             ->assertJsonPath('props.seo.jsonLd.0.@type', 'CollectionPage')
             ->assertJsonPath('props.seo.jsonLd.0.mainEntity.@type', 'ItemList')
             ->assertJsonPath('props.seo.jsonLd.0.mainEntity.numberOfItems', 1)
-            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.1.name', 'Рыба')
-            ->assertJsonPath('props.classPage.breadcrumbs.1.url', route('category.show', $guide->category->slug));
+            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.1.name', 'Продукты пищевые')
+            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.2.name', 'Рыба')
+            ->assertJsonPath('props.classPage.breadcrumbs', [
+                ['name' => 'Главная', 'url' => route('home')],
+                ['name' => 'Продукты пищевые', 'url' => url('/catalog/produkty-pishchevye')],
+                ['name' => 'Рыба', 'url' => url('/catalog/ryba')],
+                ['name' => 'Скумбрия', 'url' => $this->classUrl()],
+            ]);
         $this->assertStringNotContainsString('Offer', json_encode($response->json('props.seo.jsonLd')));
 
         $guide->category->update(['is_published' => false]);
-        $this->page($guide->id)->assertOk()->assertJsonCount(2, 'props.classPage.breadcrumbs');
+        $this->page($guide->id)->assertNotFound();
+        $this->get('/p/124')->assertNotFound();
+        $this->get('/catalog/160/skumbriia')->assertNotFound();
+        $this->artisan('app:check-class-pages')->assertSuccessful();
+    }
+
+    public function test_legacy_addresses_redirect_directly_to_the_current_visible_catalog_node(): void
+    {
+        [$guide] = $this->products();
+        $this->get('/p/124')->assertStatus(301)->assertRedirect($this->classUrl());
+        $this->get('/catalog/160/skumbriia')->assertStatus(301)->assertRedirect($this->classUrl());
+        $guide->category->update(['slug' => 'morskaia-ryba']);
+        $newUrl = url('/catalog/morskaia-ryba/skumbriia');
+        $this->get('/p/124')->assertStatus(301)->assertRedirect($newUrl);
+        $this->get('/catalog/160/skumbriia')->assertStatus(301)->assertRedirect($newUrl);
+        $this->get($newUrl, ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.classPage.seo.canonical', $newUrl)
+            ->assertJsonPath('props.classPage.seo.jsonLd.0.url', $newUrl)
+            ->assertJsonPath('props.classPage.breadcrumbs.2.url', url('/catalog/morskaia-ryba'));
+        CatalogNode::whereKey(417)->update(['is_published' => false]);
+        $this->get($newUrl)->assertNotFound();
+        $this->get('/p/124')->assertNotFound();
+        $this->get('/catalog/160/skumbriia')->assertNotFound();
+    }
+
+    public function test_guide_requires_the_configured_node_to_remain_bound_to_its_product(): void
+    {
+        [$guide, $source] = $this->products();
+        CatalogNode::whereKey(160)->update(['entity_id' => $source->id]);
+        $this->page($guide->id)->assertOk()->assertJsonPath('props.classPage', null);
+        $this->get('/p/124')->assertNotFound();
+        $this->assertNull(app(PublicClassPage::class)->for($guide));
+        CatalogNode::whereKey(160)->delete();
+        $this->get('/p/124')->assertNotFound();
     }
 
     public function test_public_offers_are_batched_and_match_single_good_resolution(): void
@@ -216,12 +258,14 @@ class PublicClassPageTest extends TestCase
 
     private function products(): array
     {
-        $category = Category::create(['name' => 'Рыба', 'is_published' => true]);
-
-        return [
+        $category = Category::create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
+        $products = [
             Product::forceCreate(['id' => 124, 'rus' => 'Скумбрия', 'category_id' => $category->id, 'is_published' => true]),
             Product::forceCreate(['id' => 201, 'rus' => 'Скумбрия замороженная', 'category_id' => $category->id, 'is_published' => true]),
         ];
+        $this->createClassCatalog($products[0], $category);
+
+        return $products;
     }
 
     private function good(int $id, string $name, array $attributes = []): Good
@@ -244,6 +288,6 @@ class PublicClassPageTest extends TestCase
 
     private function page(int $id)
     {
-        return $this->get(route('shop.products.show', ['product' => $id]), ['X-Inertia' => 'true']);
+        return $this->get($id === 124 ? $this->classUrl() : route('shop.products.show', ['product' => $id]), ['X-Inertia' => 'true']);
     }
 }

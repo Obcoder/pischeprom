@@ -195,6 +195,8 @@ Route::get('/Ameise/Botany/', function () {
 
 Route::get('/catalog/{node}/{slug?}', [\App\Http\Controllers\Web\CatalogController::class, 'show'])
     ->whereNumber('node')->name('public.catalog.show');
+Route::get('/catalog/{path}', [\App\Http\Controllers\Web\CatalogController::class, 'path'])
+    ->where('path', '[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*')->name('public.catalog.path');
 
 Route::get('/категория/{category}', [WebCategoryController::class, 'show'])
     ->name('category.show');

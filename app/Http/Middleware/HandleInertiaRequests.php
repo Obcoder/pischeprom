@@ -6,6 +6,7 @@ use App\Domain\AiSales\Enums\BusinessLane;
 use App\Domain\AiSales\Services\ProspectingAuthorizationService;
 use App\Models\City;
 use App\Services\Auth\StaffAccess;
+use App\Services\Catalog\PublicCatalogService;
 use App\Services\Realtime\AvitoRealtimeAccess;
 use App\Services\Realtime\CommerceRealtimeAccess;
 use Illuminate\Http\Request;
@@ -31,6 +32,10 @@ class HandleInertiaRequests extends Middleware
 
             'canLogin' => LaravelRoute::has('login'),
             'canRegister' => LaravelRoute::has('register'),
+
+            'publicCategoryUrls' => fn () => $request->routeIs(
+                'home', 'public.catalog.*', 'category.show', 'public.goods.*', 'shop.products.show',
+            ) ? app(PublicCatalogService::class)->categoryUrls() : [],
 
             'realtime' => fn () => app(CommerceRealtimeAccess::class)->clientConfig($request->user()),
             'avitoRealtime' => fn () => app(AvitoRealtimeAccess::class)->clientConfig($request->user()),

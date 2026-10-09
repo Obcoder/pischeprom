@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Models\CatalogNode;
 use App\Models\Good;
 use App\Models\Product;
 use App\Services\Goods\GoodAvatarImages;
@@ -16,14 +17,45 @@ class PublicClassPage
         private readonly GoodStockService $stock,
         private readonly GoodSeoService $goodSeo,
         private readonly GoodAvatarImages $avatars,
+        private readonly PublicCatalogService $catalog,
     ) {}
 
     public function for(Product $product): ?array
     {
+        $page = $this->catalogPageForProduct($product);
+
+        return $page ? $this->forCatalogPage($page) : null;
+    }
+
+    public function catalogPageForProduct(Product $product): ?array
+    {
         $configuration = config('product-pages.pages.'.$product->id);
-        if (! $product->is_published || ! is_array($configuration) || empty($configuration['guide'])) {
+        if (! $product->is_published || ! is_array($configuration) || empty($configuration['guide'])
+            || empty($configuration['catalog_node_id'])) {
             return null;
         }
+        $node = CatalogNode::find($configuration['catalog_node_id']);
+        if (! $node || $node->entity_type !== 'product' || $node->entity_id !== $product->id) {
+            return null;
+        }
+
+        // The catalog owns effective publication, including every ancestor.
+        return $this->catalog->page($node->id);
+    }
+
+    public function forCatalogPage(array $page): ?array
+    {
+        $productId = collect(config('product-pages.pages', []))->search(fn ($configuration): bool => is_array($configuration) && filled($configuration['guide'] ?? null)
+            && (int) ($configuration['catalog_node_id'] ?? 0) === (int) $page['node']['id']);
+        if ($productId === false) {
+            return null;
+        }
+        $node = CatalogNode::find($page['node']['id']);
+        if (! $node || $node->entity_type !== 'product' || $node->entity_id !== (int) $productId
+            || ! Product::query()->whereKey($productId)->where('is_published', true)->exists()) {
+            return null;
+        }
+        $configuration = config('product-pages.pages.'.$productId);
 
         $sourceIds = array_values(array_unique(array_map('intval', $configuration['source_product_ids'] ?? [])));
         $goods = Good::query()
@@ -66,8 +98,14 @@ class PublicClassPage
         // the visible cards. Unpublished, deleted or unrelated IDs remain text.
         $inlineGoods = $cards->whereIn('id', $configuration['inline_good_ids'] ?? [])
             ->mapWithKeys(fn (array $card): array => [$card['id'] => array_intersect_key($card, array_flip(['id', 'name', 'url']))]);
-        $breadcrumbs = $this->breadcrumbs($product);
-        $seo = $this->seo($product);
+        $breadcrumbs = $this->breadcrumbs($page);
+        $seo = [
+            'title' => $configuration['title'] ?? $page['seo']['title'],
+            'description' => $configuration['description'] ?? $page['seo']['description'],
+            'h1' => $page['node']['name'],
+            'canonical' => $page['node']['public_url'],
+            'robots' => 'index,follow',
+        ];
         $seo['jsonLd'] = $this->structuredData($seo, $cards->all(), $breadcrumbs);
 
         return [
@@ -94,19 +132,12 @@ class PublicClassPage
         ];
     }
 
-    private function breadcrumbs(Product $product): array
+    private function breadcrumbs(array $page): array
     {
         $items = [['name' => 'Главная', 'url' => route('home')]];
-        if ($product->category?->is_published) {
-            $items[] = [
-                'name' => $product->category->name,
-                'url' => route('category.show', ['category' => $product->category->slug ?: $product->category->id]),
-            ];
+        foreach ([...$page['breadcrumbs'], $page['node']] as $node) {
+            $items[] = ['name' => $node['name'], 'url' => $node['public_url']];
         }
-        $items[] = [
-            'name' => $product->rus ?: $product->eng ?: 'Product #'.$product->id,
-            'url' => route('shop.products.show', ['product' => $product->id]),
-        ];
 
         return $items;
     }

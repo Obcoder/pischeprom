@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import CitySelector from '@/Components/Location/CitySelector.vue'
 import OrderCartStrip from '@/Components/Orders/OrderCartStrip.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
+import { publicCategoryUrl } from '@/utils/publicCategoryUrl.js'
 
 const props = defineProps({
     categories: {
@@ -73,7 +74,7 @@ const quickLinks = computed(() => {
 
         return {
             label: item.label,
-            href: route('category.show', category?.slug || category?.id || item.id),
+            href: categoryUrl(category || { id: item.id }),
         }
     })
 })
@@ -151,7 +152,8 @@ function hasRoute(name) {
 }
 
 function categoryUrl(category) {
-    return route('category.show', category.slug || category.id)
+    return publicCategoryUrl(category, inertiaPage.props.publicCategoryUrls,
+        route('category.show', category.slug || category.id))
 }
 
 function handleScroll() {

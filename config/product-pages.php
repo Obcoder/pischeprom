@@ -6,6 +6,7 @@ return [
     'pages' => [
         124 => [
             'guide' => 'mackerel',
+            'catalog_node_id' => 160,
             'source_product_ids' => [201],
             'inline_good_ids' => [75, 104],
             'title' => 'Скумбрия — каталог и гид по выбору | Пищепром-Сервер',

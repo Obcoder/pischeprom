@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,8 +19,15 @@ class ProductController extends Controller
         Product $product,
         GoodStockService $stock,
         PublicClassPage $classPages,
-    ): Response {
+    ): Response|RedirectResponse {
         abort_unless($product->is_published, 404);
+
+        if (config('product-pages.pages.'.$product->id.'.catalog_node_id')) {
+            $target = $classPages->catalogPageForProduct($product);
+            abort_unless($target, 404);
+
+            return redirect()->to($target['node']['public_url'], 301);
+        }
 
         $product->load([
             'category',

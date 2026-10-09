@@ -1,16 +1,24 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
+import { computed, h } from 'vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import PublicCatalogCards from '@/Components/Catalog/PublicCatalogCards.vue'
+import ClassLanding from '@/Components/Products/ClassPage/ClassLanding.vue'
+import { resolveClassGuide } from '@/Components/Products/ClassPage/guides.js'
 
 defineOptions({ layout: LayoutDefault })
-defineProps({
+const props = defineProps({
     node: { type: Object, required: true },
     breadcrumbs: { type: Array, default: () => [] },
     children: { type: Array, default: () => [] },
     properties: { type: Array, default: () => [] },
     seo: { type: Object, default: () => ({}) },
+    classPage: { type: Object, default: null },
 })
+
+const guide = computed(() => resolveClassGuide(props.classPage?.guide))
+const pageSeo = computed(() => ({ ...props.seo, ...(guide.value ? props.classPage.seo : {}) }))
+const JsonLdHead = () => h('script', { 'head-key': 'catalog-structured-data', type: 'application/ld+json' }, JSON.stringify(pageSeo.value.jsonLd).replace(/</g, '\\u003c'))
 
 function displayValue(property) {
     if (property.type === 'boolean') return property.value ? 'Да' : 'Нет'
@@ -20,17 +28,20 @@ function displayValue(property) {
 </script>
 
 <template>
-    <Head :title="seo.title">
-        <meta head-key="description" name="description" :content="seo.description">
-        <meta v-if="seo.robots" head-key="robots" name="robots" :content="seo.robots">
-        <link head-key="canonical" rel="canonical" :href="seo.canonical">
-        <meta head-key="og:title" property="og:title" :content="seo.title">
-        <meta head-key="og:description" property="og:description" :content="seo.description">
-        <meta head-key="og:url" property="og:url" :content="seo.canonical">
-        <meta v-if="seo.image" head-key="og:image" property="og:image" :content="seo.image">
+    <Head :title="pageSeo.title">
+        <meta head-key="description" name="description" :content="pageSeo.description">
+        <meta v-if="pageSeo.robots" head-key="robots" name="robots" :content="pageSeo.robots">
+        <link v-if="pageSeo.canonical" head-key="canonical" rel="canonical" :href="pageSeo.canonical">
+        <meta head-key="og:title" property="og:title" :content="pageSeo.title">
+        <meta head-key="og:description" property="og:description" :content="pageSeo.description">
+        <meta v-if="pageSeo.canonical" head-key="og:url" property="og:url" :content="pageSeo.canonical">
+        <meta v-if="pageSeo.image" head-key="og:image" property="og:image" :content="pageSeo.image">
+        <meta head-key="og:type" property="og:type" content="website">
+        <JsonLdHead v-if="pageSeo.jsonLd" />
     </Head>
 
-    <v-container class="catalog-public py-7 py-md-10">
+    <ClassLanding v-if="guide" :key="`${node.id}-${classPage.guide}`" :page="classPage" :guide="guide" />
+    <v-container v-else class="catalog-public py-7 py-md-10">
         <nav aria-label="Навигационная цепочка" class="catalog-public__breadcrumbs">
             <Link href="/">Главная</Link>
             <template v-for="ancestor in breadcrumbs" :key="ancestor.id">

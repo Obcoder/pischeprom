@@ -16,11 +16,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
 use Inertia\Ssr\SsrState;
+use Tests\Support\CreatesClassCatalog;
 use Tests\TestCase;
 
 /** Run after npm build with the actual bootstrap/ssr/ssr.js server listening. */
 class ClassPageSsrTest extends TestCase
 {
+    use CreatesClassCatalog;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -42,6 +44,7 @@ class ClassPageSsrTest extends TestCase
     public function test_real_raw_html_contains_article_current_catalog_and_metadata(): void
     {
         $product = Product::forceCreate(['id' => 124, 'rus' => 'Скумбрия', 'is_published' => true]);
+        $this->createClassCatalog($product);
         $source = Product::forceCreate(['id' => 201, 'rus' => 'Скумбрия замороженная', 'is_published' => true]);
         $good = Good::forceCreate(['id' => 75, 'name' => 'Скумбрия атлантическая 600+ неразделанная, Фарерские острова — тестовая партия',
             'slug' => 'fresh-mackerel-ssr', 'is_published' => true, 'denominator' => 20,
@@ -65,25 +68,39 @@ class ClassPageSsrTest extends TestCase
         $hidden = Good::forceCreate(['id' => 95, 'name' => 'Скрытая партия SSR', 'slug' => 'hidden-mackerel-ssr', 'is_published' => false]);
         $hidden->products()->attach($source);
 
-        $response = $this->rawPage('/p/124');
+        $this->get('/p/124')->assertStatus(301)->assertRedirect($this->classUrl());
+        $this->get('/catalog/160/skumbriia')->assertStatus(301)->assertRedirect($this->classUrl());
+        $response = $this->rawPage($this->classUrl());
         app(ClassPageHtmlVerifier::class)->verify($response->getContent(), app(PublicClassPage::class)->for($product));
         $response->assertDontSee('hidden-mackerel-ssr');
+        $this->assertHeaderFishUrl($response);
         $this->capture($response, 'configured-124');
         $this->artisan('app:check-class-pages')->assertSuccessful();
 
+        $home = $this->rawPage('/');
+        $this->assertHeaderFishUrl($home);
+        $this->capture($home, 'home');
+        $fish = $this->rawPage('/catalog/ryba');
+        $this->assertHeaderFishUrl($fish);
+        $document = new DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$fish->getContent(), LIBXML_NONET);
+        $links = (new DOMXPath($document))->query('//body//a[@href="'.$this->classUrl().'"]');
+        $this->assertGreaterThan(0, $links->length, 'The fish catalog must link to the class canonical in actual HTML.');
+        $this->capture($fish, 'fish');
+
         $good->update(['slug' => 'latest-mackerel-ssr']);
-        $response = $this->rawPage('/p/124');
+        $response = $this->rawPage($this->classUrl());
         app(ClassPageHtmlVerifier::class)->verify($response->getContent(), app(PublicClassPage::class)->for($product));
         $response->assertDontSee('fresh-mackerel-ssr');
         $this->capture($response, 'changed-slug-124');
 
         $good->update(['is_published' => false]);
-        $response = $this->rawPage('/p/124');
+        $response = $this->rawPage($this->classUrl());
         app(ClassPageHtmlVerifier::class)->verify($response->getContent(), app(PublicClassPage::class)->for($product));
         $response->assertDontSee('latest-mackerel-ssr');
         $this->capture($response, 'hidden-75');
         Good::whereIn('id', [104, 172, 173])->update(['is_published' => false]);
-        $response = $this->rawPage('/p/124');
+        $response = $this->rawPage($this->classUrl());
         app(ClassPageHtmlVerifier::class)->verify($response->getContent(), app(PublicClassPage::class)->for($product));
         $this->capture($response, 'empty-124');
     }
@@ -114,6 +131,15 @@ class ClassPageSsrTest extends TestCase
         $this->app->forgetInstance(SsrState::class);
 
         return $this->get($path)->assertOk();
+    }
+
+    private function assertHeaderFishUrl(TestResponse $response): void
+    {
+        $document = new DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NONET);
+        $links = (new DOMXPath($document))->query('//header//a[contains(@class,"app-header__quick-link") and normalize-space(.)="Рыба"]');
+        $this->assertSame(1, $links->length);
+        $this->assertSame(url('/catalog/ryba'), $links->item(0)->getAttribute('href'));
     }
 
     private function capture(TestResponse $response, string $name): void

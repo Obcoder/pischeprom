@@ -25,10 +25,27 @@ class PublicCatalogService
         $nodes = $this->visibleNodes();
         $node = $nodes->get($id);
 
-        if (! $node) {
-            return null;
-        }
+        return $node ? $this->pagePayload($node, $nodes) : null;
+    }
 
+    public function pageByPath(string $path): ?array
+    {
+        $nodes = $this->visibleNodes();
+        $matches = $nodes->whereStrict('catalog_path', $path);
+
+        return $matches->count() === 1 ? $this->pagePayload($matches->first(), $nodes) : null;
+    }
+
+    /** Public category navigation follows the catalog's actual placement. */
+    public function categoryUrls(): array
+    {
+        return $this->visibleNodes()->where('entity_type', 'category')->sortBy('id')
+            ->unique('entity_id')->pluck('public_url', 'entity_id')->all();
+    }
+
+    private function pagePayload(array $node, Collection $nodes): array
+    {
+        $id = $node['id'];
         $level = CatalogLevel::query()->with(['fields' => fn ($query) => $query->where('is_public', true)->orderBy('sort_order')->orderBy('id')])->find($node['level_id']);
         $breadcrumbs = [];
         $parent = $node['parent_id'] ? $nodes->get($node['parent_id']) : null;
