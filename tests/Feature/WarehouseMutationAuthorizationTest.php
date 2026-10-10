@@ -93,7 +93,7 @@ class WarehouseMutationAuthorizationTest extends TestCase
         $this->assertSame(Warehouse::GOODS_CODE, $warehouse->fresh()->code);
     }
 
-    public function test_unsupported_sale_changes_do_not_return_a_successful_response(): void
+    public function test_employee_sale_mutations_enforce_validation_permissions_and_supported_endpoints(): void
     {
         $user = User::factory()->create(['type' => 'employee', 'status' => 'active']);
         $user->givePermissionTo(Permission::findOrCreate('warehouse.move', 'crm'));
@@ -101,7 +101,7 @@ class WarehouseMutationAuthorizationTest extends TestCase
 
         $this->patchJson('/api/sales/1', [])->assertUnprocessable()->assertJsonValidationErrors('date');
         $this->patchJson('/api/goodsales/1', [])->assertStatus(405);
-        $this->deleteJson('/api/sales/1')->assertStatus(405);
+        $this->deleteJson('/api/sales/1')->assertForbidden();
         $this->deleteJson('/api/goodsales/1')->assertStatus(405);
     }
 
