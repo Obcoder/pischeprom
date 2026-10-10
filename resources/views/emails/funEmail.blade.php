@@ -168,11 +168,6 @@
                                                             ✉️ <a href="mailto:office@180022.ru" style="color:#ffffff; text-decoration:none;">office@180022.ru</a>
                                                         </td>
                                                     </tr>
-                                                    <tr>
-                                                        <td style="font-family:Arial, Helvetica, sans-serif; font-size:14px; line-height:20px; color:#ffffff;">
-                                                            💬 Telegram: <a href="https://t.me/pischepromserver_bot" style="color:#93c5fd; text-decoration:none;">@pischepromserver_bot</a>
-                                                        </td>
-                                                    </tr>
                                                 </table>
                                             </td>
                                             <td>

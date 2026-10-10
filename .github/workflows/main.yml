@@ -486,12 +486,9 @@ jobs:
             app/Providers/FortifyServiceProvider.php \
             app/Services/Auth \
             app/Http/Middleware/RequireStaffAuthentication.php \
-            app/Http/Middleware/VerifyTelegramWebhook.php \
             app/Http/Controllers/Web/CustomerDashboardController.php \
             app/Http/Controllers/Web/CustomerOrderController.php \
             app/Http/Controllers/Web/CustomerProfileController.php \
-            app/Services/TelegramService.php \
-            app/Services/TelegramWebhookProvisioner.php \
             app/Services/Mail/AuthorizedMailDispatchService.php \
             app/Services/Mail/SentMailArchive.php \
             app/Services/Mail/LegacySentReconstruction.php \
@@ -503,15 +500,13 @@ jobs:
             database/migrations/2026_09_27_150000_record_customer_entity_creator.php \
             database/migrations/2026_09_27_160000_backfill_legacy_local_sent_status.php \
             scripts/update-production-mail-safety-env.php \
-            scripts/provision-production-telegram.php \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
             tests/Feature/LoginPortalsTest.php \
-            tests/Feature/TelegramWebhookSecurityTest.php \
+            tests/Feature/TelegramIntegrationRetiredTest.php \
             tests/Feature/CustomerEntityBoundaryTest.php \
             tests/Feature/Mail/AuthorizedMailDeliveryTest.php \
             tests/Feature/Mail/SentMailArchiveTest.php \
-            tests/Unit/MailSafetyEnvironmentTest.php \
-            tests/Unit/TelegramWebhookProvisionerTest.php
+            tests/Unit/MailSafetyEnvironmentTest.php
 
       - name: Check homepage banner PHP style
         run: |
@@ -550,7 +545,7 @@ jobs:
             tests/Feature/Mail \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
             tests/Feature/LoginPortalsTest.php \
-            tests/Feature/TelegramWebhookSecurityTest.php \
+            tests/Feature/TelegramIntegrationRetiredTest.php \
             tests/Feature/CustomerEntityBoundaryTest.php \
             tests/Feature/MailboxRegistryTest.php \
             tests/Feature/MailTemplateApiTest.php \

@@ -26,7 +26,6 @@
         "spatie/laravel-permission": "^6.24",
         "spatie/laravel-sitemap": "^7.3",
         "symfony/http-client": "^7.2",
-        "telegram-bot/api": "^3.0",
         "tightenco/ziggy": "^2.0",
         "webklex/laravel-imap": "^6.2"
     },

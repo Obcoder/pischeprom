@@ -149,7 +149,6 @@ use App\Http\Controllers\AvitoMessengerUpdatesController;
 use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWaitingListController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
-use App\Http\Controllers\TelegramController;
 use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -1044,16 +1043,6 @@ Route::post('phone-calls/{phoneCall}/create-entity', [PhoneCallController::class
 Route::apiResource('leads', LeadController::class)
     ->only(['index', 'show', 'update']);
 //  E N D  T E L E P H O N Y
-
-/*
- * ------------------
- *  T E L E G R A M
- * __________________
- */
-Route::post('/webhook', [TelegramController::class, 'webhook'])
-    ->middleware(['throttle:120,1,telegram-webhook:', \App\Http\Middleware\VerifyTelegramWebhook::class]);
-Route::post('/telegram/send-message/{chat?}/{text?}', [TelegramController::class, 'sendMessage'])
-    ->name('api.telegram.sendMessage');
 
 /*
  * -------------------------

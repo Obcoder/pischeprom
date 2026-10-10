@@ -129,20 +129,6 @@ git cat-file -e "${commit_sha}^{commit}" \
 git merge-base --is-ancestor "$commit_sha" origin/main \
     || fail 'Requested commit is not part of origin/main.'
 
-log 'Checking Telegram connectivity and webhook configuration before maintenance.'
-(
-    telegram_preflight_dir="$(mktemp -d /tmp/pischeprom-telegram-preflight.XXXXXXXXXX)" \
-        || fail 'Telegram preflight staging could not be created.'
-    chmod 0700 "$telegram_preflight_dir"
-    trap 'rm -rf -- "$telegram_preflight_dir"' EXIT
-    mkdir -p "$telegram_preflight_dir/scripts" "$telegram_preflight_dir/app/Services"
-    git show "${commit_sha}:scripts/provision-production-telegram.php" > "$telegram_preflight_dir/scripts/provision-production-telegram.php" \
-        || fail 'The selected commit is missing the Telegram provisioner.'
-    git show "${commit_sha}:app/Services/TelegramWebhookProvisioner.php" > "$telegram_preflight_dir/app/Services/TelegramWebhookProvisioner.php" \
-        || fail 'The selected commit is missing the Telegram provisioning service.'
-    php "$telegram_preflight_dir/scripts/provision-production-telegram.php" "$target_dir" --check
-) || fail 'Telegram preflight failed before maintenance; the current release remains online.'
-
 log 'Checking the existing Timeweb credential before maintenance.'
 (
     seo_preflight_file="$(mktemp /tmp/pischeprom-seo-preflight.XXXXXXXXXX)" \
@@ -383,11 +369,6 @@ mail_safety_env_updater="$target_dir/scripts/update-production-mail-safety-env.p
 [[ -f "$mail_safety_env_updater" && ! -L "$mail_safety_env_updater" ]] \
     || fail 'Mail safety environment updater is missing or unsafe.'
 php "$mail_safety_env_updater" "$target_dir/.env"
-
-telegram_provisioner="$target_dir/scripts/provision-production-telegram.php"
-[[ -f "$telegram_provisioner" && ! -L "$telegram_provisioner" ]] \
-    || fail 'Telegram webhook provisioner is missing or unsafe.'
-php "$telegram_provisioner" "$target_dir"
 
 seo_ai_env_updater="$target_dir/scripts/update-production-goods-seo-ai-env.php"
 [[ -f "$seo_ai_env_updater" && ! -L "$seo_ai_env_updater" ]] \

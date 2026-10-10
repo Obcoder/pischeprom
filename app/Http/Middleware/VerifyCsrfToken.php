@@ -11,7 +11,5 @@ class VerifyCsrfToken extends BaseVerifier
      *
      * @var array
      */
-    protected $except = [
-        '/webhook', // добавь свой маршрут для вебхука
-    ];
+    protected $except = [];
 }

@@ -82,7 +82,6 @@ class StaffRouteAccess
         'api/avito/oauth/callback' => ['GET', 'HEAD'],
         'api/avito/webhook' => ['POST'],
         'api/max/webhook' => ['POST'],
-        'api/webhook' => ['POST'],
 
         // Mobile access is independently restricted to scoped, expiring tokens.
         'api/mobile/v1/auth/login' => ['POST'],

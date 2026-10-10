@@ -60,7 +60,9 @@ Scheduler содержит, среди прочего, синхронизаци�
 - Commercial Offers mailing — отдельные `mailing_contacts`, campaigns, recipients, consent evidence, suppression, unsubscribe, bounce и spam events;
 - Beeline phone calls, MAX chats и Avito messenger.
 
-Провайдеры и интеграции, найденные в конфигурации/коде: SMTP, Yandex/Beget mailboxes через IMAP, Unisender Go, Yandex Object Storage, Yandex Search, Wikipedia, DaData, Beeline PBX, MAX, Yandex Direct, Avito, Sber mTLS, 2GIS/Yandex maps, Valhalla, Telegram, а также Yandex AI Studio/Vision для существующего модуля price lists.
+Провайдеры и интеграции, найденные в конфигурации/коде: SMTP, Yandex/Beget mailboxes через IMAP, Unisender Go, Yandex Object Storage, Yandex Search, Wikipedia, DaData, Beeline PBX, MAX, Yandex Direct, Avito, Sber mTLS, 2GIS/Yandex maps, Valhalla, а также Yandex AI Studio/Vision для существующего модуля price lists.
+
+Неиспользуемая интеграция Telegram удалена 2026-10-10. Исторические `Chat`/`Message` и связи чатов с `Entity` сохранены; каталог, заказы, почта, MAX и Avito от Telegram API не зависят.
 
 `UnitMailController` отправляет письмо непосредственно через выбранный SMTP mailbox. На этом маршруте нет approval/compliance gate. Он объединяет прямые email Unit и email связанных Entity, то есть контекст продажи и закупки не разделён. Attachment paths из object storage не ограничены префиксом конкретного Unit.
 

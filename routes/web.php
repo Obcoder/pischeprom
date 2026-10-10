@@ -803,10 +803,3 @@ Route::prefix('Ameise/commercial-offers')
 
 /*|
 |-------------------------------------------------------------------------- */
-
-// //////////      T E L E G R A M  B O T      /////////////////////
-// / __________________________________________________________ ////
-Route::get('/Ameise/TelegramBot/', function () {
-    return Inertia::render('Ameise/TelegramBot');
-})->name('ameise.telegrambot');
-// /E N D//////////////////////////////////////////////////////////
