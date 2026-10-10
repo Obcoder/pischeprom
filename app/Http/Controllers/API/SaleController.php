@@ -297,12 +297,13 @@ class SaleController extends Controller
 
                     // Existing documents keep their unit snapshot when editing metadata or prices.
                     $historicalMeasureId = $previous
+                        && (int) $previous->measure_id > 0
                         && (int) $previous->good_id === (int) $line['good_id']
                         && (! isset($line['measure_id']) || (int) $previous->measure_id === (int) $line['measure_id'])
                         ? (int) $previous->measure_id
                         : null;
 
-                    return [...$this->normalizeSaleLine($line, $historicalMeasureId), 'id' => $lineId];
+                    return [...$this->normalizeSaleLine($line, $historicalMeasureId, allowUnconfiguredMeasure: true), 'id' => $lineId];
                 })->all()
                 : null;
 
@@ -350,7 +351,7 @@ class SaleController extends Controller
                         $previous = $line['id'] !== null ? $existing->get($line['id']) : null;
 
                         return $previous === null || $this->saleLinesChanged(collect([$previous])->keyBy('id'), [$line], stockOnly: true);
-                    })));
+                    })), allowUnconfiguredMeasure: true);
                     $keptIds = [];
                     foreach ($lines as $line) {
                         $attributes = collect($line)->only(['good_id', 'measure_id', 'quantity', 'price'])->all();
@@ -537,10 +538,10 @@ class SaleController extends Controller
         };
     }
 
-    private function normalizeSaleLine(array $line, ?int $historicalMeasureId = null): array
+    private function normalizeSaleLine(array $line, ?int $historicalMeasureId = null, bool $allowUnconfiguredMeasure = false): array
     {
         $good = Good::query()->findOrFail($line['good_id']);
-        $measureId = $historicalMeasureId ?? app(GoodMeasurement::class)->assertMeasure($good, isset($line['measure_id']) ? (int) $line['measure_id'] : null, 'goods');
+        $measureId = $historicalMeasureId ?? $this->resolveSaleMeasure($good, isset($line['measure_id']) ? (int) $line['measure_id'] : null, $allowUnconfiguredMeasure);
         $quantity = $this->nullableFloat($line['quantity'] ?? null);
         $price = $this->nullableFloat($line['price'] ?? null);
         $total = $this->nullableFloat($line['total'] ?? null);
@@ -599,12 +600,29 @@ class SaleController extends Controller
         ];
     }
 
-    private function assertCurrentUnits(array $lines): void
+    private function resolveSaleMeasure(Good $good, ?int $measureId, bool $allowUnconfiguredMeasure): int
+    {
+        // Admin corrections may supply a document unit for an unconfigured legacy good.
+        // The product card and configured accounting units retain their own rules.
+        if ($allowUnconfiguredMeasure && $good->measure_id === null) {
+            if ($measureId !== null) {
+                return $measureId;
+            }
+
+            throw ValidationException::withMessages([
+                'goods' => "Выберите единицу измерения товара «{$good->name}» в продаже.",
+            ]);
+        }
+
+        return app(GoodMeasurement::class)->assertMeasure($good, $measureId, 'goods');
+    }
+
+    private function assertCurrentUnits(array $lines, bool $allowUnconfiguredMeasure = false): void
     {
         $goods = Good::query()->whereIn('id', array_column($lines, 'good_id'))
             ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
         foreach ($lines as $line) {
-            app(GoodMeasurement::class)->assertMeasure($goods->get($line['good_id']), $line['measure_id'], 'goods');
+            $this->resolveSaleMeasure($goods->get($line['good_id']), $line['measure_id'], $allowUnconfiguredMeasure);
         }
     }
 
@@ -795,7 +813,7 @@ class SaleController extends Controller
                     'pivot' => [
                         'id' => (int) $good->pivot->id,
                         'quantity' => (float) $good->pivot->quantity,
-                        'measure_id' => (int) $good->pivot->measure_id,
+                        'measure_id' => (int) $good->pivot->measure_id > 0 ? (int) $good->pivot->measure_id : null,
                         'price' => (float) $good->pivot->price,
                         'total' => (float) $good->pivot->total,
                     ],

@@ -236,6 +236,165 @@ class SaleAdminCrudTest extends TestCase
         $this->assertDatabaseCount('good_stock_movements', 0);
     }
 
+    public function test_admin_can_correct_a_historical_unit_to_the_current_product_unit_and_sync_stock(): void
+    {
+        $this->receipt($this->good, 10, 20);
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $lineId = $sale->goods->sole()->pivot->id;
+        $movementId = GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->id;
+        $pieces = Measure::query()->create(['name' => 'шт']);
+        DB::table('goods')->where('id', $this->good->id)->update(['measure_id' => $pieces->id]);
+        $this->good->refresh();
+        $productBefore = $this->good->fresh()->getAttributes();
+        $this->receipt($this->good, 6, 35);
+        $payload = [
+            'date' => '2026-10-02',
+            'goods' => [['id' => $lineId, ...$this->line($this->good, 2, 80)]],
+        ];
+
+        $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk()
+            ->assertJsonPath('data.goods.0.pivot.measure_id', $pieces->id)
+            ->assertJsonPath('data.total', 160);
+        $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk();
+
+        $this->assertDatabaseHas('good_sale', ['id' => $lineId, 'measure_id' => $pieces->id, 'quantity' => 2, 'price' => 80]);
+        $this->assertDatabaseHas('good_stock_movements', [
+            'id' => $movementId,
+            'source_id' => $lineId,
+            'measure_id' => $pieces->id,
+            'quantity_delta' => -2,
+            'unit_price' => 35,
+        ]);
+        $this->assertSame(1, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+        $this->assertEqualsWithDelta(10, GoodStockMovement::query()->where('good_id', $this->good->id)
+            ->where('measure_id', $this->measure->id)->sum('quantity_delta'), 0.000001);
+        $this->assertEqualsWithDelta(4, $this->balance($this->good), 0.000001);
+        $this->assertSame($productBefore, $this->good->fresh()->getAttributes());
+    }
+
+    public function test_sale_unit_correction_rejects_a_unit_that_differs_from_the_product_unit(): void
+    {
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $lineBefore = DB::table('good_sale')->where('sale_id', $sale->id)->sole();
+        $movementBefore = GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->getAttributes();
+        $productBefore = $this->good->fresh()->getAttributes();
+        $pieces = Measure::query()->create(['name' => 'шт']);
+
+        $this->patchJson("/api/sales/{$sale->id}", [
+            'date' => '2026-10-02',
+            'goods' => [['id' => $lineBefore->id, ...$this->line($this->good, 3, 120), 'measure_id' => $pieces->id]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('goods');
+
+        $this->assertEquals($lineBefore, DB::table('good_sale')->where('sale_id', $sale->id)->sole());
+        $this->assertSame($movementBefore, GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->getAttributes());
+        $this->assertSame($productBefore, $this->good->fresh()->getAttributes());
+        $this->assertSame('300.00', $sale->fresh()->total);
+    }
+
+    #[DataProvider('unconfiguredSaleGoods')]
+    public function test_admin_can_set_a_sale_unit_for_an_unconfigured_good_without_changing_its_card(bool $replaceGood): void
+    {
+        $this->receipt($this->good, 10, 20);
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $lineId = $sale->goods->sole()->pivot->id;
+        $movementId = GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->id;
+        $good = $replaceGood
+            ? Good::query()->create(['name' => 'Товар без единицы', 'measure_id' => null])
+            : $this->good;
+        DB::table('goods')->where('id', $good->id)->update(['measure_id' => null]);
+        $productBefore = $good->fresh()->getAttributes();
+        $pieces = Measure::query()->create(['name' => 'шт']);
+        $payload = [
+            'date' => '2026-10-02',
+            'goods' => [['id' => $lineId, 'good_id' => $good->id, 'measure_id' => $pieces->id, 'quantity' => 2, 'price' => 120]],
+        ];
+
+        $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk()
+            ->assertJsonPath('data.goods.0.pivot.measure_id', $pieces->id)
+            ->assertJsonPath('data.goods.0.measure_id', null)
+            ->assertJsonPath('data.total', 240);
+        $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk();
+
+        $this->assertDatabaseHas('good_sale', ['id' => $lineId, 'good_id' => $good->id, 'measure_id' => $pieces->id, 'quantity' => 2, 'price' => 120]);
+        $this->assertDatabaseHas('good_stock_movements', [
+            'id' => $movementId,
+            'source_id' => $lineId,
+            'good_id' => $good->id,
+            'measure_id' => $pieces->id,
+            'quantity_delta' => -2,
+        ]);
+        $this->assertSame(1, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+        $this->assertEqualsWithDelta(10, $this->balance($this->good), 0.000001);
+        $this->assertSame($productBefore, $good->fresh()->getAttributes());
+    }
+
+    public static function unconfiguredSaleGoods(): array
+    {
+        return [
+            'replace with unconfigured good' => [true],
+            'correct existing unconfigured good' => [false],
+        ];
+    }
+
+    public function test_admin_can_add_an_unconfigured_good_with_an_explicit_unit_while_editing_a_sale(): void
+    {
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $lineId = $sale->goods->sole()->pivot->id;
+        $good = Good::query()->create(['name' => 'Товар без единицы', 'measure_id' => null]);
+        $productBefore = $good->fresh()->getAttributes();
+        $pieces = Measure::query()->create(['name' => 'шт']);
+
+        $this->patchJson("/api/sales/{$sale->id}", [
+            'date' => '2026-10-02',
+            'goods' => [
+                ['id' => $lineId, ...$this->line($this->good, 3, 100)],
+                [...$this->line($good, 2, 120), 'measure_id' => $pieces->id],
+            ],
+        ])->assertOk()->assertJsonPath('data.total', 540)->assertJsonCount(2, 'data.goods');
+
+        $this->assertDatabaseHas('good_sale', ['sale_id' => $sale->id, 'good_id' => $good->id, 'measure_id' => $pieces->id, 'quantity' => 2]);
+        $this->assertDatabaseHas('good_stock_movements', ['sale_id' => $sale->id, 'good_id' => $good->id, 'measure_id' => $pieces->id, 'quantity_delta' => -2]);
+        $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+        $this->assertSame($productBefore, $good->fresh()->getAttributes());
+    }
+
+    public function test_admin_must_select_a_sale_unit_when_replacing_a_line_with_an_unconfigured_good(): void
+    {
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $lineId = $sale->goods->sole()->pivot->id;
+        $good = Good::query()->create(['name' => 'Товар без единицы', 'measure_id' => null]);
+
+        $this->patchJson("/api/sales/{$sale->id}", [
+            'date' => '2026-10-02',
+            'goods' => [['id' => $lineId, ...$this->line($good, 3, 120)]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('goods')
+            ->assertJsonPath('errors.goods.0', "Выберите единицу измерения товара «{$good->name}» в продаже.");
+
+        $this->assertDatabaseHas('good_sale', ['id' => $lineId, 'good_id' => $this->good->id, 'measure_id' => $this->measure->id, 'price' => 100]);
+        $this->assertDatabaseHas('good_stock_movements', ['sale_id' => $sale->id, 'good_id' => $this->good->id, 'quantity_delta' => -3]);
+        $this->assertNull($good->fresh()->measure_id);
+    }
+
+    public function test_sale_creation_and_appending_still_require_a_configured_product_unit(): void
+    {
+        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
+        $good = Good::query()->create(['name' => 'Товар без единицы', 'measure_id' => null]);
+        $line = [...$this->line($good, 2, 120), 'measure_id' => $this->measure->id];
+
+        $this->postJson('/api/sales', [
+            'date' => '2026-10-02',
+            'entity_id' => $this->entity->id,
+            'goods' => [$line],
+        ])->assertUnprocessable()->assertJsonValidationErrors('goods');
+        $this->postJson("/api/sales/{$sale->id}/goods", $line)
+            ->assertUnprocessable()->assertJsonValidationErrors('goods');
+
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('good_sale', 1);
+        $this->assertDatabaseCount('good_stock_movements', 1);
+        $this->assertNull($good->fresh()->measure_id);
+    }
+
     public function test_price_only_correction_publishes_change_even_when_sale_total_and_timestamp_are_unchanged(): void
     {
         $this->freezeTime();

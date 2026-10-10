@@ -104,10 +104,34 @@ function pageHarness(filename, { props = {}, purchases = false, manageSales = fa
     const component = new Function('env', `with(env){${script}}`)(environment)
     const api = component.setup(props, { expose: () => {}, emit: () => {} })
 
+    function renderModelControl(model, context = {}) {
+        function findControl(node) {
+            if (node.props?.some(prop => prop.name === 'model' && prop.exp?.content === model)) return node
+            return node.children?.map(findControl).find(Boolean)
+        }
+
+        const control = findControl(descriptor.template.ast)
+        assert.ok(control, `template contains a control for ${model}`)
+        const rendered = compileTemplate({
+            source: control.loc.source,
+            filename: absoluteFilename,
+            id: filename,
+            compilerOptions: { bindingMetadata: compiled.bindings },
+        })
+        assert.deepEqual(rendered.errors, [])
+        const renderSource = rendered.code
+            .replace(/^import \{(.+)\} from "vue"$/gm, (_, bindings) => `const {${bindings.replaceAll(' as ', ': ')}} = Vue`)
+            .replace('export function render', 'return function render')
+        const render = new Function('Vue', renderSource)({ ...Vue, resolveComponent: name => ({ name }) })
+        const setup = Vue.proxyRefs(api)
+        return render({ ...setup, ...context }, [], props, setup)
+    }
+
     return {
         api,
         page,
         requests,
+        renderModelControl,
         refresh: () => registration.load({ signal: new AbortController().signal }),
         dispose: () => disposal.forEach(callback => callback()),
         changeActor: () => {
@@ -481,6 +505,72 @@ test('Admin sale save updates headers, retained lines and new goods in one PATCH
     await pending
     assert.equal(api.saving.value, false)
     assert.equal(api.totalAmount.value, 150)
+})
+
+test('sale unit selector is editable for Admin corrections and locked for new sales or missing permission', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, page, renderModelControl } = harness
+    await loadEditableSale(harness)
+    const control = () => renderModelControl('line.measure_id', { line: api.saleForm.goods[0], index: 0 })
+    assert.equal(control().props.readonly, false, 'Admin can correct the existing line unit through the actual selector')
+    page.props.auth.permissions.sales.manage = false
+    assert.equal(control().props.readonly, true)
+    page.props.auth.permissions.sales.manage = true
+    api.openCreate()
+    assert.equal(control().props.readonly, true, 'new sales continue using the selected product unit')
+    harness.requests.at(-1).resolve([])
+    await Promise.resolve()
+})
+
+test('sale editing fills missing legacy units from products while preserving stored line units', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const sale = editableSale()
+    const original = sale.goods[0]
+    sale.goods = [
+        { ...original, measurement: { measure_id: 2 }, pivot: { ...original.pivot, id: 71, measure_id: null } },
+        { ...original, measurement: { measure_id: 2 }, pivot: { ...original.pivot, id: 72, measure_id: 0 } },
+        { ...original, measurement: { measure_id: 2 }, pivot: { ...original.pivot, id: 73, measure_id: 1 } },
+        { ...original, measure_id: 3, pivot: { ...original.pivot, id: 74, measure_id: null } },
+        { ...original, measurement: { measure_id: 0 }, measure_id: 3, pivot: { ...original.pivot, id: 75, measure_id: 0 } },
+    ]
+    await loadEditableSale(harness, sale)
+    assert.deepEqual(harness.api.saleForm.goods.map(line => line.measure_id), [2, 2, 1, 3, 3])
+    assert.deepEqual(harness.api.saleForm.goods.map(line => line.id), [71, 72, 73, 74, 75])
+    assert.equal(harness.api.canSubmitSale.value, true)
+    assert.equal(sale.goods[0].pivot.measure_id, null, 'fallback changes the draft without mutating the loaded sale')
+})
+
+test('an Admin can supply a missing sale unit through the selector and save the retained line', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests, renderModelControl } = harness
+    const sale = editableSale()
+    sale.id = 196
+    sale.goods[1].pivot.measure_id = 0
+    api.measures.value = [{ id: 1, name: 'кг' }, { id: 2, name: 'шт' }]
+    await loadEditableSale(harness, sale)
+    const line = api.saleForm.goods[1]
+    assert.equal(line.measure_id, null)
+    assert.equal(api.canSubmitSale.value, false)
+    await api.submitSale()
+    assert.equal(requests.length, 2, 'an unresolved unit prevents submitting an invalid line')
+
+    const selector = renderModelControl('line.measure_id', { line, index: 1 })
+    assert.equal(selector.props.readonly, false)
+    assert.deepEqual(selector.props.items, api.measures.value)
+    selector.props['onUpdate:modelValue'](2)
+    assert.equal(line.measure_id, 2)
+    assert.equal(api.canSubmitSale.value, true)
+    const pending = api.submitSale()
+    assert.equal(requests[2].method, 'PATCH')
+    assert.equal(requests[2].url, '/api/sales/196')
+    assert.deepEqual(requests[2].body.goods[1], {
+        id: 72, good_id: 132, measure_id: 2, quantity: 3, price: 30, total: 90,
+    })
+    requests[2].resolve({ data: { ...sale, total: 250 } })
+    await Promise.resolve()
+    requests[3].resolve({ data: [{ ...sale, total: 250 }], meta: { total: 1, total_amount: 250 } })
+    await pending
+    assert.equal(api.dialog.value, false)
 })
 
 test('sale form validates every selected good and allows removing all lines when editing', async () => {

@@ -12,6 +12,7 @@ import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
 const page = usePage()
 const canManageSales = computed(() => page.props.auth?.permissions?.sales?.manage === true)
+const canEditSaleMeasures = computed(() => canManageSales.value && editingSaleId.value !== null)
 const resource = useRealtimeResource({
     key: 'grossbuch-sales',
     initialValue: { rows: [], totalItems: 0, totalAmount: 0, months: [], selectedSale: null, stockRows: null },
@@ -162,7 +163,7 @@ const canSubmitSale = computed(() => {
             nullableNumber(line.total),
         ].filter((value) => value !== null).length
 
-        return Boolean(line.measure_id && filledValues >= 2
+        return Boolean(normalizedMeasureId(line.measure_id) && filledValues >= 2
             && (nullableNumber(line.quantity) === null || toNumber(line.quantity) >= 0.000001)
             && (nullableNumber(line.price) === null || toNumber(line.price) >= 0)
             && (nullableNumber(line.total) === null || toNumber(line.total) >= 0))
@@ -171,6 +172,8 @@ const canSubmitSale = computed(() => {
     return hasBase && validLines && (!saleForm.manualTotal || hasManualTotal)
         && (hasManualTotal || lines.length > 0 || editingSaleId.value !== null)
 })
+
+const hasMissingSaleMeasures = computed(() => saleForm.goods.some((line) => line.good_id && !normalizedMeasureId(line.measure_id)))
 
 const canAttachGood = computed(() => {
     const filledValues = [
@@ -307,6 +310,15 @@ function goodHref(good) {
 
 function measureTitle(id) {
     return measuresById.value.get(Number(id))?.name || '—'
+}
+
+function normalizedMeasureId(value) {
+    const id = Number(value)
+    return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+function goodMeasureId(good) {
+    return normalizedMeasureId(good?.measurement?.measure_id) ?? normalizedMeasureId(good?.measure_id)
 }
 
 function lineGood(line) {
@@ -602,7 +614,7 @@ async function openSaleEdit(item) {
         saleForm.goods = saleGoods(sale).map((good) => ({
             id: good.pivot.id,
             good_id: good.id,
-            measure_id: good.pivot.measure_id,
+            measure_id: normalizedMeasureId(good.pivot.measure_id) ?? goodMeasureId(good),
             quantity: good.pivot.quantity,
             price: good.pivot.price,
             total: round(good.pivot.total ?? toNumber(good.pivot.quantity) * toNumber(good.pivot.price), 2),
@@ -759,7 +771,7 @@ function removeLine(index) {
 
 function handleGoodSelected(line) {
     const good = lineGood(line)
-    line.measure_id = good?.measurement?.measure_id ?? good?.measure_id ?? null
+    line.measure_id = goodMeasureId(good)
     return good
 }
 
@@ -1543,10 +1555,12 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++; editRequestId++ })
 
                             <v-select
                                 v-model="line.measure_id"
-                                readonly
+                                :readonly="!canEditSaleMeasures"
+                                :error="Boolean(line.good_id && !normalizedMeasureId(line.measure_id))"
                                 :items="measures"
                                 item-title="name"
                                 item-value="id"
+                                placeholder="Выберите"
                                 :aria-label="`Единица измерения, позиция ${index + 1}`"
                                 variant="solo-filled"
                                 density="compact"
@@ -1587,6 +1601,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++; editRequestId++ })
                             />
                         </div>
                     </div>
+
+                    <v-alert v-if="canEditSaleMeasures && hasMissingSaleMeasures" type="info" variant="tonal" density="compact" class="mt-3" role="status">
+                        Для сохранения продажи выберите единицу измерения у отмеченных позиций.
+                    </v-alert>
 
                     <div class="sale-dialog__footer-line">
                         <v-btn color="#0f766e" variant="flat" density="compact" prepend-icon="mdi-plus" @click="addLine">
