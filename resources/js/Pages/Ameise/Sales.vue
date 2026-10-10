@@ -17,7 +17,7 @@ defineOptions({
 })
 const date = useDate()
 
-const tab = ref()
+const tab = ref('sales')
 
 const buildings = ref([])
 const cities = ref([])
@@ -31,6 +31,8 @@ const resource = useRealtimeResource({
 })
 const { sales, sale } = toRefs(resource.state)
 const loadError = ref('')
+const loadingSale = ref(false)
+const selectedSaleId = ref(null)
 let salesRequestSequence = 0
 let saleRequestSequence = 0
 const telephones = ref([])
@@ -183,8 +185,9 @@ async function indexSales({ background = false, signal } = {}) {
         if (requestId !== salesRequestSequence || signal?.aborted) return
         sales.value = response.data
         loadError.value = ''
-        if (showFormAttachGood.value && formAttachGood.sale_id) {
-            await showSale(formAttachGood.sale_id, { background, signal })
+        const currentSaleId = showFormAttachGood.value ? formAttachGood.sale_id : selectedSaleId.value
+        if (currentSaleId) {
+            await showSale(currentSaleId, { background, signal })
         }
     } catch (error) {
         if (requestId !== salesRequestSequence || signal?.aborted || axios.isCancel(error)) return
@@ -195,6 +198,12 @@ async function indexSales({ background = false, signal } = {}) {
 async function showSale(id, { background = false, signal } = {}) {
     signal ||= resource.signal
     const requestId = ++saleRequestSequence
+    selectedSaleId.value = id
+    if (!background) {
+        sale.value = null
+        loadError.value = ''
+        loadingSale.value = true
+    }
     try {
         const response = await axios.get(route('sales.show', id), { signal })
         if (requestId !== saleRequestSequence || signal?.aborted) return
@@ -203,13 +212,26 @@ async function showSale(id, { background = false, signal } = {}) {
         if (requestId !== saleRequestSequence || signal?.aborted || axios.isCancel(error)) return
         if (error?.response?.status === 404) {
             sale.value = null
+            selectedSaleId.value = null
             showFormAttachGood.value = false
             loadError.value = 'Продажа удалена. Список обновлён.'
             return
         }
         loadError.value = error?.response?.data?.message || 'Не удалось обновить данные продажи.'
         if (background) throw error
+    } finally {
+        if (requestId === saleRequestSequence) loadingSale.value = false
     }
+}
+async function openLinkedSale(search = typeof window === 'undefined' ? '' : window.location.search) {
+    const rawId = new URLSearchParams(search).get('sale_id')
+    if (rawId === null) return
+    if (!/^[1-9]\d*$/.test(rawId) || !Number.isSafeInteger(Number(rawId))) {
+        loadError.value = 'Некорректный номер продажи в ссылке.'
+        return
+    }
+    tab.value = 'sales'
+    await showSale(Number(rawId))
 }
 let formSale = useForm({
     request_id: null,
@@ -299,7 +321,7 @@ onMounted(()=>{
     indexEntityClassifications()
     indexGoods()
     indexMeasures()
-    indexSales()
+    indexSales().then(() => openLinkedSale())
     indexTelephones()
 })
 onBeforeUnmount(() => {
@@ -493,7 +515,7 @@ onBeforeUnmount(() => {
                                                                 <v-sheet>
                                                                     <v-row>
                                                                         <v-col>
-                                                                            <div><label>Total</label>{{sale.total}}</div>
+                                                                            <div><label>Total</label>{{sale?.total ?? '—'}}</div>
                                                                         </v-col>
                                                                         <v-col>
                                                                             <label>Position Sum</label><span>{{formAttachGood.quantity * formAttachGood.price}}</span>
@@ -528,6 +550,15 @@ onBeforeUnmount(() => {
                                         </v-snackbar>
                                     </v-col>
                                     <v-col>
+                                        <v-progress-linear v-if="loadingSale" indeterminate color="primary" class="mb-3" />
+                                        <div v-if="sale" class="d-flex align-center justify-space-between ga-3 flex-wrap mb-3">
+                                            <div>
+                                                <h2 class="text-subtitle-1 font-weight-bold">Продажа № {{ sale.id }}</h2>
+                                                <div class="text-body-2">{{ sale.entity?.name || '—' }} · {{ sale.date }}</div>
+                                                <div class="text-caption text-medium-emphasis">Сумма документа: {{ sale.total }}</div>
+                                            </div>
+                                            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" @click="openAttachDialog(sale)">Добавить товар</v-btn>
+                                        </div>
                                         <v-list density="compact"
                                         >
                                             <v-list-item v-for="good in sale?.goods ?? []">

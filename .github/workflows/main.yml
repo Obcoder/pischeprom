@@ -395,6 +395,18 @@ jobs:
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Unit/Seo
 
+      - name: Check catalog warehouse and product operations PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/GoodStockMovementController.php \
+            app/Http/Controllers/API/ProductController.php \
+            app/Http/Controllers/API/PurchaseController.php \
+            app/Http/Resources/PurchaseResource.php \
+            app/Models/Purchase.php \
+            tests/Feature/CatalogProductOperationsTest.php \
+            tests/Feature/GoodStockMutationTest.php \
+            tests/Feature/PurchaseGoodsStockTest.php
+
       - name: Check hierarchical catalog and public showcase PHP style
         run: |
           vendor/bin/pint --test \
@@ -578,6 +590,7 @@ jobs:
             tests/Feature/CustomerCartCheckoutTest.php \
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Feature/ProductTranslationsAiTest.php \
+            tests/Feature/CatalogProductOperationsTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \
             tests/Feature/SaleGoodAttachmentTest.php \

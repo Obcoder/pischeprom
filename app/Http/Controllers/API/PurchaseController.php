@@ -44,8 +44,12 @@ class PurchaseController extends Controller
         $this->applyRelationFilters($purchases, $request);
         $this->applySort($purchases, $sortBy, $sortDesc);
 
+        if ($request->boolean('include_stock')) {
+            $purchases->with('stockMovements.warehouse');
+        }
+
         $purchases = $purchases->paginate(
-            perPage: self::PER_PAGE,
+            perPage: min(max($request->integer('per_page', self::PER_PAGE), 1), self::PER_PAGE),
             columns: ['purchases.*'],
             pageName: 'page',
             page: $page

@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue'
 import GoodVatCheck from '../Goods/GoodVatCheck.vue'
 import { safeGalleryUrl } from './gallery.js'
-import { massUnitFactor } from '../../utils/goodMeasurement.js'
 
 const props = defineProps({
     modelValue: { type: Object, required: true },
@@ -32,14 +31,6 @@ const stats = computed(() => [
 ].map(stat => ({ ...stat, count: props.overview?.counts?.[stat.key] ?? 0 })))
 const errorFor = key => props.errors[key] || []
 const measure = computed(() => (props.options.measures || []).find(item => String(item.id) === String(props.modelValue.measure_id)))
-const massFactor = computed(() => massUnitFactor(measure.value?.name))
-const unitWeight = computed(() => massFactor.value ?? (Number(props.modelValue.unit_weight_kg) > 0 ? Number(props.modelValue.unit_weight_kg) : null))
-const legacyPrices = computed(() => props.overview?.id && !props.overview.measure_id && !props.overview.measurement?.measure_id && props.overview.counts?.prices > 0)
-const measurementExample = computed(() => {
-    if (!measure.value) return 'Выберите единицу, в которой вводятся количество и цена товара в заказах, продажах, закупках и на складе.'
-    const amount = unitWeight.value == null ? '' : ` = ${(10 * unitWeight.value).toLocaleString('ru-RU', { maximumFractionDigits: 6 })} кг`
-    return `Количество 10 означает 10 ${measure.value.name}${amount}. Цена указывается за 1 ${measure.value.name}.`
-})
 const vatTitle = rate => `${rate.title || 'НДС'} · ${rate.rate}%`
 const formatDate = value => {
     if (!value) return '—'
@@ -49,7 +40,6 @@ const formatDate = value => {
 function update(key, value) {
     if (props.disabled) return
     const next = { ...props.modelValue, [key]: value }
-    if (key === 'measure_id' && String(value) !== String(props.modelValue.measure_id)) next.unit_weight_kg = null
     emit('update:modelValue', next)
 }
 async function copy(value, label) {
@@ -61,13 +51,13 @@ async function copy(value, label) {
     } catch { clipboardMessage.value = 'Не удалось скопировать ссылку' }
 }
 function statUrl(key) {
-    const tab = key === 'purchases' ? 'quotations' : key
+    const tab = key === 'purchases' ? 'warehouse' : key
     return props.editUrl ? `${props.editUrl}${props.editUrl.includes('?') ? '&' : '?'}tab=${tab}` : undefined
 }
 function openStat(event, key) {
     if (!props.inlineNavigation || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0) return
     event.preventDefault()
-    emit('navigate', key === 'purchases' ? 'quotations' : key)
+    emit('navigate', key === 'purchases' ? 'warehouse' : key)
 }
 </script>
 
@@ -76,12 +66,7 @@ function openStat(event, key) {
         <div class="catalog-good-overview__heading"><h3><v-icon icon="mdi-package-variant-closed" size="18" /> Данные товара</h3><span v-if="overview?.id">Товар № {{ overview.id }}</span></div>
         <div class="catalog-good-overview__grid">
             <section class="catalog-good-overview__facts">
-                <v-select :model-value="modelValue.measure_id" :items="options.measures || []" item-title="name" item-value="id" label="Единица учёта товара" variant="outlined" density="compact" :disabled="disabled" :error-messages="errorFor('measure_id')" @update:model-value="update('measure_id', $event)" />
-                <p class="catalog-good-overview__measurement" role="status">{{ measurementExample }}</p>
-                <v-select v-if="legacyPrices" :model-value="modelValue.existing_price_basis || 'selected_unit'" :items="[{ title: 'За выбранную единицу — сохранить суммы', value: 'selected_unit' }, { title: 'За кг — пересчитать по массе', value: 'kg' }]" label="Единица ранее сохранённых цен" variant="outlined" density="compact" :disabled="disabled" :error-messages="errorFor('existing_price_basis')" @update:model-value="update('existing_price_basis', $event)" />
-                <p v-if="overview?.measure_id" class="catalog-good-overview__measurement">При смене единицы действующие цены пересчитываются по массе. Единицы и суммы сохранённых документов сохраняются.</p>
-                <v-text-field v-if="measure && massFactor === null" :model-value="modelValue.unit_weight_kg" :label="`Масса 1 ${measure.name}, кг`" hint="Для расчёта веса заказа. Оставьте пустым, если масса неизвестна." persistent-hint type="number" step="0.000001" min="0.000001" variant="outlined" density="compact" :disabled="disabled" :error-messages="errorFor('unit_weight_kg')" @update:model-value="update('unit_weight_kg', $event)" />
-                <v-text-field :model-value="modelValue.denominator" label="Масса упаковки, кг (справочно)" hint="Фасовка не меняет единицу количества и цены." persistent-hint type="number" step="0.001" min="0" variant="outlined" density="compact" :disabled="disabled" :error-messages="errorFor('denominator')" @update:model-value="update('denominator', $event)" />
+                <div class="catalog-good-overview__measurement"><span>Единица учёта: <strong>{{ measure?.name || 'Не настроена' }}</strong></span><v-btn variant="text" size="small" prepend-icon="mdi-warehouse" @click="emit('navigate', 'warehouse')">Настроить на складе</v-btn></div>
                 <v-autocomplete :model-value="modelValue.country_id" :items="options.countries || []" item-title="name" item-value="id" label="Страна происхождения" variant="outlined" density="compact" clearable :disabled="disabled" :error-messages="errorFor('country_id')" @update:model-value="update('country_id', $event)">
                     <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps"><template #prepend><v-avatar size="22" class="mr-2"><v-img v-if="item.raw.flag" :src="item.raw.flag" :alt="item.raw.name" cover /><span v-else>{{ item.raw.name?.slice(0, 1) }}</span></v-avatar></template></v-list-item></template>
                     <template #selection="{ item }"><span class="catalog-good-overview__country"><v-avatar size="20"><v-img v-if="item.raw.flag" :src="item.raw.flag" :alt="item.raw.name" cover /><span v-else>{{ item.raw.name?.slice(0, 1) }}</span></v-avatar>{{ item.raw.name }}</span></template>
@@ -112,7 +97,7 @@ function openStat(event, key) {
 .catalog-good-overview__heading > span { color: #8c8294; font-size: 11px; }
 .catalog-good-overview__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .catalog-good-overview__grid > section { min-width: 0; }
-.catalog-good-overview__measurement { margin: -4px 0 18px; font-size: 12px; line-height: 1.5; color: #75627f; }
+.catalog-good-overview__measurement { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin: 0 0 18px; font-size: 12px; line-height: 1.5; color: #75627f; }
 .catalog-good-overview__country { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
 .catalog-good-overview__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin: 0 0 12px; }
 .catalog-good-overview__stat { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px; padding: 8px; background: #f6f2f9; border: 1px solid #e9e1ef; border-radius: 8px; color: #8d789d; text-decoration: none; font-size: 10px; }

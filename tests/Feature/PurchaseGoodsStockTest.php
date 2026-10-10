@@ -202,6 +202,48 @@ class PurchaseGoodsStockTest extends TestCase
         $this->assertDatabaseCount('good_stock_movements', 0);
     }
 
+    public function test_product_purchase_listing_reports_each_line_stock_without_other_products(): void
+    {
+        $this->withoutMiddleware([Authenticate::class, EnsureEmailIsVerified::class]);
+        Schema::create('units', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+        });
+        Schema::create('entity_unit', function (Blueprint $table): void {
+            $table->unsignedBigInteger('entity_id');
+            $table->unsignedBigInteger('unit_id');
+        });
+        $warehouseId = $this->createGoodsWarehouse();
+        $entityId = $this->createEntity('Поставщик');
+        $measureId = $this->createMeasure('шт.');
+        $firstGoodId = $this->createGood('Нужный товар');
+        $otherGoodId = $this->createGood('Другой товар');
+        $service = app(PurchaseService::class);
+        $create = fn (int $goodId) => $service->store([
+            'date' => '2026-10-10', 'entity_id' => $entityId,
+            'items' => [['good_id' => $goodId, 'quantity' => 3, 'price' => 20, 'measure_id' => $measureId]],
+        ]);
+        $first = $create($firstGoodId);
+        $second = $create($firstGoodId);
+        $create($otherGoodId);
+
+        $this->getJson(route('purchases.index', [
+            'good_ids' => [$firstGoodId], 'include_stock' => true, 'per_page' => 1,
+        ]))->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('meta.last_page', 2)
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $second->id)
+            ->assertJsonPath('data.0.items.0.good_id', $firstGoodId)
+            ->assertJsonPath('data.0.items.0.stock_movements.0.warehouse_id', $warehouseId)
+            ->assertJsonPath('data.0.items.0.stock_movements.0.quantity', 3)
+            ->assertJsonPath('data.0.items.0.stock_movements.0.measure_id', $measureId);
+
+        $this->getJson(route('purchases.index', [
+            'good_ids' => [$firstGoodId], 'include_stock' => true, 'per_page' => 1, 'page' => 2,
+        ]))->assertOk()->assertJsonPath('data.0.id', $first->id);
+
+        $this->getJson(route('purchases.index', ['good_ids' => [$firstGoodId]]))
+            ->assertOk()->assertJsonMissingPath('data.0.items.0.stock_movements');
+    }
+
     public function test_purchase_is_rolled_back_when_the_goods_warehouse_is_missing(): void
     {
         $entityId = $this->createEntity('Поставщик');

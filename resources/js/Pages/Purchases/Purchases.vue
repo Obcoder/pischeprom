@@ -619,10 +619,28 @@ async function remove(id) {
 }
 
 onMounted(async () => {
+    const params = new URLSearchParams(window.location.search)
+    const goodId = Number(params.get('good_id') || params.get('purchase_good_id'))
+    if (Number.isInteger(goodId) && goodId > 0) filters.good_ids = [goodId]
     await Promise.all([
         loadPurchases(1),
         loadDictionaries(),
     ])
+    if (resource.signal.aborted) return
+    const purchaseId = Number(params.get('purchase_id'))
+    try {
+        if (Number.isInteger(purchaseId) && purchaseId > 0) {
+            await openEdit(purchaseId)
+        } else if (params.has('purchase_good_id') && goodsById.value.has(goodId)) {
+            resetForm()
+            form.date = new Date().toLocaleDateString('en-CA')
+            form.items[0].good_id = goodId
+            selectGoodUnit(form.items[0])
+            dialog.value = true
+        }
+    } catch (error) {
+        if (!resource.signal.aborted) errorMessage.value = error?.response?.data?.message || 'Не удалось открыть документ закупки.'
+    }
 })
 onBeforeUnmount(() => {
     listRequestId++

@@ -13,7 +13,7 @@ function harness(t, overrides = {}) {
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'good-operations', compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
     const requests = [], posts = [], emitted = []
-    const props = Vue.reactive({ goodId: 42, activeTab: 'quotations', active: false, ...overrides })
+    const props = Vue.reactive({ goodId: 42, activeTab: 'market', active: false, ...overrides })
     const environment = {
         ...Vue, useDate: () => ({ format: value => value }), route: (name, id) => `${name}/${id ?? ''}`,
         ...Object.fromEntries(['GoodQuotationCalculator', 'GoodPriceCalculationsTab', 'GoodPriceTypesTab', 'GoodPriceTypeValuesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
@@ -52,12 +52,15 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     assert.equal(h.api.defaultVatRate.value, 10)
     assert.equal(h.api.goodBoxWeight.value, 5)
     assert.equal(h.api.currencies.value.length, 1)
-    for (const key of ['quotations', 'prices', 'price-types', 'recommendations', 'collections', 'media', 'sales']) {
+    for (const key of ['market', 'prices', 'price-types', 'collections', 'media', 'sales']) {
         assert.ok(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key), key)
+    }
+    for (const key of ['quotations', 'recommendations', 'purchases', 'warehouse']) {
+        assert.equal(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key), null, key)
     }
     assert.equal(findVNode(h.render(), node => node.type === 'v-tabs'), null)
     assert.equal(findVNode(h.render(), node => node.type === 'GoodSeoTab'), null)
-    assert.ok(findVNode(h.render(), node => node.type === 'FindBuyersLauncher' && node.props['source-id'] === 42))
+    assert.equal(findVNode(h.render(), node => node.type === 'FindBuyersLauncher'), null)
     const calculator = findVNode(h.render(), node => node.type === 'GoodQuotationCalculator')
     assert.deepEqual(calculator.props.quotations, [{ id: 1 }])
     assert.deepEqual(calculator.props.purchases, [{ id: 2 }])
@@ -67,6 +70,37 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     const edit = findVNode(h.render(), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-pencil')
     edit.props.onClick()
     assert.ok(h.emitted.some(event => event[0] === 'request-basics'))
+})
+
+test('market owns supplier proposals while sales combines history, recommendations and buyer search', async t => {
+    const h = harness(t); await h.load()
+    const pane = key => findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key)
+    const marketTable = findVNode(pane('market'), node => node.type === 'v-data-table')
+    assert.deepEqual(marketTable.props.items, h.good.quotations)
+    assert.equal(findVNode(h.render(), node => node.type === 'v-data-table' && node.props.items === h.api.goodData.value.purchases), null, 'Purchases belong to the warehouse; only the calculator retains purchase data')
+    const addQuotation = findVNode(pane('market'), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-plus')
+    addQuotation.props.onClick()
+    assert.equal(h.api.dialogFormQuotation.value, true)
+    h.api.dialogFormQuotation.value = false
+
+    h.props.activeTab = 'sales'; await Vue.nextTick()
+    const sales = pane('sales')
+    assert.deepEqual(findVNode(sales, node => node.type === 'v-data-table').props.items, h.good.sales)
+    const recommendations = findVNode(sales, node => node.type === 'v-autocomplete' && node.props.multiple === '')
+    assert.deepEqual(recommendations.props.modelValue, [3])
+    recommendations.props['onUpdate:modelValue']([3, 7])
+    assert.deepEqual(h.api.recommendationIndustryIds.value, [3, 7])
+    assert.ok(findVNode(sales, node => node.type === 'FindBuyersLauncher' && node.props['source-id'] === 42))
+    assert.equal(findVNode(sales, node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-plus'), null)
+    assert.equal(findVNode(pane('market'), node => node.type === 'FindBuyersLauncher'), null)
+
+    for (const tab of ['market', 'prices', 'media']) {
+        h.props.activeTab = tab; await Vue.nextTick()
+        assert.equal(findVNode(h.render(), node => node.type === 'FindBuyersLauncher'), null, `Buyer search must stay within active sales: ${tab}`)
+    }
+    assert.equal(pane('sales').props.eager, true)
+    h.props.activeTab = 'sales'; h.props.active = false; await Vue.nextTick()
+    assert.equal(findVNode(h.render(), node => node.type === 'FindBuyersLauncher'), null)
 })
 
 test('outdated initial loads cannot replace a switched good and do not refetch dictionaries on tab changes', async t => {
@@ -84,11 +118,28 @@ test('outdated initial loads cannot replace a switched good and do not refetch d
     assert.equal(h.requests.length, 10)
 })
 
+test('leaving operations cancels loading and revisiting reloads without letting stale responses overwrite the good', async t => {
+    const h = harness(t, { activeTab: 'sales' })
+    h.props.active = true; await Vue.nextTick()
+    const abandoned = h.requests.slice()
+    h.props.active = false; await Vue.nextTick()
+    assert.ok(abandoned.every(request => request.body.signal.aborted))
+    assert.equal(h.api.pageLoading.value, false)
+    for (const request of abandoned) request.resolve(request.url.startsWith('good.fetch') ? { ...h.good, name: 'Старое имя' } : [])
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(h.api.goodData.value, null)
+    await h.load()
+    assert.equal(h.api.goodData.value.name, 'Форель')
+    assert.ok(h.api.visitedTabs.value.has('sales'))
+})
+
 test('recommendation drafts survive refresh and only successful saving clears their dirty state', async t => {
     const h = harness(t); await h.load()
     h.api.recommendationIndustryIds.value = [3, 7]
     await Vue.nextTick()
     assert.equal(h.api.dirty.value, true)
+    assert.equal(h.api.dirtyTab.value, 'sales')
+    assert.ok(h.emitted.some(event => event[0] === 'state' && event[1].dirtyTab === 'sales'))
     const reload = h.api.refresh()
     h.requests.at(-1).resolve({ ...h.good, name: 'Новое имя' }); await reload
     assert.deepEqual(h.api.recommendationIndustryIds.value, [3, 7])
@@ -107,6 +158,7 @@ test('recommendation drafts survive refresh and only successful saving clears th
     await failure
     assert.equal(h.api.pageError.value, 'Запись не сохранена')
     assert.equal(h.api.dirty.value, true)
+    assert.equal(h.api.dirtyTab.value, 'sales')
 })
 
 test('quotation creation preserves supplier, measure and package values and reports busy/dirty state', async t => {
@@ -115,6 +167,8 @@ test('quotation creation preserves supplier, measure and package values and repo
     Object.assign(h.api.formQuotation, { unit_id: 7, measure_id: 2, price: '123.45', denominator: '2.5' })
     await Vue.nextTick()
     assert.equal(h.api.dirty.value, true)
+    assert.equal(h.api.dirtyTab.value, 'market')
+    assert.ok(h.emitted.some(event => event[0] === 'state' && event[1].dirtyTab === 'market'))
     const saved = h.api.storeQuotation()
     await Vue.nextTick()
     assert.equal(h.requests.at(-1).url, 'web.quotation.store/')

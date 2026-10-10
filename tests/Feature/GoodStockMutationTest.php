@@ -106,6 +106,28 @@ class GoodStockMutationTest extends TestCase
         $this->assertDatabaseCount('good_stock_movements', 3);
     }
 
+    public function test_product_ledger_paginates_only_requested_good_and_preserves_legacy_array_response(): void
+    {
+        $first = $this->movement(10, ['moved_at' => '2026-09-01']);
+        $last = $this->movement(3, ['moved_at' => '2026-09-02']);
+        $this->movement(90, ['good_id' => 2, 'moved_at' => '2026-09-03']);
+
+        $this->getJson(route('good-stock-movements.index', [
+            'good_id' => 1, 'paginate' => true, 'per_page' => 1,
+        ]))->assertOk()->assertJsonPath('meta.total', 2)->assertJsonPath('meta.last_page', 2)
+            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $last->id);
+
+        $this->getJson(route('good-stock-movements.index', [
+            'good_id' => 1, 'paginate' => true, 'per_page' => 1, 'page' => 2,
+        ]))->assertOk()->assertJsonPath('data.0.id', $first->id);
+
+        $this->getJson(route('good-stock-movements.index', ['good_id' => 1]))
+            ->assertOk()->assertJsonCount(2)->assertJsonPath('0.id', $last->id);
+        $this->getJson(route('good-warehouse-stock.index', ['good_id' => 1]))
+            ->assertOk()->assertJsonCount(1)->assertJsonPath('0.good_id', 1)
+            ->assertJsonPath('0.quantity', 13);
+    }
+
     public function test_used_receipt_cannot_be_reduced_deleted_or_moved_to_another_good(): void
     {
         $receipt = $this->movement(10);

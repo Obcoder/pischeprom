@@ -1,11 +1,11 @@
 <script setup>
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from 'vue'
-import { goodRecordTabs, moveTab, normalizeTabOrder } from './recordTabs.js'
+import { goodRecordTabs, productRecordTabs, catalogRecordTabs, moveTab, normalizeTabOrder } from './recordTabs.js'
 
-const props = defineProps({ modelValue: { type: String, default: 'overview' }, good: { type: Boolean, default: true } })
+const props = defineProps({ modelValue: { type: String, default: 'overview' }, good: { type: Boolean, default: true }, product: { type: Boolean, default: false }, disabled: { type: Boolean, default: false } })
 const emit = defineEmits(['update:modelValue'])
-const definitions = computed(() => props.good !== false ? goodRecordTabs : goodRecordTabs.filter(tab => ['overview', 'landing'].includes(tab.id)))
-const storageKey = computed(() => props.good !== false ? 'ameise.catalog.good-tabs.v1' : 'ameise.catalog.record-tabs.v1')
+const definitions = computed(() => props.good !== false ? goodRecordTabs : props.product ? productRecordTabs : catalogRecordTabs)
+const storageKey = computed(() => props.good !== false ? 'ameise.catalog.good-tabs.v1' : props.product ? 'ameise.catalog.product-tabs.v1' : 'ameise.catalog.record-tabs.v1')
 const order = ref(normalizeTabOrder(null, definitions.value))
 const dragging = ref(null)
 const announcement = ref('')
@@ -18,7 +18,7 @@ function restoreOrder() {
     try { order.value = normalizeTabOrder(JSON.parse(localStorage.getItem(storageKey.value) || 'null'), definitions.value) }
     catch { order.value = normalizeTabOrder(null, definitions.value) }
 }
-watch(() => props.good, restoreOrder)
+watch(storageKey, restoreOrder)
 
 function revealActive() {
     row.value?.querySelector(`[data-record-tab="${props.modelValue}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
@@ -34,10 +34,11 @@ onScopeDispose(() => resizeObserver?.disconnect())
 function reorder(from, to) {
     order.value = moveTab(order.value, from, to)
     try { localStorage.setItem(storageKey.value, JSON.stringify(order.value)) } catch { /* Keep the order for this session. */ }
-    const tab = goodRecordTabs.find(item => item.id === from)
+    const tab = definitions.value.find(item => item.id === from)
     announcement.value = `${tab?.label}: позиция ${order.value.indexOf(from) + 1} из ${order.value.length}`
 }
 function dragStart(event, id) {
+    if (props.disabled) return
     dragging.value = id
     if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = 'move'
@@ -50,6 +51,7 @@ function drop(event, id) {
     dragging.value = null
 }
 function startPointer(event, id) {
+    if (props.disabled) return
     if (event.button !== 0) return
     event.preventDefault()
     pointer = { id, pointerId: event.pointerId }
@@ -66,6 +68,7 @@ function movePointer(event) {
 }
 function endPointer() { pointer = null; dragging.value = null }
 async function keydown(event, id, handle = false) {
+    if (props.disabled) return
     const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
     if (handle && direction) {
         event.preventDefault()
@@ -85,10 +88,10 @@ async function keydown(event, id, handle = false) {
 
 <template>
     <div class="catalog-record-tabs">
-        <div ref="row" class="catalog-record-tabs__row" role="tablist" :aria-label="good !== false ? 'Разделы карточки товара' : 'Разделы карточки записи'">
-            <div v-for="tab in tabs" :key="tab.id" :data-record-tab="tab.id" class="catalog-record-tabs__item" :class="{ 'is-active': modelValue === tab.id, 'is-dragging': dragging === tab.id }" role="presentation" draggable="true" @dragstart="dragStart($event, tab.id)" @dragover.prevent @drop="drop($event, tab.id)" @dragend="dragging = null">
-                <button type="button" role="tab" :aria-selected="modelValue === tab.id" :tabindex="modelValue === tab.id ? 0 : -1" @click="emit('update:modelValue', tab.id)" @keydown="keydown($event, tab.id)"><v-icon :icon="tab.icon" size="16" /><span>{{ tab.label }}</span></button>
-                <button type="button" class="catalog-record-tabs__handle" :aria-label="`Переместить вкладку ${tab.label}`" title="Перетащите вкладку или используйте стрелки ← →" @pointerdown="startPointer($event, tab.id)" @pointermove="movePointer" @pointerup="endPointer" @pointercancel="endPointer" @lostpointercapture="endPointer" @keydown="keydown($event, tab.id, true)"><v-icon icon="mdi-drag-vertical" size="14" /></button>
+        <div ref="row" class="catalog-record-tabs__row" role="tablist" :aria-label="good !== false ? 'Разделы карточки товара' : product ? 'Разделы карточки продукта' : 'Разделы карточки записи'">
+            <div v-for="tab in tabs" :key="tab.id" :data-record-tab="tab.id" class="catalog-record-tabs__item" :class="{ 'is-active': modelValue === tab.id, 'is-dragging': dragging === tab.id }" role="presentation" :draggable="!disabled" @dragstart="dragStart($event, tab.id)" @dragover.prevent @drop="drop($event, tab.id)" @dragend="dragging = null">
+                <button type="button" :disabled="disabled" role="tab" :aria-selected="modelValue === tab.id" :tabindex="modelValue === tab.id ? 0 : -1" @click="emit('update:modelValue', tab.id)" @keydown="keydown($event, tab.id)"><v-icon :icon="tab.icon" size="16" /><span>{{ tab.label }}</span></button>
+                <button type="button" :disabled="disabled" class="catalog-record-tabs__handle" :aria-label="`Переместить вкладку ${tab.label}`" title="Перетащите вкладку или используйте стрелки ← →" @pointerdown="startPointer($event, tab.id)" @pointermove="movePointer" @pointerup="endPointer" @pointercancel="endPointer" @lostpointercapture="endPointer" @keydown="keydown($event, tab.id, true)"><v-icon icon="mdi-drag-vertical" size="14" /></button>
             </div>
         </div>
         <span class="catalog-record-tabs__announcement" aria-live="polite">{{ announcement }}</span>

@@ -12,11 +12,11 @@ import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
 
 const props = defineProps({
     goodId: { type: [Number, String], required: true },
-    activeTab: { type: String, default: 'quotations' },
+    activeTab: { type: String, default: 'market' },
     active: { type: Boolean, default: true },
 })
 const emit = defineEmits(['request-basics', 'changed', 'loaded', 'state'])
-const operationTabs = ['quotations', 'prices', 'price-types', 'recommendations', 'collections', 'media', 'sales']
+const operationTabs = ['market', 'prices', 'price-types', 'collections', 'media', 'sales']
 const date = useDate()
 // --------------------------------------------------
 // STATE
@@ -89,7 +89,7 @@ const headerSales = [
     },
     {
         key: "entity.name",
-        title: "Entity",
+        title: "Покупатель",
         sortable: true,
         align: "start",
         width: "38%",
@@ -112,7 +112,7 @@ const headerSales = [
 const headerQuotations = [
     {
         key: "unit.name",
-        title: "Unit",
+        title: "Поставщик",
         align: "start",
         sortable: true,
     },
@@ -130,47 +130,15 @@ const headerQuotations = [
     },
     {
         key: "measure.name",
-        title: "Measure",
+        title: "Единица измерения",
         align: "start",
         sortable: true,
     },
     {
         key: "denominator",
-        title: "Делитель",
+        title: "Количество в упаковке",
         align: "start",
         sortable: true,
-    },
-];
-
-const headerPurchases = [
-    {
-        key: "date",
-        title: "Дата",
-        sortable: true,
-        width: "120px",
-    },
-    {
-        key: "entity.name",
-        title: "Поставщик / Entity",
-        sortable: true,
-    },
-    {
-        key: "pivot.quantity",
-        title: "Кол-во",
-        sortable: true,
-        width: "110px",
-    },
-    {
-        key: "pivot.price",
-        title: "Цена",
-        sortable: true,
-        width: "130px",
-    },
-    {
-        key: "pivot.total",
-        title: "Сумма",
-        sortable: true,
-        width: "130px",
     },
 ];
 
@@ -198,16 +166,6 @@ function formatDate(value) {
     } catch {
         return value;
     }
-}
-
-function currencyCodeById(id) {
-    if (!id) return "RUB";
-
-    return currencies.value.find((currency) => Number(currency.id) === Number(id))?.code || "RUB";
-}
-
-function purchaseCurrencyCode(item) {
-    return currencyCodeById(item?.pivot?.currency_id);
 }
 
 function entityTitle(entity) {
@@ -359,7 +317,7 @@ const recommendationDirty = computed(() => normalizedIds(recommendationIndustryI
 const quotationDirty = computed(() => formQuotation.unit_id != null || formQuotation.price != null || formQuotation.measure_id != null || Number(formQuotation.denominator) !== 1)
 const dirty = computed(() => recommendationDirty.value || quotationDirty.value)
 const busy = computed(() => savingRecommendationClassifications.value || Boolean(formQuotation.processing))
-const dirtyTab = computed(() => quotationDirty.value ? 'quotations' : recommendationDirty.value ? 'recommendations' : null)
+const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : null)
 const visitedTabs = ref(new Set())
 watch(() => props.activeTab, tab => { if (operationTabs.includes(tab)) visitedTabs.value = new Set([...visitedTabs.value, tab]) }, { immediate: true })
 watch([dirty, busy, dirtyTab], ([dirty, busy, dirtyTab]) => emit('state', { dirty, busy, dirtyTab }), { immediate: true })
@@ -387,7 +345,6 @@ defineExpose({ refresh, reset })
 
 <template>
     <section class="catalog-good-operations">
-        <div v-if="goodData" class="catalog-good-operations__toolbar"><v-btn prepend-icon="mdi-plus" size="small" variant="tonal" @click="dialogFormQuotation = true">Предложение поставщика</v-btn><FindBuyersLauncher source-type="good" :source-id="goodData.id" /></div>
         <!-- QUOTATION DIALOG -->
         <v-dialog
             v-model="dialogFormQuotation"
@@ -488,99 +445,46 @@ defineExpose({ refresh, reset })
         <v-alert v-if="pageError" type="error" variant="tonal" density="compact" class="mb-3">{{ pageError }}<v-btn v-if="!goodData" variant="text" size="small" @click="loadPageData">Повторить</v-btn></v-alert>
         <template v-if="goodData">
             <v-window :model-value="activeTab" :touch="false">
-                <!-- QUOTATIONS / PURCHASES -->
-                <v-window-item value="quotations" :eager="visitedTabs.has('quotations')">
-                    <v-row dense>
-                        <v-col cols="12" xl="6">
-                            <v-card class="h-100">
-                                <v-card-title class="d-flex align-center justify-space-between">
-                                    <span>Quotations</span>
-
-                                    <v-btn
-                                        text="+ Q"
-                                        color="indigo"
-                                        variant="tonal"
-                                        density="compact"
-                                        @click="dialogFormQuotation = true"
-                                    />
-                                </v-card-title>
-
-                                <v-card-text class="pa-0">
-                                    <v-data-table
-                                        :items="goodData.quotations || []"
-                                        :headers="headerQuotations"
-                                        items-per-page="100"
-                                        fixed-header
-                                        height="560px"
-                                        density="compact"
-                                        class="border rounded"
-                                        hover
-                                    >
-                                        <template #item.denominator="{ item }">
-                                            <span>{{ item.denominator || 1 }}</span>
-                                        </template>
-
-                                        <template #item.created_at="{ item }">
-                                            <span>{{ formatDate(item.created_at) }}</span>
-                                        </template>
-
-                                        <template #item.price="{ item }">
-                                            <span>{{ formatMoney(item.price) }}</span>
-                                        </template>
-                                    </v-data-table>
-                                </v-card-text>
-                            </v-card>
-                        </v-col>
-
-                        <v-col cols="12" xl="6">
-                            <v-card class="h-100">
-                                <v-card-title>Закупки данного товара</v-card-title>
-
-                                <v-card-text class="pa-0">
-                                    <v-data-table
-                                        :items="goodData.purchases || []"
-                                        :headers="headerPurchases"
-                                        items-per-page="50"
-                                        fixed-header
-                                        height="560px"
-                                        density="compact"
-                                        class="border rounded"
-                                        hover
-                                    >
-                                        <template #item.date="{ item }">
-                                            {{ item.date || "-" }}
-                                        </template>
-
-                                        <template #item.pivot.quantity="{ item }">
-                                            {{ item.pivot?.quantity || "—" }}
-                                        </template>
-
-                                        <template #item.pivot.price="{ item }">
-                                            <strong>{{ formatMoney(item.pivot?.price) }}</strong>
-
-                                            <span class="text-caption ml-1">
-                                                {{ purchaseCurrencyCode(item) }}
-                                            </span>
-                                        </template>
-
-                                        <template #item.pivot.total="{ item }">
-                                            <strong>{{ formatMoney(item.pivot?.total) }}</strong>
-
-                                            <span class="text-caption ml-1">
-                                                {{ purchaseCurrencyCode(item) }}
-                                            </span>
-                                        </template>
-
-                                        <template #no-data>
-                                            <div class="pa-6 text-center text-medium-emphasis">
-                                                Закупок по этому товару пока нет.
-                                            </div>
-                                        </template>
-                                    </v-data-table>
-                                </v-card-text>
-                            </v-card>
-                        </v-col>
-                    </v-row>
+                <!-- MARKET -->
+                <v-window-item value="market" :eager="visitedTabs.has('market')">
+                    <v-card>
+                        <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-3">
+                            <span>Предложения поставщиков</span>
+                            <v-btn
+                                prepend-icon="mdi-plus"
+                                size="small"
+                                variant="tonal"
+                                @click="dialogFormQuotation = true"
+                            >
+                                Предложение поставщика
+                            </v-btn>
+                        </v-card-title>
+                        <v-card-text class="pa-0">
+                            <v-data-table
+                                :items="goodData.quotations || []"
+                                :headers="headerQuotations"
+                                items-per-page="100"
+                                fixed-header
+                                height="560px"
+                                density="compact"
+                                class="border rounded"
+                                hover
+                            >
+                                <template #item.denominator="{ item }">
+                                    <span>{{ item.denominator || 1 }}</span>
+                                </template>
+                                <template #item.created_at="{ item }">
+                                    <span>{{ formatDate(item.created_at) }}</span>
+                                </template>
+                                <template #item.price="{ item }">
+                                    <span>{{ formatMoney(item.price) }}</span>
+                                </template>
+                                <template #no-data>
+                                    <div class="pa-6 text-center text-medium-emphasis">Предложений поставщиков пока нет.</div>
+                                </template>
+                            </v-data-table>
+                        </v-card-text>
+                    </v-card>
                 </v-window-item>
 
                 <!-- PRICES -->
@@ -634,8 +538,126 @@ defineExpose({ refresh, reset })
                     <GoodPriceTypesTab :currencies="currencies" />
                 </v-window-item>
 
-                <v-window-item value="recommendations" :eager="visitedTabs.has('recommendations')">
+
+
+                <v-window-item value="collections" :eager="visitedTabs.has('collections')">
                     <v-card>
+                        <v-card-title class="d-flex align-center justify-space-between">
+                            <span>Подборки товара</span>
+
+                            <v-btn
+                                color="#47765a"
+                                rounded="lg"
+                                density="compact"
+                                variant="tonal"
+                                prepend-icon="mdi-pencil"
+                                @click="emit('request-basics')"
+                            >
+                                Редактировать
+                            </v-btn>
+                        </v-card-title>
+
+                        <v-card-text>
+                            <v-row dense>
+                                <v-col
+                                    v-for="field in currentFields"
+                                    :key="field.id"
+                                    cols="12"
+                                    md="6"
+                                    xl="4"
+                                >
+                                    <v-card class="field-card h-100">
+                                        <v-card-text>
+                                            <div class="d-flex align-start justify-space-between ga-3">
+                                                <div class="min-width-0">
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        Field
+                                                    </div>
+
+                                                    <div class="text-subtitle-1 font-weight-bold">
+                                                        {{ field.title || field.name }}
+                                                    </div>
+
+                                                    <div class="text-caption text-medium-emphasis">
+                                                        /подборки/{{ field.slug || field.id }}
+                                                    </div>
+                                                </div>
+
+                                                <v-chip
+                                                    size="small"
+                                                    variant="tonal"
+                                                    :color="field.is_published ? 'green' : 'grey'"
+                                                >
+                                                    {{ field.is_published ? "published" : "hidden" }}
+                                                </v-chip>
+                                            </div>
+
+                                            <p v-if="field.description" class="text-body-2 mt-3 mb-0">
+                                                {{ field.description }}
+                                            </p>
+                                        </v-card-text>
+                                    </v-card>
+                                </v-col>
+                            </v-row>
+
+                            <v-alert
+                                v-if="!currentFields.length"
+                                type="info"
+                                variant="tonal"
+                                density="compact"
+                                class="mb-0"
+                            >
+                                Этот товар пока не входит ни в одну подборку.
+                            </v-alert>
+                        </v-card-text>
+                    </v-card>
+                </v-window-item>
+
+                <!-- MEDIA -->
+                <v-window-item value="media" :eager="visitedTabs.has('media')">
+                    <GoodMediaTab
+                        :good="goodData"
+                        @changed="changed"
+                        @ava-updated="changed"
+                    />
+                </v-window-item>
+
+                <!-- SALES -->
+                <v-window-item value="sales" :eager="visitedTabs.has('sales')">
+                    <div class="catalog-good-operations__sales-header">
+                        <div>
+                            <h3 class="text-subtitle-1 font-weight-bold">Продажи и покупатели</h3>
+                            <p class="text-body-2 text-medium-emphasis mb-0">История продаж и подбор покупателей по ОКВЭДам.</p>
+                        </div>
+                        <FindBuyersLauncher v-if="active && activeTab === 'sales'" source-type="good" :source-id="goodData.id" />
+                    </div>
+                    <v-card class="mb-4">
+                        <v-card-title>История продаж</v-card-title>
+
+                        <v-card-text class="pa-0">
+                            <v-data-table
+                                :items="goodData.sales || []"
+                                :headers="headerSales"
+                                items-per-page="100"
+                                fixed-header
+                                height="360px"
+                                density="comfortable"
+                                hover
+                            >
+                                <template #item.date="{ item }">
+                                    <span class="text-xs">{{ formatDate(item.date) }}</span>
+                                </template>
+
+                                <template #item.pivot.price="{ item }">
+                                    <span class="font-weight-bold">
+                                        {{ formatMoney(item.pivot?.price) }}
+                                    </span>
+                                </template>
+                            </v-data-table>
+                        </v-card-text>
+                    </v-card>
+
+                    <v-card class="sales-recommendations">
                         <v-card-title class="d-flex align-center justify-space-between">
                             <span>ОКВЭДы для рекомендаций</span>
 
@@ -654,7 +676,7 @@ defineExpose({ refresh, reset })
                                                 :items="industries"
                                                 :item-title="industryTitle"
                                                 item-value="id"
-                                                label="ОКВЭДы / industries"
+                                                label="ОКВЭДы покупателей"
                                                 placeholder="Выберите ОКВЭДы"
                                                 variant="outlined"
                                                 density="compact"
@@ -772,119 +794,6 @@ defineExpose({ refresh, reset })
                     </v-card>
                 </v-window-item>
 
-                <v-window-item value="collections" :eager="visitedTabs.has('collections')">
-                    <v-card>
-                        <v-card-title class="d-flex align-center justify-space-between">
-                            <span>Подборки товара</span>
-
-                            <v-btn
-                                color="#47765a"
-                                rounded="lg"
-                                density="compact"
-                                variant="tonal"
-                                prepend-icon="mdi-pencil"
-                                @click="emit('request-basics')"
-                            >
-                                Редактировать
-                            </v-btn>
-                        </v-card-title>
-
-                        <v-card-text>
-                            <v-row dense>
-                                <v-col
-                                    v-for="field in currentFields"
-                                    :key="field.id"
-                                    cols="12"
-                                    md="6"
-                                    xl="4"
-                                >
-                                    <v-card class="field-card h-100">
-                                        <v-card-text>
-                                            <div class="d-flex align-start justify-space-between ga-3">
-                                                <div class="min-width-0">
-                                                    <div class="text-caption text-medium-emphasis">
-                                                        Field
-                                                    </div>
-
-                                                    <div class="text-subtitle-1 font-weight-bold">
-                                                        {{ field.title || field.name }}
-                                                    </div>
-
-                                                    <div class="text-caption text-medium-emphasis">
-                                                        /подборки/{{ field.slug || field.id }}
-                                                    </div>
-                                                </div>
-
-                                                <v-chip
-                                                    size="small"
-                                                    variant="tonal"
-                                                    :color="field.is_published ? 'green' : 'grey'"
-                                                >
-                                                    {{ field.is_published ? "published" : "hidden" }}
-                                                </v-chip>
-                                            </div>
-
-                                            <p v-if="field.description" class="text-body-2 mt-3 mb-0">
-                                                {{ field.description }}
-                                            </p>
-                                        </v-card-text>
-                                    </v-card>
-                                </v-col>
-                            </v-row>
-
-                            <v-alert
-                                v-if="!currentFields.length"
-                                type="info"
-                                variant="tonal"
-                                density="compact"
-                                class="mb-0"
-                            >
-                                Этот товар пока не входит ни в одну подборку.
-                            </v-alert>
-                        </v-card-text>
-                    </v-card>
-                </v-window-item>
-
-                <!-- MEDIA -->
-                <v-window-item value="media" :eager="visitedTabs.has('media')">
-                    <GoodMediaTab
-                        :good="goodData"
-                        @changed="changed"
-                        @ava-updated="changed"
-                    />
-                </v-window-item>
-
-                <!-- SALES -->
-                <v-window-item value="sales" :eager="visitedTabs.has('sales')">
-                    <v-card>
-                        <v-card-title>Продажи</v-card-title>
-
-                        <v-card-text class="pa-0">
-                            <v-data-table
-                                :items="goodData.sales || []"
-                                :headers="headerSales"
-                                items-per-page="100"
-                                fixed-header
-                                height="620px"
-                                density="comfortable"
-                                hover
-                            >
-                                <template #item.date="{ item }">
-                                    <span class="text-xs">
-                                        {{ item.date }}
-                                    </span>
-                                </template>
-
-                                <template #item.pivot.price="{ item }">
-                                    <span class="font-weight-bold">
-                                        {{ formatMoney(item.pivot?.price) }}
-                                    </span>
-                                </template>
-                            </v-data-table>
-                        </v-card-text>
-                    </v-card>
-                </v-window-item>
-
             </v-window>
         </template>
     </section>
@@ -971,7 +880,7 @@ defineExpose({ refresh, reset })
 }
 
 .catalog-good-operations { min-width: 0; }
-.catalog-good-operations__toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.catalog-good-operations__sales-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .catalog-good-operations :deep(.v-card-title) { white-space: normal; }
 .catalog-good-operations :deep(.v-data-table-footer) { flex-wrap: wrap; }
 .catalog-good-operations :deep(.v-window) { overflow: visible; }

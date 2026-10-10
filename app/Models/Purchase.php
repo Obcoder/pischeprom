@@ -46,6 +46,12 @@ class Purchase extends Model
         return $this->hasMany(BankPaymentOrderDraft::class);
     }
 
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(GoodStockMovement::class)
+            ->where('source_type', GoodStockMovement::SOURCE_GOOD_PURCHASE);
+    }
+
     private function goodPurchasePivotColumns(): array
     {
         static $columns = null;

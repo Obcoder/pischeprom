@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
-import { goodRecordTabs, moveTab, normalizeTabOrder } from '../../resources/js/Components/Catalog/recordTabs.js'
+import { goodRecordTabs, productRecordTabs, catalogRecordTabs, moveTab, normalizeTabOrder } from '../../resources/js/Components/Catalog/recordTabs.js'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 
 function harness(t, saved = null, failStorage = false, overrides = {}) {
@@ -17,7 +17,7 @@ function harness(t, saved = null, failStorage = false, overrides = {}) {
     const mounted = []
     const props = Vue.reactive({ modelValue: 'seo', good: true, ...overrides })
     let pointerTarget = null
-    const env = { ...Vue, goodRecordTabs, moveTab, normalizeTabOrder, onMounted: callback => mounted.push(callback),
+    const env = { ...Vue, goodRecordTabs, productRecordTabs, catalogRecordTabs, moveTab, normalizeTabOrder, onMounted: callback => mounted.push(callback),
         document: { elementFromPoint: () => pointerTarget }, localStorage: {
             getItem() { if (failStorage) throw new Error('blocked'); return saved },
             setItem(key, value) { if (failStorage) throw new Error('blocked'); stored.push([key, value]) },
@@ -98,4 +98,18 @@ test('programmatic navigation reveals the selected tab in a narrow or reordered 
     h.props.modelValue = 'prices'
     await Vue.nextTick()
     assert.ok(revealed.some(item => item.selector.includes('prices') && item.options.inline === 'nearest'))
+})
+
+test('legacy goods orders migrate merged tabs and products keep a separate complete preference', async t => {
+    const order = normalizeTabOrder(['quotations', 'recommendations', 'purchases', 'sales'])
+    assert.deepEqual(order.slice(0, 3), ['market', 'sales', 'warehouse'])
+    assert.equal(order.filter(id => id === 'sales').length, 1)
+    const h = harness(t, null, false, { good: false, product: true, modelValue: 'translations' })
+    assert.deepEqual(h.state.order.value, productRecordTabs.map(tab => tab.id))
+    h.state.reorder('translations', 'overview')
+    assert.equal(h.stored[0][0], 'ameise.catalog.product-tabs.v1')
+    assert.match(h.state.announcement.value, /Переводы/)
+    h.props.product = false
+    await Vue.nextTick()
+    assert.deepEqual(h.state.order.value, ['overview', 'landing'])
 })

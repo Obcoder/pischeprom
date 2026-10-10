@@ -6,10 +6,12 @@ import { goodTradeCodeFields, goodTradeCodeValues } from '../../utils/goodTradeC
 import CatalogGoodOverview from './CatalogGoodOverview.vue'
 import CatalogGoodSeo from './CatalogGoodSeo.vue'
 import CatalogGoodOperations from './CatalogGoodOperations.vue'
+import CatalogGoodWarehouse from './CatalogGoodWarehouse.vue'
+import CatalogProductOperations from './CatalogProductOperations.vue'
 import CatalogRecordTabs from './CatalogRecordTabs.vue'
 import CatalogLandingEditor from './CatalogLandingEditor.vue'
 import GoodTradeCodeFields from '../Goods/GoodTradeCodeFields.vue'
-import { goodRecordTabs } from './recordTabs.js'
+import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from './recordTabs.js'
 
 const open = defineModel({ type: Boolean, default: false })
 const props = defineProps({
@@ -41,8 +43,15 @@ const goodError = ref('')
 const goodBaseline = ref('{}')
 const resetOpen = ref(false)
 const activeTab = ref('overview')
+const editorSession = ref(0)
 const seoVisited = ref(false)
 const operationsVisited = ref(false)
+const warehouseVisited = ref(false)
+const productVisited = ref(false)
+const warehouse = ref(null)
+const productOperations = ref(null)
+const warehouseState = ref({ dirty: false, busy: false })
+const productState = ref({ dirty: false, busy: false })
 const landingVisited = ref(false)
 const landingEditor = ref(null)
 const landingState = ref({ dirty: false, busy: false })
@@ -67,10 +76,13 @@ const entityTypes = [
 const currentLevel = computed(() => props.levels.find(level => level.id === form.level_id))
 const levelOptions = computed(() => [{ id: null, name: 'Без уровня' }, ...props.levels])
 const isGood = computed(() => form.entity_type === 'good')
-const busy = computed(() => saving.value || seoState.value.busy || operationsState.value.busy || landingState.value.busy)
+const isProduct = computed(() => form.entity_type === 'product')
+const busy = computed(() => saving.value || seoState.value.busy || operationsState.value.busy || warehouseState.value.busy || productState.value.busy || landingState.value.busy)
 const mainTab = computed(() => activeTab.value === 'overview')
-const operationsTab = computed(() => isGood.value && !['overview', 'seo', 'landing'].includes(activeTab.value))
-const recordTabs = computed(() => isGood.value ? goodRecordTabs : goodRecordTabs.filter(tab => ['overview', 'landing'].includes(tab.id)))
+const warehouseTab = computed(() => isGood.value && activeTab.value === 'warehouse')
+const productTab = computed(() => isProduct.value && !['overview', 'landing'].includes(activeTab.value))
+const operationsTab = computed(() => isGood.value && !['overview', 'seo', 'warehouse', 'landing'].includes(activeTab.value))
+const recordTabs = computed(() => isGood.value ? goodRecordTabs : isProduct.value ? productRecordTabs : catalogRecordTabs)
 const seoGood = computed(() => ({
     ...goodOverview.value, ...goodTradeCodeValues(goodForm),
     id: record.value?.entity_id, name: form.name, slug: form.slug,
@@ -88,7 +100,8 @@ const seoGood = computed(() => ({
         .map(field => ({ name: field.label || field.key, value: form.properties[field.key] })),
 }))
 const cardDirty = computed(() => JSON.stringify(form) !== baseline.value || Boolean(selectedFile.value)
-    || (isGood.value && (JSON.stringify(goodForm) !== goodBaseline.value || seoState.value.dirty || operationsState.value.dirty)))
+    || (isGood.value && (JSON.stringify(goodForm) !== goodBaseline.value || seoState.value.dirty || operationsState.value.dirty || warehouseState.value.dirty))
+    || (isProduct.value && productState.value.dirty))
 const dirty = computed(() => cardDirty.value || landingState.value.dirty)
 const canSave = computed(() => !busy.value && (!isGood.value || goodReady.value))
 const goodErrors = computed(() => Object.fromEntries(Object.entries(errors.value).filter(([key]) => key.startsWith('good.')).map(([key, value]) => [key.slice(5), value])))
@@ -249,17 +262,23 @@ function resetCurrent() {
     const tab = activeTab.value
     seoEditor.value?.reset()
     operations.value?.reset()
+    warehouse.value?.reset()
+    productOperations.value?.reset()
     landingEditor.value?.reset()
     reset(record.value || props.node, false)
     activeTab.value = tab
 }
 function confirmReset() { resetOpen.value = false; resetCurrent() }
+function requestTab(tab) { if (!busy.value) selectTab(tab) }
 function selectTab(tab) {
+    tab = normalizeRecordTab(tab)
     if (!recordTabs.value.some(item => item.id === tab)) return
     activeTab.value = tab
     if (tab === 'seo') seoVisited.value = true
     else if (tab === 'landing') landingVisited.value = true
-    else if (tab !== 'overview') operationsVisited.value = true
+    else if (tab === 'warehouse') warehouseVisited.value = true
+    else if (tab !== 'overview' && isGood.value) operationsVisited.value = true
+    else if (tab !== 'overview' && isProduct.value) productVisited.value = true
 }
 function updateLandingState(state) {
     landingState.value = state
@@ -272,6 +291,29 @@ function childSaved() {
 function updateOperationsState(state) {
     operationsState.value = state
     if (!state.dirty && error.value === operationsDraftMessage) error.value = ''
+}
+function updateWarehouseState(state) {
+    warehouseState.value = state
+    if (!state.dirty && error.value === operationsDraftMessage) error.value = ''
+}
+function updateProductState(state) {
+    productState.value = state
+    if (!state.dirty && error.value === operationsDraftMessage) error.value = ''
+}
+function warehouseChanged() {
+    if (operationsVisited.value) operations.value?.refresh()
+    childSaved()
+}
+function productChanged(product) {
+    if (!product || String(product.id) !== String(record.value?.entity_id)) return
+    const clean = JSON.parse(baseline.value)
+    if (typeof product.rus === 'string') {
+        if (form.name === clean.name) form.name = product.rus
+        clean.name = product.rus
+        baseline.value = JSON.stringify(clean)
+        record.value = { ...record.value, name: product.rus }
+    }
+    childSaved()
 }
 function operationsChanged(good) {
     // Media actions update the shared avatar without discarding another tab's draft.
@@ -322,11 +364,14 @@ function reset(node = props.node, resetTabs = true) {
     discardOpen.value = false; deleteOpen.value = false; resetOpen.value = false
     baseline.value = JSON.stringify(form)
     if (resetTabs) {
+        editorSession.value++
         seoVisited.value = false; operationsVisited.value = false; landingVisited.value = false
+        warehouseVisited.value = false; productVisited.value = false
+        warehouseState.value = { dirty: false, busy: false }; productState.value = { dirty: false, busy: false }
         landingState.value = { dirty: false, busy: false }
         seoState.value = { dirty: false, busy: false, ready: false, error: '' }
         operationsState.value = { dirty: false, busy: false }
-        selectTab(recordTabs.value.some(tab => tab.id === props.initialTab) ? props.initialTab : 'overview')
+        selectTab(recordTabs.value.some(tab => tab.id === normalizeRecordTab(props.initialTab)) ? props.initialTab : 'overview')
     }
     loadGoodOverview()
 }
@@ -409,7 +454,12 @@ async function save(nextTab = null) {
     }
     if (operationsState.value.dirty) {
         error.value = operationsDraftMessage
-        selectTab(operationsState.value.dirtyTab || 'recommendations')
+        selectTab(operationsState.value.dirtyTab || 'sales')
+        return
+    }
+    if (warehouseState.value.dirty || productState.value.dirty) {
+        error.value = operationsDraftMessage
+        selectTab(warehouseState.value.dirty ? 'warehouse' : productState.value.dirtyTab || 'translations')
         return
     }
     if (isGood.value && seoState.value.dirty && !seoEditor.value?.validate()) { selectTab('seo'); return }
@@ -437,6 +487,7 @@ async function save(nextTab = null) {
             : await axios.post('/api/catalog/nodes', payload)
         saved = data.data
         record.value = saved
+        if (isProduct.value && typeof saved.name === 'string') productOperations.value?.syncName(saved.name)
         // Relationship edits can relocate this placement on the server. Keep
         // the confirmed parent for retries if the subsequent avatar upload fails.
         if (own(saved, 'parent_id')) form.parent_id = saved.parent_id ?? null
@@ -469,7 +520,10 @@ async function save(nextTab = null) {
         error.value = saved ? `${phase === 'seo' ? 'Основные данные сохранены, но SEO не сохранено.' : 'Запись сохранена, но аватар не загружен.'} ${message}` : message
         partialErrorPhase.value = saved ? phase : null
         if (phase === 'seo') selectTab('seo')
-        else if (!saved && Object.keys(errors.value).length) selectTab('overview')
+        else if (!saved && Object.keys(errors.value).length) {
+            const warehouseErrors = ['good.measure_id', 'good.unit_weight_kg', 'good.denominator', 'good.existing_price_basis']
+            selectTab(isGood.value && Object.keys(errors.value).some(key => warehouseErrors.includes(key)) ? 'warehouse' : 'overview')
+        }
         if (saved) emit('changed', saved)
     } finally { saving.value = false }
 }
@@ -489,15 +543,15 @@ async function remove() {
 </script>
 
 <template>
-    <v-dialog :model-value="open" :max-width="isGood ? 1640 : 1380" :content-class="isGood ? 'catalog-node-dialog-overlay--good' : undefined" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
-        <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood }">
+    <v-dialog :model-value="open" :max-width="isGood || isProduct ? 1640 : 1380" :content-class="isGood || isProduct ? 'catalog-node-dialog-overlay--good' : undefined" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
+        <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood || isProduct }">
             <v-card-title class="catalog-node-dialog__heading">
-                <div class="catalog-node-dialog__title"><span>{{ isGood ? 'Карточка товара' : record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
+                <div class="catalog-node-dialog__title"><span>{{ isGood ? 'Карточка товара' : isProduct ? 'Карточка продукта' : record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
                 <v-chip v-if="dirty" size="small" variant="tonal" class="catalog-node-dialog__dirty">Не сохранено</v-chip>
                 <v-btn icon="mdi-close" variant="text" :disabled="busy" aria-label="Закрыть карточку" @click="requestClose" />
             </v-card-title>
             <v-divider />
-            <CatalogRecordTabs :model-value="activeTab" :good="isGood" @update:model-value="selectTab" />
+            <CatalogRecordTabs :model-value="activeTab" :good="isGood" :product="isProduct" :disabled="busy" @update:model-value="requestTab" />
             <v-card-text class="catalog-node-dialog__body">
                 <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-5">{{ error }}</v-alert>
                 <v-form v-show="mainTab" id="catalog-node-form" :disabled="busy" @submit.prevent="save">
@@ -549,7 +603,7 @@ async function remove() {
                         </section>
                     </div>
                     <div v-if="isGood && !goodReady" class="catalog-node-dialog__overview-loading" role="status"><v-progress-circular v-if="goodLoading" indeterminate size="20" width="2" color="#806592" /><v-icon v-else icon="mdi-alert-circle-outline" size="20" /><span>{{ goodLoading ? 'Загрузка данных товара…' : goodError }}</span><v-btn v-if="!goodLoading" variant="text" size="small" @click="loadGoodOverview">Повторить</v-btn></div>
-                    <CatalogGoodOverview v-if="isGood && goodReady" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :context="form" :errors="goodErrors" :disabled="saving" :active="open && mainTab && goodReady" :edit-url="record?.edit_url || ''" :inline-navigation="Boolean(record)" @update:model-value="updateGoodForm" @navigate="selectTab" />
+                    <CatalogGoodOverview v-if="isGood && goodReady" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :context="form" :errors="goodErrors" :disabled="saving" :active="open && mainTab && goodReady" :edit-url="record?.edit_url || ''" :inline-navigation="true" @update:model-value="updateGoodForm" @navigate="requestTab" />
                     <section class="catalog-node-dialog__properties">
                         <div class="catalog-node-dialog__properties-heading"><h3>Свойства<span v-if="currentLevel"> · {{ currentLevel.name }}</span></h3><v-btn variant="text" size="small" prepend-icon="mdi-tune-variant" :disabled="saving" @click="emit('schema')">Уровни и поля</v-btn></div>
                         <p v-if="!currentLevel" class="catalog-node-dialog__hint">Выберите уровень, чтобы заполнить его дополнительные свойства.</p>
@@ -564,24 +618,29 @@ async function remove() {
                         </div>
                     </section>
                 </v-form>
-                <section v-if="!record && !mainTab" class="catalog-node-dialog__create-first">
+                <section v-if="!record && !mainTab && !warehouseTab" class="catalog-node-dialog__create-first">
                     <v-icon :icon="activeTab === 'seo' ? 'mdi-magnify' : 'mdi-package-variant-closed'" size="30" />
                     <h3>{{ isGood ? 'Сначала сохраните новый товар' : 'Сначала сохраните запись каталога' }}</h3>
                     <p>После создания здесь появятся все инструменты выбранного раздела.</p>
                     <v-btn variant="flat" color="#4d315e" :disabled="!canSave || !form.name.trim()" :loading="saving" @click="save(activeTab)">{{ isGood ? 'Создать товар и продолжить' : 'Создать запись и продолжить' }}</v-btn>
                     <v-btn variant="text" @click="selectTab('overview')">Основные данные</v-btn>
                 </section>
-                <CatalogGoodSeo v-if="isGood && record && seoVisited" v-show="activeTab === 'seo'" ref="seoEditor" :good="seoGood" :active="open && activeTab === 'seo'" :disabled="saving"
+                <CatalogGoodSeo :key="editorSession" v-if="isGood && record && seoVisited" v-show="activeTab === 'seo'" ref="seoEditor" :good="seoGood" :active="open && activeTab === 'seo'" :disabled="saving"
                     @state="seoState = $event" @saved="childSaved" />
-                <CatalogGoodOperations v-if="isGood && record && operationsVisited" v-show="operationsTab" ref="operations" :good-id="record.entity_id" :active-tab="activeTab" :active="open && operationsTab"
+                <CatalogGoodOperations :key="editorSession" v-if="isGood && record && operationsVisited" v-show="operationsTab" ref="operations" :good-id="record.entity_id" :active-tab="activeTab" :active="open && operationsTab"
                     @state="updateOperationsState" @request-basics="selectTab('overview')" @changed="operationsChanged" />
+                <div v-if="warehouseTab && !goodReady" class="catalog-node-dialog__overview-loading" role="status"><v-progress-circular v-if="goodLoading" indeterminate size="20" /><span>{{ goodLoading ? 'Загрузка данных товара…' : goodError }}</span><v-btn v-if="!goodLoading" variant="text" @click="loadGoodOverview">Повторить</v-btn></div>
+                <CatalogGoodWarehouse :key="editorSession" v-if="isGood && goodReady && warehouseVisited" v-show="warehouseTab" ref="warehouse" :good-id="record?.entity_id || null" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :errors="goodErrors" :active="open && warehouseTab" :disabled="saving"
+                    @update:model-value="updateGoodForm" @state="updateWarehouseState" @changed="warehouseChanged" />
+                <CatalogProductOperations :key="editorSession" v-if="isProduct && record && productVisited" v-show="productTab" ref="productOperations" :product-id="record.entity_id" :active-tab="activeTab" :active="open && productTab"
+                    @state="updateProductState" @changed="productChanged" />
                 <CatalogLandingEditor v-if="open && record && landingVisited" v-show="activeTab === 'landing'" ref="landingEditor" :node="record" :active="activeTab === 'landing'" :disabled="saving" :card-dirty="cardDirty"
-                    @state="updateLandingState" @saved="childSaved" @navigate="selectTab" @save-card="save('landing')" />
+                    @state="updateLandingState" @saved="childSaved" @navigate="requestTab" @save-card="save('landing')" />
             </v-card-text>
             <v-divider />
             <v-card-actions class="catalog-node-dialog__actions">
                 <v-btn v-if="record" color="error" variant="text" prepend-icon="mdi-delete-outline" :disabled="busy" @click="deleteOpen = true">Удалить</v-btn>
-                <v-spacer /><v-btn variant="text" :disabled="busy" @click="requestReset">Сбросить</v-btn><v-btn variant="text" :disabled="busy" @click="requestClose">{{ operationsTab || activeTab === 'landing' ? 'Закрыть' : 'Отмена' }}</v-btn><v-btn v-if="!operationsTab && activeTab !== 'landing'" color="#4d315e" variant="flat" :loading="saving" :disabled="!canSave" prepend-icon="mdi-check" @click="save()">Сохранить</v-btn>
+                <v-spacer /><v-btn variant="text" :disabled="busy" @click="requestReset">Сбросить</v-btn><v-btn variant="text" :disabled="busy" @click="requestClose">{{ operationsTab || productTab || activeTab === 'landing' ? 'Закрыть' : 'Отмена' }}</v-btn><v-btn v-if="!operationsTab && !productTab && activeTab !== 'landing'" color="#4d315e" variant="flat" :loading="saving" :disabled="!canSave" prepend-icon="mdi-check" @click="save()">Сохранить</v-btn>
             </v-card-actions>
         </v-card>
     </v-dialog>

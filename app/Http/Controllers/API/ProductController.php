@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Action;
 use App\Models\Product;
 use App\Models\Sale;
 use Illuminate\Http\Request;
@@ -39,9 +40,9 @@ class ProductController extends Controller
         $product = Product::create($data);
 
         return Product::with([
-                                 'category',
-                                 'manufacturers',
-                             ])->findOrFail($product->id);
+            'category',
+            'manufacturers',
+        ])->findOrFail($product->id);
     }
 
     /**
@@ -50,14 +51,22 @@ class ProductController extends Controller
     public function show(string $id)
     {
         $product = Product::with([
-                                     'category',
-                                     'manufacturers',
-                                     'components',
-                                     'goods.quotations',
-                                     'units',
-                                     'consumers.unit.uris',
-                                     'consumers.measure',
-                                 ])->findOrFail($id);
+            'category',
+            'manufacturers',
+            'components',
+            'goods.quotations',
+            'units',
+            'consumers.unit.uris',
+            'consumers.measure',
+        ])->findOrFail($id);
+
+        $actions = Action::query()
+            ->whereIn('id', $product->units->pluck('pivot.action_id')->filter()->unique())
+            ->get(['id', 'name'])
+            ->keyBy('id');
+        foreach ($product->units as $unit) {
+            $unit->setAttribute('product_action', $actions->get($unit->pivot->action_id));
+        }
 
         $product->setAttribute(
             'sales',
@@ -93,8 +102,8 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json([
-                                    'message' => 'Product deleted successfully',
-                                ]);
+            'message' => 'Product deleted successfully',
+        ]);
     }
 
     private function rules(): array

@@ -62,13 +62,13 @@ test('products include category context, fields retain labels and saved counters
     fields.props['onUpdate:modelValue']([])
     assert.deepEqual(h.props.modelValue.fields, [])
     assert.deepEqual(h.api.stats.value.map(stat => stat.count), [5, 4, 3, 2])
-    assert.equal(h.api.statUrl('purchases'), '/ameise/good/42?tab=quotations')
+    assert.equal(h.api.statUrl('purchases'), '/ameise/good/42?tab=warehouse')
     assert.ok(findVNode(h.render(), node => hasClass(node, 'catalog-good-overview__stat') && node.props.href === '/ameise/good/42?tab=media'))
     h.props.inlineNavigation = true
     let prevented = false
     h.api.openStat({ preventDefault() { prevented = true } }, 'purchases')
     assert.equal(prevented, true)
-    assert.deepEqual(h.emitted.at(-1), ['navigate', 'quotations'])
+    assert.deepEqual(h.emitted.at(-1), ['navigate', 'warehouse'])
     assert.equal(findVNode(h.render(), node => hasClass(node, 'catalog-good-overview__stat') && node.props.href === '/ameise/good/42?tab=media').props.target, undefined)
     const country = findVNode(h.render(), node => node.type === 'v-autocomplete' && node.props.label === 'Страна происхождения')
     assert.equal(country.props.items[0].flag, '/ru.svg')
@@ -92,38 +92,14 @@ test('both saved avatar URLs can be copied and unavailable clipboard produces a 
     assert.equal(h.api.clipboardMessage.value, 'Не удалось скопировать ссылку')
 })
 
-test('the accounting unit explains ten kilograms versus ten boxes independently of packaging', t => {
+test('accounting settings are accessed through warehouse without duplicating the editor', t => {
     const h = harness(t)
-    h.props.options.measures = [{ id: 1, name: 'кг' }, { id: 2, name: 'коробка' }]
-    assert.match(h.api.measurementExample.value, /Выберите единицу/)
-    const select = findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Единица учёта товара')
-    select.props['onUpdate:modelValue'](1)
-    assert.match(h.api.measurementExample.value, /10 кг = 10 кг/)
-    assert.match(h.api.measurementExample.value, /Цена указывается за 1 кг/)
-    h.props.modelValue.unit_weight_kg = 10
-    assert.equal(h.api.unitWeight.value, 1)
-    select.props['onUpdate:modelValue'](2)
-    assert.equal(h.props.modelValue.unit_weight_kg, null)
-    assert.equal(h.api.unitWeight.value, null)
-    h.props.modelValue.unit_weight_kg = 10
-    assert.match(h.api.measurementExample.value, /10 коробка = 100 кг/)
-    assert.equal(h.props.modelValue.denominator, 25)
-    const weight = findVNode(h.render(), node => node.type === 'v-text-field' && node.props.label === 'Масса 1 коробка, кг')
-    assert.ok(weight)
-    weight.props['onUpdate:modelValue']('12.5')
-    assert.match(h.api.measurementExample.value, /125 кг/)
-})
-
-test('first configuration asks for the basis of existing prices and keeps price amounts by default', t => {
-    const h = harness(t)
-    const selector = findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Единица ранее сохранённых цен')
-    assert.ok(selector)
-    assert.equal(selector.props['model-value'], 'selected_unit')
-    selector.props['onUpdate:modelValue']('kg')
-    assert.equal(h.props.modelValue.existing_price_basis, 'kg')
-    h.props.overview.measure_id = 1
-    assert.equal(findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Единица ранее сохранённых цен'), null)
-    h.props.overview.measure_id = null
-    h.props.overview.counts.prices = 0
-    assert.equal(findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Единица ранее сохранённых цен'), null)
+    h.props.options.measures = [{ id: 1, name: 'кг' }]
+    h.props.modelValue.measure_id = 1
+    assert.equal(h.api.measure.value.name, 'кг')
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'Единица учёта товара'), null)
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'Масса упаковки, кг (справочно)'), null)
+    const button = findVNode(h.render(), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-warehouse')
+    button.props.onClick()
+    assert.deepEqual(h.emitted.at(-1), ['navigate', 'warehouse'])
 })

@@ -85,24 +85,29 @@ test('missing catalog record produces a retryable error instead of a new or unre
 
 function pageHarness(t, tab, api = {}) {
     const location = { href: '' }
+    const requests = []
     const environment = {
         ...Vue, onMounted() {}, useHead() {}, useDate: () => ({ format: value => value }),
         usePage: () => ({ url: `/Ameise/goods/42?tab=${tab}`, props: { ziggy: { location: 'https://example.test/Ameise/goods/42' } } }),
-        useForm: value => Vue.reactive(value), route: (name, id) => `${name}/${id ?? ''}`, axios: api,
-        window: { location },
-        ...Object.fromEntries(['VerwalterLayout', 'CatalogGoodRecordDialog', 'CatalogGoodOperations'].map(name => [name, name])),
+        useForm: value => Vue.reactive(value), route: (name, id) => `${name}/${id ?? ''}`,
+        axios: { get(url, options) {
+            if (api.get) return api.get(url, options)
+            return new Promise((resolve, reject) => requests.push({ url, options, resolve: data => resolve({ data }), reject }))
+        } },
+        window: { location, addEventListener() {}, removeEventListener() {} },
+        ...Object.fromEntries(['VerwalterLayout', 'CatalogGoodRecordDialog', 'CatalogGoodOperations', 'CatalogGoodWarehouse'].map(name => [name, name])),
     }
     const { definition, template } = component('resources/js/Pages/Ameise/Good.vue', environment)
-    const props = { good: { id: 42 } }
+    const props = Vue.reactive({ good: { id: 42 } })
     const scope = Vue.effectScope()
     const state = scope.run(() => definition.setup(props, { expose() {}, emit() {} }))
     t.after(() => scope.stop())
     state.goodData.value = { id: 42, name: 'Товар', fields: [] }
-    return { state, location, render: templateRenderer(template, state, props) }
+    return { state, props, location, requests, render: templateRenderer(template, state, props) }
 }
 
 test('good page replaces Overview with the shared record action and supports statistic deep links', t => {
-    for (const [query, expected] of [['overview', 'quotations'], ['prices', 'prices'], ['media', 'media'], ['unknown', 'quotations']]) {
+    for (const [query, expected] of [['overview', 'market'], ['prices', 'prices'], ['media', 'media'], ['unknown', 'market'], ['market', 'market'], ['warehouse', 'warehouse'], ['quotations', 'market'], ['recommendations', 'sales'], ['purchases', 'warehouse']]) {
         const { state, render } = pageHarness(t, query)
         assert.equal(state.activeTab.value, expected)
         assert.equal(findVNode(render(), node => node.type === 'v-tab' && node.props.value === 'overview'), null)
@@ -116,7 +121,7 @@ test('good page replaces Overview with the shared record action and supports sta
 
 test('the legacy SEO deep link opens the shared SEO card and collections return to its base fields', t => {
     const { state, render } = pageHarness(t, 'seo')
-    assert.equal(state.activeTab.value, 'quotations')
+    assert.equal(state.activeTab.value, 'market')
     assert.equal(state.recordOpen.value, true)
     assert.equal(state.recordInitialTab.value, 'seo')
     assert.equal(findVNode(render(), node => node.type === 'CatalogGoodRecordDialog').props['initial-tab'], 'seo')
@@ -126,6 +131,92 @@ test('the legacy SEO deep link opens the shared SEO card and collections return 
     operations.props.onRequestBasics()
     assert.equal(state.recordOpen.value, true)
     assert.equal(state.recordInitialTab.value, 'overview')
+})
+
+test('standalone warehouse loads saved units lazily and delegates their editing while keeping stock actions enabled', async t => {
+    const h = pageHarness(t, 'market')
+    assert.equal(h.requests.length, 0)
+    const tabs = findVNode(h.render(), node => node.type === 'v-tabs')
+    tabs.props['onUpdate:modelValue']('warehouse')
+    await Vue.nextTick()
+    assert.deepEqual(h.requests.map(request => request.url), ['good.fetch/42', 'measures.index/'])
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogGoodWarehouse'), null)
+    h.requests[0].resolve({ id: 42, name: 'Складской товар', denominator: 10, measurement: { measure_id: 7, unit_label: 'кг' } })
+    h.requests[1].resolve([{ id: 7, name: 'кг' }])
+    await new Promise(resolve => setImmediate(resolve))
+    const warehouse = findVNode(h.render(), node => node.type === 'CatalogGoodWarehouse')
+    assert.equal(warehouse.props.active, true)
+    assert.equal(warehouse.props.disabled, false, 'Stock movement actions remain available on the standalone page')
+    assert.equal(warehouse.props['good-id'], 42)
+    assert.equal(warehouse.props['model-value'].measure_id, 7, 'Saved measurement id must not be mistaken for an unsaved unit change')
+    assert.equal(warehouse.props.overview.name, 'Складской товар')
+    assert.deepEqual(warehouse.props.options.measures, [{ id: 7, name: 'кг' }])
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogGoodOperations').props.active, false)
+    const edit = findVNode(warehouse.children.measurement(), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-pencil-outline')
+    edit.props.onClick()
+    assert.equal(h.state.recordInitialTab.value, 'warehouse')
+    assert.equal(h.state.recordOpen.value, true)
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogGoodWarehouse').props.active, false)
+    h.state.recordOpen.value = false
+    h.state.selectTab('sales'); await Vue.nextTick()
+    h.state.selectTab('warehouse'); await Vue.nextTick()
+    assert.equal(h.requests.length, 2, 'Saved measure dictionary is reused when revisiting the warehouse')
+})
+
+test('warehouse context requests abort on leaving and stale data cannot replace another good', async t => {
+    const h = pageHarness(t, 'purchases')
+    assert.equal(h.requests.length, 2)
+    h.state.selectTab('market'); await Vue.nextTick()
+    assert.ok(h.requests.every(request => request.options.signal.aborted))
+    h.requests[0].resolve({ id: 42, name: 'Устаревшее имя' })
+    h.requests[1].resolve([{ id: 1 }])
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(h.state.goodData.value.name, 'Товар')
+    assert.equal(h.state.warehouseReady.value, false)
+
+    h.state.selectTab('warehouse'); await Vue.nextTick()
+    h.props.good = { id: 55, name: 'Другой товар' }; await Vue.nextTick()
+    assert.equal(h.requests[2].options.signal.aborted, true)
+    h.requests[4].resolve({ id: 55, name: 'Другой товар', measure_id: 2 })
+    h.requests[5].resolve({ data: [{ id: 2, name: 'кор.' }] })
+    await new Promise(resolve => setImmediate(resolve))
+    h.requests[2].resolve({ id: 42, name: 'Ещё один старый ответ' })
+    h.requests[3].resolve([])
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(h.state.goodData.value.id, 55)
+    assert.equal(h.state.warehouseReady.value, true)
+    assert.deepEqual(h.state.warehouseOptions.value.measures, [{ id: 2, name: 'кор.' }])
+})
+
+test('navigation keeps unsaved operation and warehouse drafts until discarded, and blocks while saving', t => {
+    const h = pageHarness(t, 'market')
+    let operationResets = 0, warehouseResets = 0
+    h.state.operations.value = { reset: () => operationResets++ }
+    h.state.warehouse.value = { reset: () => warehouseResets++ }
+    h.state.operationsState.value = { dirty: true, busy: false }
+    h.state.selectTab('sales')
+    assert.equal(h.state.activeTab.value, 'market')
+    assert.equal(h.state.pendingNavigation.value.tab, 'sales')
+    h.state.discardAndNavigate()
+    assert.equal(h.state.activeTab.value, 'sales')
+    assert.equal(operationResets, 1)
+    assert.equal(warehouseResets, 1)
+    h.state.warehouseState.value = { dirty: true, busy: true }
+    h.state.openRecord('warehouse')
+    assert.equal(h.state.recordOpen.value, false)
+    assert.equal(h.state.pendingNavigation.value, null)
+    let prevented = false
+    const unload = { preventDefault: () => { prevented = true } }
+    h.state.beforeUnload(unload)
+    assert.equal(prevented, true)
+    assert.equal(unload.returnValue, '')
+    h.state.warehouseState.value.busy = false
+    h.state.openRecord('warehouse')
+    assert.equal(h.state.pendingNavigation.value.recordTab, 'warehouse')
+    assert.equal(h.state.recordOpen.value, false)
+    h.state.discardAndNavigate()
+    assert.equal(h.state.recordOpen.value, true)
+    assert.equal(h.state.recordInitialTab.value, 'warehouse')
 })
 
 test('record refresh updates the accounting page and reports a failed refresh without losing saved data', async t => {

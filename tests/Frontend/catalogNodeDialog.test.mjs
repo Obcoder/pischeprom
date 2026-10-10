@@ -5,7 +5,7 @@ import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
 import { goodTradeCodeFields, goodTradeCodeValues } from '../../resources/js/utils/goodTradeCodes.js'
-import { goodRecordTabs } from '../../resources/js/Components/Catalog/recordTabs.js'
+import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from '../../resources/js/Components/Catalog/recordTabs.js'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 
 const levels = [
@@ -33,7 +33,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const requests = []
     const reads = []
     const environment = {
-        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
+        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: 'CatalogGoodWarehouse', CatalogProductOperations: 'CatalogProductOperations', CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
         CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
@@ -299,7 +299,7 @@ test('unsaved operational drafts cannot be silently discarded by saving the base
     h.api.operationsState.value = { dirty: true, busy: false, dirtyTab: 'quotations' }
     await h.api.save()
     assert.equal(h.requests.length, 0)
-    assert.equal(h.api.activeTab.value, 'quotations')
+    assert.equal(h.api.activeTab.value, 'market')
     assert.equal(h.props.modelValue, true)
     h.api.requestClose()
     assert.equal(h.api.discardOpen.value, true)
@@ -720,4 +720,122 @@ test('non-goods never load commerce defaults and retain direct image editing', a
     assert.equal(Object.hasOwn(h.requests[0].data, 'good'), false)
     h.requests[0].resolve(sourceNode({ entity_type: 'product' }))
     await save
+})
+
+test('warehouse shares the card draft, supports new goods and directs unit validation to its editor', async t => {
+    const h = harness(t, { initialEntityType: 'good', initialTab: 'warehouse' })
+    await h.ready()
+    assert.equal(h.api.warehouseTab.value, true)
+    assert.equal(h.api.operationsVisited.value, false)
+    const warehouse = findVNode(h.render(), node => node.type === 'CatalogGoodWarehouse')
+    assert.ok(warehouse)
+    assert.equal(warehouse.props['good-id'], null)
+    updateModel(warehouse, { ...h.api.goodForm, measure_id: 2, unit_weight_kg: 12 })
+    h.api.form.name = 'Новый товар'
+    h.api.selectTab('overview')
+    h.api.selectTab('warehouse')
+    assert.equal(h.api.goodForm.unit_weight_kg, 12)
+    assert.equal(h.api.dirty.value, true)
+    const pending = h.api.save()
+    assert.equal(h.requests[0].data.good.measure_id, 2)
+    h.requests[0].reject({ response: { data: { errors: { 'good.measure_id': ['Остатки в другой единице'] } } } })
+    await pending
+    assert.equal(h.api.activeTab.value, 'warehouse')
+    assert.deepEqual(h.api.goodErrors.value.measure_id, ['Остатки в другой единице'])
+    assert.equal(h.api.goodForm.unit_weight_kg, 12)
+})
+
+test('warehouse movement drafts block card save and busy mutations block close', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    h.api.updateWarehouseState({ dirty: true, busy: false })
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.activeTab.value, 'warehouse')
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    h.api.discardOpen.value = false
+    h.api.updateWarehouseState({ dirty: true, busy: true })
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, false)
+    h.api.updateWarehouseState({ dirty: false, busy: false })
+    assert.equal(h.api.error.value, '')
+})
+
+test('product tools use entity ID at every classification level and preserve unsaved translation drafts', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product', level_id: null }), initialTab: 'consumers' })
+    assert.equal(h.reads.length, 0)
+    assert.deepEqual(h.api.recordTabs.value.map(tab => tab.id), productRecordTabs.map(tab => tab.id))
+    const child = findVNode(h.render(), node => node.type === 'CatalogProductOperations')
+    assert.equal(child.props['product-id'], 42)
+    assert.equal(child.props['active-tab'], 'consumers')
+    assert.equal(h.api.operationsVisited.value, false)
+    child.props.onState({ dirty: true, busy: false, dirtyTab: 'translations' })
+    h.api.selectTab('overview')
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.activeTab.value, 'translations')
+    assert.equal(h.api.dirty.value, true)
+    let resets = 0
+    h.api.productOperations.value = { reset() { resets++; h.api.updateProductState({ dirty: false, busy: false }) } }
+    h.api.confirmReset()
+    assert.equal(resets, 1)
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('saved product translations update a clean name without overwriting another tab name draft', t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product' }) })
+    h.api.productChanged({ id: 42, rus: 'Обновлённый продукт' })
+    assert.equal(h.api.form.name, 'Обновлённый продукт')
+    assert.equal(h.api.record.value.name, 'Обновлённый продукт')
+    assert.equal(h.api.dirty.value, false)
+    h.api.form.name = 'Мой черновик'
+    h.api.productChanged({ id: 42, rus: 'Сохранённый перевод' })
+    assert.equal(h.api.form.name, 'Мой черновик')
+    assert.equal(JSON.parse(h.api.baseline.value).name, 'Сохранённый перевод')
+    assert.equal(h.api.dirty.value, true)
+})
+
+test('old goods deep links resolve to their combined tabs without exposing product tools on custom records', async t => {
+    for (const [initialTab, expected] of [['quotations', 'market'], ['purchases', 'warehouse'], ['recommendations', 'sales']]) {
+        const h = harness(t, { node: sourceNode(), initialTab })
+        await h.ready()
+        assert.equal(h.api.activeTab.value, expected)
+    }
+    const custom = harness(t, { node: sourceNode({ entity_type: 'custom', level_id: 2 }), initialTab: 'translations' })
+    assert.deepEqual(custom.api.recordTabs.value.map(tab => tab.id), ['overview', 'landing'])
+    assert.equal(custom.api.activeTab.value, 'overview')
+})
+
+test('confirmed product names reach the translations editor before a partial avatar failure', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product' }), initialTab: 'translations' })
+    const synced = []
+    h.api.productOperations.value = { syncName: name => synced.push(name) }
+    h.api.selectTab('overview')
+    h.api.form.name = 'Новое название продукта'
+    h.api.imageFile.value = new Blob(['image'], { type: 'image/png' })
+    const pending = h.api.save('landing')
+    h.requests[0].resolve(sourceNode({ entity_type: 'product', name: 'Новое название продукта' }))
+    await h.ready()
+    assert.deepEqual(synced, ['Новое название продукта'])
+    assert.equal(h.requests[1].url, '/api/catalog/nodes/7/image')
+    h.requests[1].reject({ response: { data: { message: 'Изображение не загружено' } } })
+    await pending
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.record.value.name, 'Новое название продукта')
+})
+
+test('user tab navigation is locked during writes while validation may still select its target', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    h.api.saving.value = true
+    const tabs = findVNode(h.render(), node => node.type === 'CatalogRecordTabs')
+    assert.equal(tabs.props.disabled, true)
+    updateModel(tabs, 'sales')
+    assert.equal(h.api.activeTab.value, 'overview')
+    h.api.selectTab('warehouse')
+    assert.equal(h.api.activeTab.value, 'warehouse')
+    h.api.saving.value = false
+    updateModel(tabs, 'sales')
+    assert.equal(h.api.activeTab.value, 'sales')
 })

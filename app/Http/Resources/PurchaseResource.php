@@ -59,6 +59,18 @@ class PurchaseResource extends JsonResource
                         'price' => (float) ($this->attributeFrom($good->pivot, 'price') ?? 0),
                         'currency_id' => $this->attributeFrom($good->pivot, 'currency_id'),
                         'total' => (float) ($this->attributeFrom($good->pivot, 'total') ?? 0),
+                        ...($this->relationLoaded('stockMovements') ? [
+                            'stock_movements' => $this->stockMovements
+                                ->where('source_id', $this->attributeFrom($good->pivot, 'id'))
+                                ->map(fn ($movement) => [
+                                    'id' => $movement->id,
+                                    'warehouse_id' => $movement->warehouse_id,
+                                    'warehouse_name' => $movement->warehouse?->name,
+                                    'quantity' => (float) $movement->quantity_delta,
+                                    'measure_id' => $movement->measure_id,
+                                    'moved_at' => optional($movement->moved_at)->toDateString(),
+                                ])->values(),
+                        ] : []),
                     ];
                 })->values();
             }),

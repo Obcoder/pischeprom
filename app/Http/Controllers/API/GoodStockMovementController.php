@@ -40,9 +40,24 @@ class GoodStockMovementController extends Controller
                 fn ($query) => $query->where('type', $request->input('type'))
             )
             ->orderByDesc('moved_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
+            ->orderByDesc('id');
+
+        // Existing warehouse screens consume a plain array. The product ledger
+        // opts into pagination so historical movements are never truncated.
+        if ($request->boolean('paginate')) {
+            $page = $movements->paginate(min(max($request->integer('per_page', 25), 1), 100));
+
+            return response()->json([
+                'data' => GoodStockMovementResource::collection($page->items())->resolve($request),
+                'meta' => [
+                    'current_page' => $page->currentPage(),
+                    'last_page' => $page->lastPage(),
+                    'total' => $page->total(),
+                ],
+            ]);
+        }
+
+        $movements = $movements->limit($limit)->get();
 
         return response()->json(
             GoodStockMovementResource::collection($movements)->resolve($request)
