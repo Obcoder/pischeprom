@@ -3,10 +3,8 @@ import { computed } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import CitySelector from '@/Components/Location/CitySelector.vue'
 import OrderCartStrip from '@/Components/Orders/OrderCartStrip.vue'
-import { useOrderCart } from '@/Composables/useOrderCart'
 
 const page = usePage()
-const { itemsCount } = useOrderCart()
 const user = computed(() => page.props.auth?.user)
 const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg'
 </script>
@@ -27,7 +25,7 @@ const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1
                         <Link :href="user ? '/dashboard' : '/login'" class="product-account" :aria-label="user ? 'Личный кабинет' : 'Войти в личный кабинет'"><v-icon icon="mdi-account-outline" size="23" /><span>{{ user ? 'Кабинет' : 'Войти' }}</span></Link>
                     </nav>
                 </div>
-                <div v-if="itemsCount" class="product-header__cart"><OrderCartStrip /></div>
+                <div id="product-cart" class="product-header__cart"><OrderCartStrip /></div>
             </header>
             <main id="main-content"><slot /></main>
             <footer class="product-footer">

@@ -6,7 +6,7 @@ const props = defineProps({
     quantity: { type: [Number, String], default: 1 },
     purchase: { type: Object, default: () => ({}) },
 })
-const emit = defineEmits(['update:quantity', 'inquiry', 'max'])
+const emit = defineEmits(['update:quantity', 'inquiry', 'max', 'add-to-cart'])
 const count = computed(() => Math.min(9999, Math.max(0.001, Math.round((Number(props.quantity) || 1) * 1000) / 1000)))
 const canOrder = computed(() => Boolean(props.purchase.measurement?.measure_id))
 const unit = computed(() => unitLabel(props.purchase.measurement))
@@ -35,9 +35,10 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(0.001, 
                 <button type="button" aria-label="Увеличить количество" :disabled="!canOrder || count >= 9999" @click="update(count + 1)">+</button>
             </div>
         </div>
-        <button type="button" class="mobile-good-buy__order" :disabled="!canOrder" @click="emit('inquiry', 'order')"><span><v-icon icon="mdi-basket-outline" size="21" /> Заказать</span><strong>{{ total ? money(total) : 'Оставить заявку' }} <v-icon icon="mdi-arrow-right" size="18" /></strong></button>
+        <button type="button" class="mobile-good-buy__order" :disabled="!canOrder" @click="emit('add-to-cart')"><span><v-icon icon="mdi-cart-plus" size="21" /> В корзину</span><strong>{{ total ? money(total) : 'Цена по запросу' }} <v-icon icon="mdi-arrow-right" size="18" /></strong></button>
+        <button type="button" class="mobile-good-buy__immediate" :disabled="!canOrder" @click="emit('inquiry', 'order')">Заказать сразу <v-icon icon="mdi-arrow-right" size="18" /></button>
         <p v-if="!canOrder" role="status">Единица измерения товара не задана. Для заказа её должен указать менеджер.</p>
-        <p class="mobile-good-buy__note">Без регистрации · Доставку согласуем отдельно</p>
+        <p class="mobile-good-buy__note">Заказ сразу — без регистрации · Доставку согласуем отдельно</p>
         <div class="mobile-good-buy__contacts">
             <button type="button" :disabled="!canOrder" @click="emit('inquiry', 'email')"><v-icon icon="mdi-email-outline" size="20" /> Написать на email</button>
             <button type="button" class="mobile-good-buy__max" @click="emit('max')"><v-icon icon="mdi-message-text-outline" size="20" /> Написать в MAX</button>
@@ -67,6 +68,7 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(0.001, 
     .mobile-good-buy__order { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 15px; background: #800000; color: #fff; border-radius: 11px; font-size: 14px; }
     .mobile-good-buy__order span, .mobile-good-buy__order strong { display: inline-flex; align-items: center; gap: 9px; }
     .mobile-good-buy__order strong { font-size: 13px; font-weight: 500; }
+    .mobile-good-buy__immediate { display: flex; width: 100%; min-height: 44px; margin-top: 10px; align-items: center; justify-content: center; gap: 9px; border: 1px solid #e4c3be; border-radius: 10px; color: #800000; font-size: 13px; }
     .mobile-good-buy__note { margin: 10px 0 15px; text-align: center; color: #8b7775; font-size: 10px; line-height: 1.5; }
     .mobile-good-buy__contacts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .mobile-good-buy__contacts button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 48px; padding: 9px 6px; border-radius: 9px; background: #fff5f2; color: #800000; font-size: 11px; font-weight: 650; }

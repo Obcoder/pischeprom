@@ -180,6 +180,7 @@ function submitOrder() {
                 quantity: item.quantity,
                 measure_id: item.measurement.measure_id,
                 measurement: item.measurement,
+                pricing_context: item.pricing_context,
             })),
             delivery_address: form.delivery_address,
             delivery_apartment_number: form.delivery_apartment_number.trim(),
@@ -254,6 +255,7 @@ function submitOrder() {
                     <button
                         type="button"
                         aria-label="Уменьшить количество"
+                        :disabled="submitting"
                         @click="decrement(item.good_id)"
                     >
                         <v-icon icon="mdi-minus" size="13" />
@@ -262,6 +264,7 @@ function submitOrder() {
                     <button
                         type="button"
                         aria-label="Увеличить количество"
+                        :disabled="submitting"
                         @click="increment(item.good_id)"
                     >
                         <v-icon icon="mdi-plus" size="13" />
@@ -270,6 +273,7 @@ function submitOrder() {
                     <button
                         type="button"
                         aria-label="Убрать из корзины"
+                        :disabled="submitting"
                         @click="removeItem(item.good_id)"
                     >
                         <v-icon icon="mdi-close" size="13" />

@@ -11,6 +11,7 @@ use App\Models\OrderStatus;
 use App\Models\User;
 use App\Services\Entities\UserEntityResolver;
 use App\Services\Goods\GoodMeasurement;
+use App\Services\Goods\PublicGoodOffer;
 use App\Services\Orders\CustomerOrderNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,8 @@ class CustomerOrderController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1', 'max:60'],
             'items.*.good_id' => ['required', 'integer', 'exists:goods,id'],
-            'items.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:999', 'decimal:0,3'],
+            'items.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:9999', 'decimal:0,3'],
+            'items.*.pricing_context' => ['nullable', Rule::in(['public', 'catalog'])],
             'items.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
             'items.*.measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
             'items.*.measurement.measure_id' => ['nullable', 'integer'],
@@ -82,12 +84,13 @@ class CustomerOrderController extends Controller
             }
 
             $lines = $rawItems
-                ->map(fn (array $item) => $this->makeOrderLine(
+                ->map(fn (array $item, int $index) => $this->makeOrderLine(
                     $goods[(int) $item['good_id']],
                     (float) ($item['quantity'] ?? 1),
-                    true,
+                    $item['pricing_context'] ?? 'catalog',
                     isset($item['measure_id']) ? (int) $item['measure_id'] : null,
                     $item['measurement'] ?? null,
+                    $index,
                 ))
                 ->values();
 
@@ -161,7 +164,9 @@ class CustomerOrderController extends Controller
                 'quantity' => data_get($item, 'quantity', 1),
                 'measure_id' => data_get($item, 'measure_id'),
                 'measurement' => data_get($item, 'measurement'),
+                'pricing_context' => data_get($item, 'pricing_context'),
             ])
+            ->values()
             ->all();
 
         $request->merge([
@@ -180,6 +185,8 @@ class CustomerOrderController extends Controller
                 'priceTypeValues' => function ($query): void {
                     $query
                         ->where('is_published', true)
+                        ->where(fn ($dates) => $dates->whereNull('valid_from')->orWhereDate('valid_from', '<=', today()))
+                        ->where(fn ($dates) => $dates->whereNull('valid_to')->orWhereDate('valid_to', '>=', today()))
                         ->whereHas('priceType', fn ($priceTypeQuery) => $priceTypeQuery->where('is_active', true))
                         ->with(['priceType.currency', 'currency'])
                         ->orderByDesc('updated_at');
@@ -208,14 +215,16 @@ class CustomerOrderController extends Controller
             ->keyBy('id');
     }
 
-    private function makeOrderLine(Good $good, float $quantity, bool $canSeePartnerPrices, ?int $measureId = null, ?array $snapshot = null): array
+    private function makeOrderLine(Good $good, float $quantity, string $pricingContext, ?int $measureId = null, ?array $snapshot = null, int $index = 0): array
     {
-        $measurement = app(GoodMeasurement::class)->assertConfigured($good);
-        app(GoodMeasurement::class)->assertMeasure($good, $measureId);
-        app(GoodMeasurement::class)->assertSnapshot($good, $snapshot);
+        $measurement = app(GoodMeasurement::class)->assertConfigured($good, "items.{$index}.measurement");
+        app(GoodMeasurement::class)->assertMeasure($good, $measureId, "items.{$index}.measure_id");
+        app(GoodMeasurement::class)->assertSnapshot($good, $snapshot, "items.{$index}.measurement");
         $quantity = round($quantity, 3);
         $denominator = $measurement['kilograms_per_unit'];
-        $price = $this->selectedPrice($good, $canSeePartnerPrices);
+        $price = $pricingContext === 'public'
+            ? app(PublicGoodOffer::class)->pricesFor($good)->first()
+            : $this->selectedPrice($good);
         $priceGross = $this->priceValue($price);
         $currencyCode = $this->currencyCode($price);
         $lineTotal = $priceGross !== null
@@ -252,27 +261,17 @@ class CustomerOrderController extends Controller
         ];
     }
 
-    private function selectedPrice(Good $good, bool $canSeePartnerPrices): ?GoodPriceTypeValue
+    private function selectedPrice(Good $good): ?GoodPriceTypeValue
     {
         $prices = $good->priceTypeValues
             ->filter(fn (GoodPriceTypeValue $price) => $price->is_published !== false)
+            ->filter(fn (GoodPriceTypeValue $price) => $this->priceValue($price) !== null)
             ->sortBy(fn (GoodPriceTypeValue $price) => $price->priceType?->sort_order ?? 100)
             ->values();
-        $visiblePrices = $canSeePartnerPrices
-            ? $prices
-            : $prices->reject(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price))->values();
 
-        if ($canSeePartnerPrices) {
-            $partnerPrice = $prices->first(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price));
-
-            if ($partnerPrice) {
-                return $partnerPrice;
-            }
-        }
-
-        return $visiblePrices->first(fn (GoodPriceTypeValue $price) => $this->isRetailPrice($price))
-            ?: $visiblePrices->first(fn (GoodPriceTypeValue $price) => (bool) $price->priceType?->is_public)
-            ?: $visiblePrices->first();
+        return $prices->first(fn (GoodPriceTypeValue $price) => $this->isPartnerPrice($price))
+            ?: $prices->first(fn (GoodPriceTypeValue $price) => $this->isRetailPrice($price))
+            ?: $prices->first(fn (GoodPriceTypeValue $price) => (bool) $price->priceType?->is_public);
     }
 
     private function isPartnerPrice(GoodPriceTypeValue $price): bool

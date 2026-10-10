@@ -132,7 +132,11 @@ class GoodController extends Controller
             ])
             ->published(true)
             ->inRandomOrder()
-            ->get();
+            ->get()
+            ->makeHidden([
+                'incoming_code',
+                ...array_diff(GoodTradeCodes::FIELDS, GoodTradeCodes::PUBLIC_FIELDS),
+            ]);
     }
 
     public function store(StoreGoodRequest $request)

@@ -228,8 +228,11 @@ test('the clear action cannot change products while an order is being submitted'
     harness.api.form.preferred_delivery_time = 'Завтра с 10 до 14'
     harness.api.submitOrder()
     assert.equal(harness.requests.length, 1)
-    assert.deepEqual(harness.requests[0].body.items, [{ good_id: 1, quantity: 2, measure_id: 1, measurement: initialItems[0].measurement }, { good_id: 2, quantity: 1, measure_id: 2, measurement: initialItems[1].measurement }])
+    assert.deepEqual(harness.requests[0].body.items, [{ good_id: 1, quantity: 2, measure_id: 1, measurement: initialItems[0].measurement, pricing_context: 'catalog' }, { good_id: 2, quantity: 1, measure_id: 2, measurement: initialItems[1].measurement, pricing_context: 'catalog' }])
     assert.equal(harness.api.submitting.value, true)
+    for (const label of ['Уменьшить количество', 'Увеличить количество', 'Убрать из корзины']) {
+        assert.equal(findVNode(harness.render(), node => node.props?.['aria-label'] === label).props.disabled, true)
+    }
 
     const clear = clearButton(harness)
     assert.equal(clear.props.disabled, true)
@@ -304,4 +307,80 @@ test('checkout displays a stale measurement error without changing quantities or
     assert.equal(harness.api.errorMessage.value, 'Единица товара изменилась. Обновите корзину.')
     assert.deepEqual(harness.api.items.value[0].measurement, initialItems[0].measurement)
     assert.equal(harness.api.items.value[0].quantity, 2)
+})
+
+test('a product public offer adds its chosen decimal quantity and survives login and reloading', async t => {
+    const harness = cartHarness(null, new Map())
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    const good = { id: 42, name: 'Арахис', slug: 'arahis', denominator: 25, ava_thumb: '/arahis.jpg' }
+    const offer = { price: 240, currency_code: 'RUB', measurement: initialItems[0].measurement }
+
+    assert.equal(cart.addGood(good, 2.125, offer), true)
+    assert.equal(cart.addGood(good, 1.5, offer), true)
+    assert.equal(cart.items.value.length, 1)
+    assert.equal(cart.items.value[0].quantity, 3.625)
+    assert.equal(cart.items.value[0].price_gross, 240)
+    assert.equal(cart.items.value[0].pricing_context, 'public')
+    assert.equal(cart.items.value[0].image_url, '/arahis.jpg')
+    assert.equal(cart.totalAmount.value, 870)
+    assert.equal(cart.totalWeight.value, 3.625)
+    await Vue.nextTick()
+
+    harness.api.openCheckout()
+    assert.deepEqual(harness.visits, ['/login'])
+    assert.equal(harness.requests.length, 0)
+    const signedIn = cartHarness({ id: 7, phone: '+79991234567', delivery_address: 'Москва' }, harness.storage)
+    t.after(signedIn.dispose)
+    assert.equal(signedIn.api.items.value[0].pricing_context, 'public')
+    signedIn.api.openCheckout()
+    signedIn.api.form.preferred_delivery_time = 'Завтра с 10 до 14'
+    signedIn.api.submitOrder()
+    assert.deepEqual(signedIn.requests[0].body.items, [{
+        good_id: 42, quantity: 3.625, measure_id: 1,
+        measurement: initialItems[0].measurement, pricing_context: 'public',
+    }])
+    assert.equal(signedIn.api.items.value.length, 1)
+    signedIn.requests[0].resolve({ order: { id: 10, number: 'PP-10' }, redirect: '/dashboard' })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(signedIn.api.items.value, [])
+    assert.equal(signedIn.storage.get(cartKey), '[]')
+    assert.equal(signedIn.api.checkoutOpen.value, false)
+    assert.equal(signedIn.api.successMessage.value, 'Заказ PP-10 создан.')
+    assert.deepEqual(signedIn.visits, ['/dashboard'])
+})
+
+test('a public offer with no price stays by request instead of using a private fallback', t => {
+    const harness = cartHarness(null, new Map())
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    assert.equal(cart.addGood({
+        id: 42, name: 'Арахис', measurement: initialItems[0].measurement,
+        price_type_values: [{ price_gross: 75, price_type: { code: 'partner' } }],
+    }, 2, { price: null, currency_code: 'RUB', measurement: initialItems[0].measurement }), true)
+    assert.equal(cart.items.value[0].price_gross, null)
+    assert.equal(cart.items.value[0].quantity, 2)
+    assert.equal(harness.api.money(cart.items.value[0].price_gross), 'по запросу')
+})
+
+test('adding above the cart quantity limit fails without silently changing the requested amount', t => {
+    const harness = cartHarness(null, new Map())
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    const good = { id: 42, name: 'Арахис', measurement: initialItems[0].measurement }
+    assert.equal(cart.addGood(good, 9998), true)
+    assert.equal(cart.addGood(good, 2), false)
+    assert.equal(cart.items.value[0].quantity, 9998)
+    assert.match(cart.cartError.value, /не более 9999/)
+    assert.equal(cart.addGood(good, 1), true)
+    assert.equal(cart.items.value[0].quantity, 9999)
+    assert.equal(cart.cartError.value, '')
+    assert.equal(cart.addGood(good, 1), false)
+    assert.equal(cart.items.value[0].quantity, 9999)
+    assert.equal(cart.addGood({ ...good, id: 43 }, 10000), false)
+    assert.equal(cart.addGood({ ...good, id: 43 }, 0), false)
+    assert.equal(cart.items.value.length, 1)
+    cart.setQuantity(good.id, 9998.999)
+    assert.equal(cart.addGood(good, 0.001), true)
+    assert.equal(cart.items.value[0].quantity, 9999)
 })

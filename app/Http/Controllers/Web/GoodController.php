@@ -8,6 +8,7 @@ use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodUrlAlias;
 use App\Services\Goods\GoodStockService;
+use App\Services\Goods\GoodTradeCodes;
 use App\Services\Goods\PublicGoodOffer;
 use App\Services\MaxMessengerService;
 use App\Services\Seo\GoodSeoService;
@@ -262,6 +263,10 @@ class GoodController extends Controller
 
         // Calculation IDs, margins and staff price comments are not customer data.
         $good->unsetRelation('priceTypeValues');
+        $good->makeHidden([
+            'incoming_code',
+            ...array_diff(GoodTradeCodes::FIELDS, GoodTradeCodes::PUBLIC_FIELDS),
+        ]);
         $good->seo?->makeHidden('structured_data');
         foreach ($relatedGoods as $relatedGood) {
             $relatedGood->unsetRelation('priceTypeValues');

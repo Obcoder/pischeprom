@@ -362,6 +362,12 @@ jobs:
       - name: Check goods catalog AI and deployment PHP style
         run: |
           vendor/bin/pint --test \
+            app/Http/Controllers/API/GoodController.php \
+            app/Http/Controllers/Web/GoodController.php \
+            app/Http/Controllers/Web/CustomerOrderController.php \
+            app/Services/Goods/GoodTradeCodes.php \
+            tests/Feature/PublicGoodTradeCodesTest.php \
+            tests/Feature/CustomerCartCheckoutTest.php \
             app/Http/Controllers/API/GoodSeoAiController.php \
             app/Http/Controllers/API/GoodSeoController.php \
             app/Http/Controllers/API/Marketing/YandexDirectGoodController.php \
@@ -568,6 +574,8 @@ jobs:
             tests/Feature/GoodMeasurementTest.php \
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php \
+            tests/Feature/PublicGoodTradeCodesTest.php \
+            tests/Feature/CustomerCartCheckoutTest.php \
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Feature/ProductTranslationsAiTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \

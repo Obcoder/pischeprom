@@ -9,6 +9,8 @@ final class GoodTradeCodes
         'htsus_code', 'schedule_b_code', 'gtin', 'unspsc_code', 'cas_number', 'eccn_code',
     ];
 
+    public const PUBLIC_FIELDS = ['tn_ved_code', 'okpd2_code', 'hs_code'];
+
     /** All identifiers are strings: leading zeroes are significant. */
     public static function rules(): array
     {

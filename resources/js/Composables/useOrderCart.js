@@ -102,6 +102,7 @@ function normalizeCartItem(item) {
         country_name: item.country_name || item.country?.name || null,
         price_gross: normalizeNumber(item.price_gross),
         currency_code: item.currency_code || 'RUB',
+        pricing_context: item.pricing_context === 'public' ? 'public' : 'catalog',
     }
 }
 
@@ -193,8 +194,8 @@ function primaryImage(good) {
         || logo
 }
 
-function cartItemFromGood(good) {
-    const price = selectedPrice(good)
+function cartItemFromGood(good, quantity, offer) {
+    const price = offer ? null : selectedPrice(good)
 
     return normalizeCartItem({
         good_id: good?.id,
@@ -202,11 +203,12 @@ function cartItemFromGood(good) {
         slug: good?.slug,
         image_url: primaryImage(good),
         denominator: good?.denominator,
-        measurement: measurementForGood(good),
+        measurement: offer?.measurement || measurementForGood(good),
         country_name: good?.country?.name,
-        price_gross: priceValue(price),
-        currency_code: currencyCode(price),
-        quantity: 1,
+        price_gross: offer ? offer.price : priceValue(price),
+        currency_code: offer ? offer.currency_code : currencyCode(price),
+        pricing_context: offer ? 'public' : 'catalog',
+        quantity,
     })
 }
 
@@ -227,9 +229,14 @@ export function useOrderCart() {
 
     const currencyCodeValue = computed(() => items.value.find((item) => item.currency_code)?.currency_code || 'RUB')
 
-    function addGood(good) {
+    function addGood(good, quantity = 1, offer = null) {
         cartError.value = ''
-        const cartItem = cartItemFromGood(good)
+        const requestedQuantity = Number(quantity)
+        if (!Number.isFinite(requestedQuantity) || requestedQuantity < 0.001 || requestedQuantity > 9999) {
+            cartError.value = 'Укажите количество от 0,001 до 9999.'
+            return false
+        }
+        const cartItem = cartItemFromGood(good, quantity, offer)
 
         if (!cartItem) {
             cartError.value = 'Единица измерения товара не задана. Для заказа её должен указать менеджер.'
@@ -244,9 +251,15 @@ export function useOrderCart() {
                 cartError.value = 'Единица измерения товара изменилась. Удалите его из корзины и добавьте заново.'
                 return false
             }
-            existing.quantity = normalizeQuantity(existing.quantity + 1)
+            const nextQuantity = Math.round((existing.quantity + cartItem.quantity) * 1000) / 1000
+            if (nextQuantity > 9999) {
+                cartError.value = 'В корзине может быть не более 9999 единиц одного товара. Измените количество.'
+                return false
+            }
+            existing.quantity = nextQuantity
             existing.price_gross = cartItem.price_gross
             existing.currency_code = cartItem.currency_code
+            existing.pricing_context = cartItem.pricing_context
             existing.denominator = cartItem.denominator
             existing.image_url = cartItem.image_url
             return true

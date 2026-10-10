@@ -218,6 +218,10 @@ onBeforeUnmount(() => {
 .product-reel__error { position: absolute; inset: 30% 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; text-shadow: 0 1px 8px #000; }
 .product-reel__error span { font-size: 15px; font-weight: 700; }
 .product-reel__error small { max-width: 180px; font-size: 12px; line-height: 1.5; }
+@media (min-width: 768px) {
+    .product-reel { aspect-ratio: 16 / 9; }
+    .product-reel__video, .product-reel__poster { object-fit: contain; }
+}
 @media (max-width: 600px) {
     .product-reel { border-radius: 20px; }
     .product-reel__badge { top: 12px; left: 12px; }
