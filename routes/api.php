@@ -807,6 +807,11 @@ Route::prefix('catalog')->group(function () {
     Route::patch('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'updateNode']);
     Route::delete('/nodes/{node}', [\App\Http\Controllers\API\CatalogTreeController::class, 'destroyNode']);
     Route::post('/nodes/{node}/image', [\App\Http\Controllers\API\CatalogTreeController::class, 'uploadImage']);
+    Route::get('/nodes/{node}/landing', [\App\Http\Controllers\API\CatalogLandingController::class, 'show']);
+    Route::put('/nodes/{node}/landing', [\App\Http\Controllers\API\CatalogLandingController::class, 'update']);
+    Route::post('/nodes/{node}/landing/publish', [\App\Http\Controllers\API\CatalogLandingController::class, 'publish']);
+    Route::post('/nodes/{node}/landing/unpublish', [\App\Http\Controllers\API\CatalogLandingController::class, 'unpublish']);
+    Route::post('/nodes/{node}/landing/image', [\App\Http\Controllers\API\CatalogLandingController::class, 'image']);
 });
 
 Route::apiResource('categories', CategoryController::class);

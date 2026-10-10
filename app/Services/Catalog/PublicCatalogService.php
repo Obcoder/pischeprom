@@ -28,6 +28,51 @@ class PublicCatalogService
         return $node ? $this->pagePayload($node, $nodes) : null;
     }
 
+    /** Resolve several published pages using the same visibility snapshot. */
+    public function pages(array $ids): Collection
+    {
+        $nodes = $this->visibleNodes();
+
+        return $nodes->only($ids)->map(fn (array $node): array => $this->pagePayload($node, $nodes));
+    }
+
+    /** Staff-only callers may preview a draft even while its branch is hidden. */
+    public function previewPage(int $id): ?array
+    {
+        $nodes = $this->catalog->nodes()->keyBy('id');
+        $node = $nodes->get($id);
+
+        return $node && $node['catalog_path'] !== null ? $this->pagePayload($node, $nodes) : null;
+    }
+
+    public function goodsInBranch(int $id, bool $preview = false): array
+    {
+        $nodes = $preview ? $this->catalog->nodes()->keyBy('id') : $this->visibleNodes();
+        $children = $nodes->groupBy('parent_id');
+        $pending = [$id];
+        $seen = [];
+        $goods = [];
+        while ($pending !== []) {
+            $current = array_pop($pending);
+            if (isset($seen[$current]) || ! $nodes->has($current)) {
+                continue;
+            }
+            $seen[$current] = true;
+            $node = $nodes->get($current);
+            if ($current !== $id && ! $node['is_published']) {
+                continue;
+            }
+            if ($node['entity_type'] === 'good') {
+                $goods[] = (int) $node['entity_id'];
+            }
+            foreach ($children->get($current, collect()) as $child) {
+                $pending[] = $child['id'];
+            }
+        }
+
+        return array_values(array_unique($goods));
+    }
+
     public function pageByPath(string $path): ?array
     {
         $nodes = $this->visibleNodes();
@@ -49,8 +94,10 @@ class PublicCatalogService
         $level = CatalogLevel::query()->with(['fields' => fn ($query) => $query->where('is_public', true)->orderBy('sort_order')->orderBy('id')])->find($node['level_id']);
         $breadcrumbs = [];
         $parent = $node['parent_id'] ? $nodes->get($node['parent_id']) : null;
+        $seen = [$id => true];
 
-        while ($parent) {
+        while ($parent && ! isset($seen[$parent['id']])) {
+            $seen[$parent['id']] = true;
             array_unshift($breadcrumbs, $this->card($parent));
             $parent = $parent['parent_id'] ? $nodes->get($parent['parent_id']) : null;
         }

@@ -7,6 +7,8 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Good;
+use App\Services\Catalog\PublicCatalogService;
+use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,6 +66,8 @@ class CategoryController extends Controller
     public function show(
         string $category,
         GoodStockService $stock,
+        PublicClassPage $pages,
+        PublicCatalogService $catalog,
     ): Response|RedirectResponse {
         $category = Category::query()
             ->where('slug', $category)
@@ -76,6 +80,13 @@ class CategoryController extends Controller
 
         if (! $category->is_published) {
             abort(404);
+        }
+
+        if ($node = $pages->managedNode('category', $category->id)) {
+            $page = $catalog->page($node->id);
+            abort_unless($page, 404);
+
+            return redirect()->to($page['node']['public_url'], 301);
         }
 
         if ($category->slug && request()->route('category') !== $category->slug) {

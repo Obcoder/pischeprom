@@ -387,12 +387,16 @@ jobs:
       - name: Check hierarchical catalog and public showcase PHP style
         run: |
           vendor/bin/pint --test \
+            app/Http/Controllers/API/CatalogLandingController.php \
             app/Http/Controllers/API/CatalogTreeController.php \
             app/Http/Controllers/API/ComponentController.php \
             app/Http/Controllers/Web/CatalogController.php \
+            app/Http/Controllers/Web/CatalogLandingPreviewController.php \
+            app/Http/Controllers/Web/CategoryController.php \
             app/Http/Controllers/Web/ProductController.php \
             app/Http/Controllers/MainController.php \
             app/Models/CatalogField.php \
+            app/Models/CatalogLanding.php \
             app/Models/CatalogLevel.php \
             app/Models/CatalogNode.php \
             app/Models/Component.php \
@@ -404,6 +408,8 @@ jobs:
             database/migrations/2026_10_07_200000_add_semantic_core_rows_to_good_seos.php \
             database/migrations/2026_10_08_120000_add_incoming_code_to_goods_table.php \
             database/migrations/2026_10_08_150000_create_good_url_aliases_table.php \
+            database/migrations/2026_10_10_120000_create_catalog_landings_table.php \
+            tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
@@ -412,6 +418,7 @@ jobs:
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/PublicCatalogTest.php \
+            tests/Feature/PublicCatalogLandingTest.php \
             tests/Feature/ComponentCatalogManagementTest.php
 
       - name: Check Entity product needs PHP style
@@ -575,6 +582,7 @@ jobs:
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
+            tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
@@ -582,6 +590,7 @@ jobs:
             tests/Feature/GoodsSeoSemanticCoreTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \
+            tests/Feature/PublicCatalogLandingTest.php \
             tests/Feature/PublicClassPageTest.php \
             tests/Feature/SitemapTest.php \
             tests/Feature/ComponentCatalogManagementTest.php \

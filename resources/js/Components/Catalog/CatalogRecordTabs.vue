@@ -2,22 +2,29 @@
 import { computed, nextTick, onMounted, onScopeDispose, ref, watch } from 'vue'
 import { goodRecordTabs, moveTab, normalizeTabOrder } from './recordTabs.js'
 
-const props = defineProps({ modelValue: { type: String, default: 'overview' } })
+const props = defineProps({ modelValue: { type: String, default: 'overview' }, good: { type: Boolean, default: true } })
 const emit = defineEmits(['update:modelValue'])
-const storageKey = 'ameise.catalog.good-tabs.v1'
-const order = ref(normalizeTabOrder())
+const definitions = computed(() => props.good !== false ? goodRecordTabs : goodRecordTabs.filter(tab => ['overview', 'landing'].includes(tab.id)))
+const storageKey = computed(() => props.good !== false ? 'ameise.catalog.good-tabs.v1' : 'ameise.catalog.record-tabs.v1')
+const order = ref(normalizeTabOrder(null, definitions.value))
 const dragging = ref(null)
 const announcement = ref('')
 const row = ref(null)
 let pointer = null
 let resizeObserver = null
-const tabs = computed(() => order.value.map(id => goodRecordTabs.find(tab => tab.id === id)))
+const tabs = computed(() => order.value.map(id => definitions.value.find(tab => tab.id === id)).filter(Boolean))
+
+function restoreOrder() {
+    try { order.value = normalizeTabOrder(JSON.parse(localStorage.getItem(storageKey.value) || 'null'), definitions.value) }
+    catch { order.value = normalizeTabOrder(null, definitions.value) }
+}
+watch(() => props.good, restoreOrder)
 
 function revealActive() {
     row.value?.querySelector(`[data-record-tab="${props.modelValue}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
 }
 onMounted(async () => {
-    try { order.value = normalizeTabOrder(JSON.parse(localStorage.getItem(storageKey) || 'null')) } catch { /* Browser preferences are optional. */ }
+    restoreOrder()
     await nextTick()
     revealActive()
     if (row.value && typeof ResizeObserver !== 'undefined') { resizeObserver = new ResizeObserver(revealActive); resizeObserver.observe(row.value) }
@@ -26,7 +33,7 @@ watch(() => props.modelValue, revealActive, { flush: 'post' })
 onScopeDispose(() => resizeObserver?.disconnect())
 function reorder(from, to) {
     order.value = moveTab(order.value, from, to)
-    try { localStorage.setItem(storageKey, JSON.stringify(order.value)) } catch { /* Keep the order for this session. */ }
+    try { localStorage.setItem(storageKey.value, JSON.stringify(order.value)) } catch { /* Keep the order for this session. */ }
     const tab = goodRecordTabs.find(item => item.id === from)
     announcement.value = `${tab?.label}: позиция ${order.value.indexOf(from) + 1} из ${order.value.length}`
 }
@@ -78,7 +85,7 @@ async function keydown(event, id, handle = false) {
 
 <template>
     <div class="catalog-record-tabs">
-        <div ref="row" class="catalog-record-tabs__row" role="tablist" aria-label="Разделы карточки товара">
+        <div ref="row" class="catalog-record-tabs__row" role="tablist" :aria-label="good !== false ? 'Разделы карточки товара' : 'Разделы карточки записи'">
             <div v-for="tab in tabs" :key="tab.id" :data-record-tab="tab.id" class="catalog-record-tabs__item" :class="{ 'is-active': modelValue === tab.id, 'is-dragging': dragging === tab.id }" role="presentation" draggable="true" @dragstart="dragStart($event, tab.id)" @dragover.prevent @drop="drop($event, tab.id)" @dragend="dragging = null">
                 <button type="button" role="tab" :aria-selected="modelValue === tab.id" :tabindex="modelValue === tab.id ? 0 : -1" @click="emit('update:modelValue', tab.id)" @keydown="keydown($event, tab.id)"><v-icon :icon="tab.icon" size="16" /><span>{{ tab.label }}</span></button>
                 <button type="button" class="catalog-record-tabs__handle" :aria-label="`Переместить вкладку ${tab.label}`" title="Перетащите вкладку или используйте стрелки ← →" @pointerdown="startPointer($event, tab.id)" @pointermove="movePointer" @pointerup="endPointer" @pointercancel="endPointer" @lostpointercapture="endPointer" @keydown="keydown($event, tab.id, true)"><v-icon icon="mdi-drag-vertical" size="14" /></button>

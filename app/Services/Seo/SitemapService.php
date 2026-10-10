@@ -2,12 +2,14 @@
 
 namespace App\Services\Seo;
 
+use App\Models\CatalogLanding;
+use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
-use App\Models\Product;
 use App\Services\Catalog\PublicClassPage;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use XMLWriter;
 
 class SitemapService
@@ -28,8 +30,11 @@ class SitemapService
 
         $this->writeUrl($xml, route('home'), now()->toDateString(), 'daily', '1.0');
 
+        $managedCategoryIds = Schema::hasTable('catalog_landings') ? CatalogNode::where('entity_type', 'category')
+            ->whereIn('id', CatalogLanding::whereNotNull('activated_at')->select('catalog_node_id'))->pluck('entity_id')->all() : [];
         Category::query()
             ->where('is_published', true)
+            ->whereNotIn('id', $managedCategoryIds)
             ->orderBy('id')
             ->chunk(500, function ($categories) use ($xml): void {
                 /** @var Category $category */
@@ -52,24 +57,9 @@ class SitemapService
                 }
             });
 
-        $guideIds = collect(config('product-pages.pages', []))
-            ->filter(fn ($page): bool => is_array($page) && filled($page['guide'] ?? null))
-            ->keys()->map(fn ($id): int => (int) $id)->filter()->unique()->values();
-
-        $writtenGuideUrls = [];
-        Product::query()->without(['category', 'manufacturers'])
-            ->whereIn('id', $guideIds)->where('is_published', true)->orderBy('id')
-            ->chunk(500, function ($products) use ($xml, &$writtenGuideUrls): void {
-                foreach ($products as $product) {
-                    $page = $this->classPages->catalogPageForProduct($product);
-                    $url = $page['node']['public_url'] ?? null;
-                    if (! $url || isset($writtenGuideUrls[$url])) {
-                        continue;
-                    }
-                    $writtenGuideUrls[$url] = true;
-                    $this->writeUrl($xml, $url, $this->lastmod($product), 'weekly', '0.8');
-                }
-            });
+        foreach ($this->classPages->publishedCatalogPages()->unique('node.public_url') as $page) {
+            $this->writeUrl($xml, $page['node']['public_url'], $page['lastmod'], 'weekly', '0.8');
+        }
 
         Good::query()
             ->where('is_published', true)

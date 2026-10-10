@@ -6,7 +6,7 @@ import * as Vue from 'vue'
 import { goodRecordTabs, moveTab, normalizeTabOrder } from '../../resources/js/Components/Catalog/recordTabs.js'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 
-function harness(t, saved = null, failStorage = false) {
+function harness(t, saved = null, failStorage = false, overrides = {}) {
     const filename = 'resources/js/Components/Catalog/CatalogRecordTabs.vue'
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename })
     assert.deepEqual(errors, [])
@@ -15,7 +15,7 @@ function harness(t, saved = null, failStorage = false) {
     assert.deepEqual(template.errors, [])
     const emitted = [], stored = []
     const mounted = []
-    const props = Vue.reactive({ modelValue: 'seo' })
+    const props = Vue.reactive({ modelValue: 'seo', good: true, ...overrides })
     let pointerTarget = null
     const env = { ...Vue, goodRecordTabs, moveTab, normalizeTabOrder, onMounted: callback => mounted.push(callback),
         document: { elementFromPoint: () => pointerTarget }, localStorage: {
@@ -37,6 +37,18 @@ test('stored tab order is deduplicated and new tabs are appended without losing 
     assert.equal(h.state.order.value.length, goodRecordTabs.length)
     assert.deepEqual(normalizeTabOrder({ wrong: true }), goodRecordTabs.map(tab => tab.id))
     assert.equal(findVNode(h.render(), node => node.props?.role === 'tablist').props['aria-label'], 'Разделы карточки товара')
+})
+
+test('catalog records use their own two-tab order and goods retain every existing tool', async t => {
+    const h = harness(t, JSON.stringify(['media', 'landing', 'overview']), false, { good: false, modelValue: 'landing' })
+    assert.deepEqual(h.state.order.value, ['landing', 'overview'])
+    assert.equal(findVNode(h.render(), node => node.props?.role === 'tablist').props['aria-label'], 'Разделы карточки записи')
+    h.state.reorder('overview', 'landing')
+    assert.equal(h.stored[0][0], 'ameise.catalog.record-tabs.v1')
+    h.props.good = true
+    await Vue.nextTick()
+    assert.equal(h.state.order.value.length, goodRecordTabs.length)
+    assert.ok(h.state.order.value.includes('landing'))
 })
 
 test('drag and drop persists the tab order without changing the selected tab', t => {

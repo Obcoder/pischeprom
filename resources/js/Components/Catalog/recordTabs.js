@@ -8,7 +8,10 @@ export const goodRecordTabs = [
     { id: 'collections', label: 'Подборки', icon: 'mdi-folder-multiple-outline' },
     { id: 'media', label: 'Медиа', icon: 'mdi-image-multiple-outline' },
     { id: 'sales', label: 'Продажи', icon: 'mdi-cart-outline' },
+    { id: 'landing', label: 'Лендинг', icon: 'mdi-web' },
 ]
+
+export const catalogRecordTabs = goodRecordTabs.filter(tab => ['overview', 'landing'].includes(tab.id))
 
 export function normalizeTabOrder(value, tabs = goodRecordTabs) {
     const allowed = tabs.map(tab => tab.id)

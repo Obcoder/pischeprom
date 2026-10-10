@@ -1,0 +1,22 @@
+.catalog-landing .landing-lines { white-space: pre-line; }
+.catalog-landing .landing-no-image { grid-template-columns: 1fr; }
+.catalog-landing .landing-no-image .hero-copy { max-width: none; }
+.catalog-landing .landing-preview { padding: 16px 22px; margin-bottom: 20px; background: #fff3cd; color: #5b4300; border: 1px solid #ead791; border-radius: 8px; }
+.catalog-landing .landing-caliber { background: var(--soft); border-bottom: 1px solid #e9eef0; }
+.catalog-landing [data-landing-block="cards"]:has(+ [data-landing-block="caliber"]) { padding-bottom: 0; border-bottom: 0; }
+.catalog-landing [data-landing-block="cards"] + [data-landing-block="caliber"] { padding-top: 0; }
+.catalog-landing .landing-caliber .caliber-intro h2 { font-size: 1.65rem; }
+.catalog-landing .landing-range-open { background: linear-gradient(90deg, #528195 75%, #52819540); border-right: 0; }
+.catalog-landing .landing-prose { max-width: 900px; }
+.catalog-landing .landing-prose p { font-size: 1rem; line-height: 1.7; margin-bottom: 1em; }
+.catalog-landing .landing-table-scroll { overflow-x: auto; }
+.catalog-landing .landing-table { width: 100%; border-collapse: collapse; font-size: 1rem; line-height: 1.65; }
+.catalog-landing .landing-table th, .catalog-landing .landing-table td { padding: 14px 18px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.catalog-landing .landing-table th { background: var(--soft); }
+.catalog-landing .landing-image img { max-width: 100%; height: auto; border-radius: 8px; }
+.catalog-landing .landing-image figcaption { color: var(--muted); margin-top: 12px; }
+.catalog-landing .landing-branches { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; padding-bottom: 25px; }
+.catalog-landing .landing-branches a { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.catalog-landing .landing-branches img { width: 60px; height: 60px; object-fit: cover; border-radius: 5px; }
+.catalog-landing .mobile-bar:has(a:only-child) { grid-template-columns: 1fr; }
+@media (max-width: 640px) { .catalog-landing .hero-description.landing-lines { white-space: normal; } }

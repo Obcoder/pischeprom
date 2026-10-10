@@ -193,6 +193,9 @@ Route::get('/Ameise/Botany/', function () {
 
 //   C A T E G O R I E S
 
+Route::get('/Ameise/catalog/nodes/{node}/landing/preview', [\App\Http\Controllers\Web\CatalogLandingPreviewController::class, 'show'])
+    ->whereNumber('node')->name('catalog.landing.preview');
+
 Route::get('/catalog/{node}/{slug?}', [\App\Http\Controllers\Web\CatalogController::class, 'show'])
     ->whereNumber('node')->name('public.catalog.show');
 Route::get('/catalog/{path}', [\App\Http\Controllers\Web\CatalogController::class, 'path'])

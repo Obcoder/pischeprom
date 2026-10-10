@@ -22,7 +22,7 @@ class ProductController extends Controller
     ): Response|RedirectResponse {
         abort_unless($product->is_published, 404);
 
-        if (config('product-pages.pages.'.$product->id.'.catalog_node_id')) {
+        if ($classPages->hasLandingForProduct($product)) {
             $target = $classPages->catalogPageForProduct($product);
             abort_unless($target, 404);
 

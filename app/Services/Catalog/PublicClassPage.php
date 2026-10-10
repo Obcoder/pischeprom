@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Models\CatalogLanding;
 use App\Models\CatalogNode;
 use App\Models\Good;
 use App\Models\Product;
@@ -9,6 +10,8 @@ use App\Services\Goods\GoodAvatarImages;
 use App\Services\Goods\GoodStockService;
 use App\Services\Goods\PublicGoodOffer;
 use App\Services\Seo\GoodSeoService;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class PublicClassPage
 {
@@ -29,8 +32,14 @@ class PublicClassPage
 
     public function catalogPageForProduct(Product $product): ?array
     {
+        if (! $product->is_published) {
+            return null;
+        }
+        if ($node = $this->managedNode('product', $product->id)) {
+            return $this->catalog->page($node->id);
+        }
         $configuration = config('product-pages.pages.'.$product->id);
-        if (! $product->is_published || ! is_array($configuration) || empty($configuration['guide'])
+        if (! is_array($configuration) || empty($configuration['guide'])
             || empty($configuration['catalog_node_id'])) {
             return null;
         }
@@ -45,6 +54,12 @@ class PublicClassPage
 
     public function forCatalogPage(array $page): ?array
     {
+        $landing = $this->hasLandingTable()
+            ? CatalogLanding::where('catalog_node_id', $page['node']['id'])->first(['id', 'catalog_node_id', 'published_content']) : null;
+        if ($landing) {
+            // An explicitly disabled landing must never reactivate its old PHP preset.
+            return $landing->published_content ? $this->fromContent($page, $landing->published_content) : null;
+        }
         $productId = collect(config('product-pages.pages', []))->search(fn ($configuration): bool => is_array($configuration) && filled($configuration['guide'] ?? null)
             && (int) ($configuration['catalog_node_id'] ?? 0) === (int) $page['node']['id']);
         if ($productId === false) {
@@ -57,10 +72,94 @@ class PublicClassPage
         }
         $configuration = config('product-pages.pages.'.$productId);
 
+        return $this->buildPage($page, $configuration);
+    }
+
+    public function hasLandingForProduct(Product $product): bool
+    {
+        return (bool) config('product-pages.pages.'.$product->id.'.catalog_node_id')
+            || $this->managedNode('product', $product->id) !== null;
+    }
+
+    /** Draft creation never changes an existing entity's public route. */
+    public function managedNode(string $entityType, int $entityId): ?CatalogNode
+    {
+        if (! $this->hasLandingTable()) {
+            return null;
+        }
+
+        return CatalogNode::where('entity_type', $entityType)->where('entity_id', $entityId)
+            ->whereIn('id', CatalogLanding::whereNotNull('activated_at')->select('catalog_node_id'))
+            ->orderBy('id')->first();
+    }
+
+    /** Shared discovery for sitemap and verification, including arbitrary catalog levels. */
+    public function publishedCatalogPages(): Collection
+    {
+        $landings = $this->hasLandingTable() ? CatalogLanding::select(['id', 'catalog_node_id', 'published_at'])
+            ->selectRaw('published_content IS NOT NULL as has_published')->get()->keyBy('catalog_node_id') : collect();
+        $legacyIds = collect(config('product-pages.pages', []))->filter(fn ($value): bool => is_array($value) && filled($value['guide'] ?? null))
+            ->pluck('catalog_node_id')->filter();
+        $ids = $landings->filter(fn ($landing): bool => (bool) $landing->has_published)->keys()
+            ->merge($legacyIds->reject(fn ($id): bool => $landings->has($id)))->unique()->all();
+
+        return $this->catalog->pages($ids)->filter(function (array $page) use ($landings): bool {
+            if ($landings->has($page['node']['id'])) {
+                return true;
+            }
+            $node = CatalogNode::find($page['node']['id']);
+            $config = $node ? config('product-pages.pages.'.$node->entity_id) : null;
+
+            return $node?->entity_type === 'product' && (int) ($config['catalog_node_id'] ?? 0) === $node->id;
+        })->map(function (array $page) use ($landings): array {
+            $landing = $landings->get($page['node']['id']);
+            $updated = $landing?->published_at ?? CatalogNode::find($page['node']['id'])?->updated_at;
+
+            return [...$page, 'lastmod' => $updated?->toDateString() ?? now()->toDateString()];
+        });
+    }
+
+    public function fromContent(array $page, array $content, bool $preview = false): array
+    {
+        $catalog = $content['catalog'] ?? [];
+        $configuration = [
+            'guide' => $content['template'],
+            'source_product_ids' => ($catalog['mode'] ?? 'branch') === 'selection' ? ($catalog['source_product_ids'] ?? []) : [],
+            'good_ids' => ($catalog['mode'] ?? 'branch') === 'selection'
+                ? ($catalog['good_ids'] ?? []) : $this->catalog->goodsInBranch($page['node']['id'], $preview),
+            'inline_good_ids' => $catalog['inline_good_ids'] ?? [],
+        ];
+        if (! ($catalog['enabled'] ?? true)) {
+            $configuration['source_product_ids'] = [];
+            $configuration['good_ids'] = [];
+        }
+        $result = $this->buildPage($page, $configuration);
+        $result['content'] = $content;
+        $result['children'] = $page['children'];
+        $result['preview'] = $preview;
+        $result['seo']['h1'] = trim($content['hero']['title'] ?? '') ?: $page['node']['name'];
+        $result['seo']['image'] = $content['hero']['image'] ?? $page['seo']['image'] ?? null;
+        if ($preview) {
+            $result['seo']['robots'] = 'noindex,nofollow';
+        }
+        $result['seo']['jsonLd'] = $this->structuredData($result['seo'], $result['goods'], $result['breadcrumbs']);
+
+        return $result;
+    }
+
+    private function hasLandingTable(): bool
+    {
+        return Schema::hasTable('catalog_landings');
+    }
+
+    private function buildPage(array $page, array $configuration): array
+    {
         $sourceIds = array_values(array_unique(array_map('intval', $configuration['source_product_ids'] ?? [])));
+        $goodIds = array_values(array_unique(array_map('intval', $configuration['good_ids'] ?? [])));
         $goods = Good::query()
             ->where('is_published', true)
-            ->whereHas('products', fn ($query) => $query->whereIn('products.id', $sourceIds)->where('products.is_published', true))
+            ->where(fn ($query) => $query->whereIn('id', $goodIds)
+                ->orWhereHas('products', fn ($products) => $products->whereIn('products.id', $sourceIds)->where('products.is_published', true)))
             ->with([
                 'seo', 'stockAvailability', 'country:id,name',
                 'publishedMedia' => fn ($query) => $query->where('type', 'image')->reorder()->orderByDesc('is_ava')->orderBy('sort_order')->orderBy('id'),

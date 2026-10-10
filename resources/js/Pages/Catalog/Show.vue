@@ -4,6 +4,7 @@ import { computed, h } from 'vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import PublicCatalogCards from '@/Components/Catalog/PublicCatalogCards.vue'
 import ClassLanding from '@/Components/Products/ClassPage/ClassLanding.vue'
+import CatalogLanding from '@/Components/Catalog/Landing/CatalogLanding.vue'
 import { resolveClassGuide } from '@/Components/Products/ClassPage/guides.js'
 
 defineOptions({ layout: LayoutDefault })
@@ -17,7 +18,7 @@ const props = defineProps({
 })
 
 const guide = computed(() => resolveClassGuide(props.classPage?.guide))
-const pageSeo = computed(() => ({ ...props.seo, ...(guide.value ? props.classPage.seo : {}) }))
+const pageSeo = computed(() => ({ ...props.seo, ...(props.classPage?.content || guide.value ? props.classPage.seo : {}) }))
 const JsonLdHead = () => h('script', { 'head-key': 'catalog-structured-data', type: 'application/ld+json' }, JSON.stringify(pageSeo.value.jsonLd).replace(/</g, '\\u003c'))
 
 function displayValue(property) {
@@ -40,7 +41,8 @@ function displayValue(property) {
         <JsonLdHead v-if="pageSeo.jsonLd" />
     </Head>
 
-    <ClassLanding v-if="guide" :key="`${node.id}-${classPage.guide}`" :page="classPage" :guide="guide" />
+    <CatalogLanding v-if="classPage?.content" :key="`${node.id}-${classPage.guide}`" :page="classPage" />
+    <ClassLanding v-else-if="guide" :key="`${node.id}-${classPage.guide}`" :page="classPage" :guide="guide" />
     <v-container v-else class="catalog-public py-7 py-md-10">
         <nav aria-label="Навигационная цепочка" class="catalog-public__breadcrumbs">
             <Link href="/">Главная</Link>

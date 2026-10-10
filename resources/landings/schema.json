@@ -1,0 +1,837 @@
+{
+  "hero": [
+    {
+      "key": "title",
+      "label": "Заголовок первого экрана",
+      "type": "text"
+    },
+    {
+      "key": "eyebrow",
+      "label": "Подпись над заголовком",
+      "type": "text"
+    },
+    {
+      "key": "subtitle",
+      "label": "Подзаголовок",
+      "type": "textarea"
+    },
+    {
+      "key": "description",
+      "label": "Описание",
+      "type": "textarea"
+    },
+    {
+      "key": "image",
+      "label": "Изображение",
+      "type": "url"
+    },
+    {
+      "key": "imageAlt",
+      "label": "Описание изображения",
+      "type": "text"
+    },
+    {
+      "key": "caption",
+      "label": "Подпись к изображению",
+      "type": "textarea"
+    },
+    {
+      "key": "scientificName",
+      "label": "Дополнительная подпись",
+      "type": "text"
+    },
+    {
+      "key": "action",
+      "label": "Текст кнопки",
+      "type": "text"
+    },
+    {
+      "key": "actionUrl",
+      "label": "Ссылка кнопки",
+      "type": "url"
+    },
+    {
+      "key": "secondaryAction",
+      "label": "Текст второй ссылки",
+      "type": "text"
+    },
+    {
+      "key": "secondaryActionUrl",
+      "label": "Адрес второй ссылки",
+      "type": "url"
+    },
+    {
+      "key": "audiences",
+      "label": "Аудитории",
+      "type": "list",
+      "itemType": "text"
+    },
+    {
+      "key": "photoIndex",
+      "label": "Подпись в углу фотографии",
+      "type": "text"
+    }
+  ],
+  "catalog": [
+    {
+      "key": "enabled",
+      "label": "Показывать ассортимент",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "key": "title",
+      "label": "Заголовок каталога",
+      "type": "text"
+    },
+    {
+      "key": "eyebrow",
+      "label": "Подпись над заголовком",
+      "type": "text"
+    },
+    {
+      "key": "description",
+      "label": "Описание",
+      "type": "textarea"
+    },
+    {
+      "key": "action",
+      "label": "Текст ссылки в нижней панели",
+      "type": "text"
+    },
+    {
+      "key": "note",
+      "label": "Примечание под товарами",
+      "type": "textarea"
+    },
+    {
+      "key": "mode",
+      "label": "Способ подбора",
+      "type": "select",
+      "options": [
+        {
+          "value": "branch",
+          "title": "Из ветки каталога"
+        },
+        {
+          "value": "selection",
+          "title": "Выбранные товары и источники"
+        }
+      ],
+      "default": "branch"
+    },
+    {
+      "key": "source_product_ids",
+      "label": "Источники: ID продуктов",
+      "type": "list",
+      "itemType": "integer",
+      "min": 1
+    },
+    {
+      "key": "good_ids",
+      "label": "ID товаров",
+      "type": "list",
+      "itemType": "integer",
+      "min": 1
+    },
+    {
+      "key": "inline_good_ids",
+      "label": "ID товаров для ссылок в тексте",
+      "type": "list",
+      "itemType": "integer",
+      "min": 1
+    }
+  ],
+  "contact": [
+    {
+      "key": "enabled",
+      "label": "Показывать блок обращения",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "key": "eyebrow",
+      "label": "Подпись над заголовком",
+      "type": "text"
+    },
+    {
+      "key": "title",
+      "label": "Заголовок",
+      "type": "textarea"
+    },
+    {
+      "key": "description",
+      "label": "Описание",
+      "type": "textarea"
+    },
+    {
+      "key": "action",
+      "label": "Текст кнопки",
+      "type": "text"
+    },
+    {
+      "key": "actionUrl",
+      "label": "Ссылка кнопки",
+      "type": "url"
+    },
+    {
+      "key": "note",
+      "label": "Примечание под кнопкой",
+      "type": "textarea"
+    }
+  ],
+  "sources": [
+    {
+      "key": "enabled",
+      "label": "Показывать источники",
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "key": "title",
+      "label": "Заголовок",
+      "type": "text"
+    },
+    {
+      "key": "verifiedOn",
+      "label": "Дата проверки текста",
+      "type": "text"
+    },
+    {
+      "key": "description",
+      "label": "Введение",
+      "type": "textarea"
+    },
+    {
+      "key": "items",
+      "label": "Источники",
+      "type": "list",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Якорь источника",
+          "type": "text"
+        },
+        {
+          "key": "title",
+          "label": "Название",
+          "type": "text"
+        },
+        {
+          "key": "url",
+          "label": "Ссылка",
+          "type": "url"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "key": "photosTitle",
+      "label": "Заголовок фотографий",
+      "type": "text"
+    },
+    {
+      "key": "photos",
+      "label": "Фотографии",
+      "type": "list",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Название",
+          "type": "text"
+        },
+        {
+          "key": "author",
+          "label": "Автор и площадка",
+          "type": "text"
+        },
+        {
+          "key": "source",
+          "label": "Ссылка на оригинал",
+          "type": "url"
+        },
+        {
+          "key": "license",
+          "label": "Лицензия",
+          "type": "text"
+        },
+        {
+          "key": "licenseUrl",
+          "label": "Ссылка на лицензию",
+          "type": "url"
+        }
+      ]
+    },
+    {
+      "key": "photoNote",
+      "label": "Пояснение к фотографиям",
+      "type": "textarea"
+    },
+    {
+      "key": "closingNote",
+      "label": "Условия использования фотографий",
+      "type": "textarea"
+    }
+  ],
+  "blockTypes": {
+    "text": {
+      "label": "Текст",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "paragraphs",
+          "label": "Абзацы",
+          "type": "list",
+          "itemType": "text"
+        }
+      ]
+    },
+    "cards": {
+      "label": "Карточки с рекомендациями",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "items",
+          "label": "Карточки",
+          "type": "list",
+          "fields": [
+            {
+              "key": "title",
+              "label": "Заголовок",
+              "type": "text"
+            },
+            {
+              "key": "text",
+              "label": "Текст",
+              "type": "textarea"
+            },
+            {
+              "key": "note",
+              "label": "Примечание",
+              "type": "text"
+            },
+            {
+              "key": "linkText",
+              "label": "Текст ссылки",
+              "type": "text"
+            },
+            {
+              "key": "linkUrl",
+              "label": "Адрес ссылки",
+              "type": "url"
+            }
+          ]
+        }
+      ]
+    },
+    "caliber": {
+      "label": "Диаграмма размеров",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "chartLabel",
+          "label": "Описание диаграммы для чтения с экрана",
+          "type": "textarea"
+        },
+        {
+          "key": "axis",
+          "label": "Подписи шкалы",
+          "type": "list",
+          "itemType": "text"
+        },
+        {
+          "key": "ranges",
+          "label": "Диапазоны",
+          "type": "list",
+          "fields": [
+            {
+              "key": "label",
+              "label": "Название",
+              "type": "text"
+            },
+            {
+              "key": "start",
+              "label": "Начало, %",
+              "type": "number",
+              "min": 0,
+              "max": 100
+            },
+            {
+              "key": "width",
+              "label": "Ширина, %",
+              "type": "number",
+              "min": 0,
+              "max": 100
+            },
+            {
+              "key": "open",
+              "label": "Без верхней границы",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "key": "note",
+          "label": "Примечание к шкале",
+          "type": "textarea"
+        },
+        {
+          "key": "afterword",
+          "label": "Текст под диаграммой",
+          "type": "textarea"
+        }
+      ]
+    },
+    "uses": {
+      "label": "Применение с фотографией",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "image",
+          "label": "Изображение",
+          "type": "url"
+        },
+        {
+          "key": "imageAlt",
+          "label": "Описание изображения",
+          "type": "text"
+        },
+        {
+          "key": "caption",
+          "label": "Подпись к изображению",
+          "type": "textarea"
+        },
+        {
+          "key": "photoNote",
+          "label": "Пояснение к фотографии",
+          "type": "text"
+        },
+        {
+          "key": "items",
+          "label": "Карточки",
+          "type": "list",
+          "fields": [
+            {
+              "key": "title",
+              "label": "Заголовок",
+              "type": "text"
+            },
+            {
+              "key": "text",
+              "label": "Текст",
+              "type": "textarea"
+            },
+            {
+              "key": "note",
+              "label": "Примечание",
+              "type": "text"
+            },
+            {
+              "key": "linkText",
+              "label": "Текст ссылки",
+              "type": "text"
+            },
+            {
+              "key": "linkUrl",
+              "label": "Адрес ссылки",
+              "type": "url"
+            }
+          ]
+        }
+      ]
+    },
+    "glaze": {
+      "label": "Расчёт массы и выхода",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись",
+          "type": "text"
+        },
+        {
+          "key": "paragraphs",
+          "label": "Абзацы",
+          "type": "list",
+          "itemType": "text"
+        },
+        {
+          "key": "reminder",
+          "label": "Напоминание",
+          "type": "textarea"
+        },
+        {
+          "key": "diagramCaption",
+          "label": "Заголовок примера",
+          "type": "text"
+        },
+        {
+          "key": "equation",
+          "label": "Элементы расчёта",
+          "type": "list",
+          "fields": [
+            {
+              "key": "value",
+              "label": "Значение",
+              "type": "text"
+            },
+            {
+              "key": "unit",
+              "label": "Единица",
+              "type": "text"
+            },
+            {
+              "key": "label",
+              "label": "Подпись",
+              "type": "text"
+            },
+            {
+              "key": "operator",
+              "label": "Знак перед элементом",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "key": "barLabel",
+          "label": "Описание соотношения для чтения с экрана",
+          "type": "text"
+        },
+        {
+          "key": "primaryPercent",
+          "label": "Основная часть, %",
+          "type": "number",
+          "min": 0,
+          "max": 100
+        },
+        {
+          "key": "primaryLegend",
+          "label": "Подпись основной части",
+          "type": "text"
+        },
+        {
+          "key": "secondaryLegend",
+          "label": "Подпись дополнительной части",
+          "type": "text"
+        },
+        {
+          "key": "yieldTitle",
+          "label": "Заголовок пояснения",
+          "type": "text"
+        },
+        {
+          "key": "yieldText",
+          "label": "Пояснение",
+          "type": "textarea"
+        }
+      ]
+    },
+    "quality": {
+      "label": "Качество и хранение",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "linkText",
+          "label": "Ссылка возле заголовка",
+          "type": "text"
+        },
+        {
+          "key": "linkUrl",
+          "label": "Адрес ссылки",
+          "type": "url"
+        },
+        {
+          "key": "headers",
+          "label": "Заголовки таблицы",
+          "type": "list",
+          "itemType": "text"
+        },
+        {
+          "key": "rows",
+          "label": "Строки таблицы",
+          "type": "list",
+          "fields": [
+            {
+              "key": "title",
+              "label": "Что проверить",
+              "type": "text"
+            },
+            {
+              "key": "text",
+              "label": "Описание",
+              "type": "textarea"
+            }
+          ]
+        },
+        {
+          "key": "aside",
+          "label": "Карточка хранения",
+          "type": "object",
+          "fields": [
+            {
+              "key": "eyebrow",
+              "label": "Подпись",
+              "type": "text"
+            },
+            {
+              "key": "value",
+              "label": "Значение",
+              "type": "text"
+            },
+            {
+              "key": "unit",
+              "label": "Единица",
+              "type": "text"
+            },
+            {
+              "key": "title",
+              "label": "Пояснение к значению",
+              "type": "text"
+            },
+            {
+              "key": "text",
+              "label": "Текст",
+              "type": "textarea"
+            },
+            {
+              "key": "secondaryTitle",
+              "label": "Дополнительный заголовок",
+              "type": "text"
+            },
+            {
+              "key": "secondaryText",
+              "label": "Дополнительный текст",
+              "type": "textarea"
+            }
+          ]
+        },
+        {
+          "key": "note",
+          "label": "Важное примечание",
+          "type": "object",
+          "fields": [
+            {
+              "key": "title",
+              "label": "Заголовок",
+              "type": "text"
+            },
+            {
+              "key": "text",
+              "label": "Текст",
+              "type": "textarea"
+            }
+          ]
+        }
+      ]
+    },
+    "faq": {
+      "label": "Вопросы и ответы",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "action",
+          "label": "Текст кнопки",
+          "type": "text"
+        },
+        {
+          "key": "actionUrl",
+          "label": "Ссылка кнопки",
+          "type": "url"
+        },
+        {
+          "key": "items",
+          "label": "Вопросы",
+          "type": "list",
+          "fields": [
+            {
+              "key": "id",
+              "label": "Якорь вопроса",
+              "type": "text"
+            },
+            {
+              "key": "question",
+              "label": "Вопрос",
+              "type": "text",
+              "required": true
+            },
+            {
+              "key": "open",
+              "label": "Раскрыт при открытии страницы",
+              "type": "boolean"
+            },
+            {
+              "key": "paragraphs",
+              "label": "Абзацы",
+              "type": "list",
+              "itemType": "text"
+            },
+            {
+              "key": "definitions",
+              "label": "Термины",
+              "type": "list",
+              "fields": [
+                {
+                  "key": "term",
+                  "label": "Термин",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "label": "Определение",
+                  "type": "textarea"
+                }
+              ]
+            },
+            {
+              "key": "bullets",
+              "label": "Пункты списка",
+              "type": "list",
+              "itemType": "text"
+            },
+            {
+              "key": "afterword",
+              "label": "Текст после списка",
+              "type": "textarea"
+            },
+            {
+              "key": "linkText",
+              "label": "Текст ссылки",
+              "type": "text"
+            },
+            {
+              "key": "linkUrl",
+              "label": "Адрес ссылки",
+              "type": "url"
+            }
+          ]
+        }
+      ]
+    },
+    "table": {
+      "label": "Таблица",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "headers",
+          "label": "Заголовки колонок",
+          "type": "list",
+          "itemType": "text"
+        },
+        {
+          "key": "rows",
+          "label": "Строки",
+          "type": "list",
+          "fields": [
+            {
+              "key": "cells",
+              "label": "Ячейки",
+              "type": "list",
+              "itemType": "text"
+            }
+          ]
+        },
+        {
+          "key": "note",
+          "label": "Примечание",
+          "type": "textarea"
+        }
+      ]
+    },
+    "image": {
+      "label": "Фотография с подписью",
+      "fields": [
+        {
+          "key": "eyebrow",
+          "label": "Подпись над заголовком",
+          "type": "text"
+        },
+        {
+          "key": "description",
+          "label": "Описание",
+          "type": "textarea"
+        },
+        {
+          "key": "image",
+          "label": "Изображение",
+          "type": "url"
+        },
+        {
+          "key": "imageAlt",
+          "label": "Описание изображения",
+          "type": "text"
+        },
+        {
+          "key": "caption",
+          "label": "Подпись к изображению",
+          "type": "textarea"
+        }
+      ]
+    }
+  }
+}

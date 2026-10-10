@@ -26,9 +26,19 @@ class ClassPageHtmlVerifier
             && $root->getAttribute('data-class-guide') === $page['guide'], 'The rendered class guide is missing.');
         $articles = $xpath->query('.//*[@data-guide-article]', $root);
         $article = $articles->item(0);
+        $structured = isset($page['content']);
         $this->require($articles->length === 1 && $article instanceof DOMElement
             && $article->getAttribute('data-guide-article') === $page['guide']
-            && mb_strlen(trim($article->textContent)) > 200, 'The rendered guide article is missing or empty.');
+            && ($structured || mb_strlen(trim($article->textContent)) > 200), 'The rendered guide article is missing or empty.');
+        if ($structured) {
+            $expectedBlocks = collect($page['content']['blocks'] ?? [])->filter(fn (array $block): bool => $block['enabled'] !== false)
+                ->map(fn (array $block): array => ['id' => $block['id'], 'type' => $block['type']])->values()->all();
+            $actualBlocks = [];
+            foreach ($xpath->query('.//*[@data-landing-block]', $article) as $block) {
+                $actualBlocks[] = ['id' => $block->getAttribute('id'), 'type' => $block->getAttribute('data-landing-block')];
+            }
+            $this->require($actualBlocks === $expectedBlocks, 'The rendered landing blocks differ from the published content.');
+        }
         $headings = $xpath->query('.//h1', $root);
         $this->require($headings->length === 1 && trim($headings->item(0)->textContent) === $page['seo']['h1'], 'The rendered H1 is incorrect.');
         $breadcrumbs = $page['breadcrumbs'];
@@ -45,10 +55,11 @@ class ClassPageHtmlVerifier
             && trim($currentBreadcrumbs->item(0)->textContent) === end($breadcrumbs)['name'], 'The current catalog breadcrumb is incorrect.');
 
         $catalogs = $xpath->query('.//*[@data-class-goods]', $root);
-        $this->require($catalogs->length === 1, 'The rendered class catalog is missing.');
-        $cards = $xpath->query('.//article[@data-good-id]', $catalogs->item(0));
+        $catalogEnabled = ! $structured || ($page['content']['catalog']['enabled'] ?? true);
+        $this->require($catalogs->length === ($catalogEnabled ? 1 : 0), 'The rendered class catalog visibility is incorrect.');
+        $cards = $catalogEnabled ? $xpath->query('.//article[@data-good-id]', $catalogs->item(0)) : [];
         $expectedGoods = collect($page['goods'])->keyBy('id');
-        $this->require($cards->length === $expectedGoods->count(), 'The rendered catalog count differs from the public catalog.');
+        $this->require(count($cards) === $expectedGoods->count(), 'The rendered catalog count differs from the public catalog.');
         $seen = [];
         foreach ($cards as $card) {
             $id = (int) $card->getAttribute('data-good-id');
@@ -67,8 +78,10 @@ class ClassPageHtmlVerifier
             $this->require($good !== null && $link->getAttribute('href') === $good['url'], 'An article link is not a current public product URL.');
             $inlineIds[$id] = true;
         }
-        foreach ($inlineGoods as $id => $good) {
-            $this->require(isset($inlineIds[$id]), 'A published contextual product link is missing from the article.');
+        if (! $structured) {
+            foreach ($inlineGoods as $id => $good) {
+                $this->require(isset($inlineIds[$id]), 'A published contextual product link is missing from the article.');
+            }
         }
 
         $canonicals = $xpath->query('//head/link[@rel="canonical"]');

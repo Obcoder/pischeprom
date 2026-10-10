@@ -33,7 +33,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const reads = []
     const environment = {
         ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
-        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', _mergeModels: Vue.mergeModels,
+        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
         _useModel: (props, name) => Vue.computed({
@@ -103,6 +103,62 @@ test('changing tabs preserves the base draft and mounts each tool lazily', async
     assert.equal(h.api.form.name, 'Черновик названия')
     assert.equal(h.api.goodForm.denominator, 12)
     assert.equal(h.reads.length, 2)
+})
+
+test('landing is shared by all levels and has independent dirty and busy guards', async t => {
+    for (const entity_type of ['custom', 'category', 'product', 'good']) {
+        const h = harness(t, { node: sourceNode({ entity_type, level_id: null }), initialTab: 'landing' })
+        await h.ready()
+        assert.equal(h.api.activeTab.value, 'landing')
+        assert.equal(h.api.mainTab.value, false)
+        assert.equal(h.api.operationsTab.value, false)
+        assert.equal(h.api.operationsVisited.value, false, 'Landing never initializes commerce tools')
+        assert.ok(findVNode(h.render(), node => node.type === 'CatalogLandingEditor'))
+        h.api.updateLandingState({ dirty: true, busy: false })
+        assert.equal(h.api.dirty.value, true)
+        h.api.selectTab('overview')
+        await h.api.save()
+        assert.equal(h.requests.length, 0, 'Main save cannot implicitly publish or discard a landing draft')
+        assert.equal(h.api.activeTab.value, 'landing')
+        h.api.requestClose()
+        assert.equal(h.api.discardOpen.value, true)
+        h.api.discardOpen.value = false
+        h.api.updateLandingState({ dirty: false, busy: true })
+        h.api.requestClose()
+        assert.equal(h.props.modelValue, true)
+        assert.equal(h.api.discardOpen.value, false)
+        assert.equal(h.api.canSave.value, false)
+    }
+})
+
+test('a new catalog record can be created while staying on its landing tab', async t => {
+    const h = harness(t, { initialTab: 'landing' })
+    assert.equal(h.api.activeTab.value, 'landing')
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogLandingEditor'), null)
+    h.api.form.name = 'Новый раздел'
+    const pending = h.api.save('landing')
+    h.requests[0].resolve(sourceNode({ entity_type: 'custom', entity_id: null, name: 'Новый раздел' }))
+    await pending
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.activeTab.value, 'landing')
+    assert.ok(findVNode(h.render(), node => node.type === 'CatalogLandingEditor'))
+})
+
+test('reset confirms both card and landing drafts together and preserves the selected landing tab', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product' }), initialTab: 'landing' })
+    h.api.form.name = 'Несохранённое имя'
+    h.api.updateLandingState({ dirty: true, busy: false })
+    let resets = 0
+    h.api.landingEditor.value = { reset() { resets++; h.api.updateLandingState({ dirty: false, busy: false }) } }
+    h.api.requestReset()
+    assert.equal(h.api.resetOpen.value, true)
+    assert.equal(resets, 0)
+    h.api.confirmReset()
+    assert.equal(resets, 1)
+    assert.equal(h.api.form.name, 'Мука')
+    assert.equal(h.api.dirty.value, false)
+    assert.equal(h.api.activeTab.value, 'landing')
+    assert.equal(h.api.landingVisited.value, true)
 })
 
 test('classification trade codes save the incoming code with leading zeroes and keep unsaved product context', async t => {

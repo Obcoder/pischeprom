@@ -12,7 +12,7 @@ function harness(t, filename, initial) {
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'PublicCatalogPage', compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
     const guide = { article: {}, catalogTitle: 'Скумбрия в каталоге' }
-    const environment = { ...Vue, Head: 'Head', Link: 'Link', LayoutDefault: {}, PublicCatalogCards: 'PublicCatalogCards', ClassLanding: 'ClassLanding',
+    const environment = { ...Vue, Head: 'Head', Link: 'Link', LayoutDefault: {}, PublicCatalogCards: 'PublicCatalogCards', ClassLanding: 'ClassLanding', CatalogLanding: 'CatalogLanding',
         GoodStockAlertButton: 'GoodStockAlertButton', canSubscribeToGoodStock: () => false,
         route: (name, params) => `/g/${params.good}`, resolveClassGuide: key => key === 'mackerel' ? guide : null }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -62,6 +62,27 @@ test('generic catalog pages retain breadcrumbs, properties, children and metadat
     h.props.classPage = { guide: 'unknown-guide', seo: { title: 'Wrong title' } }
     assert.equal(findVNode(h.render(), node => node.type === 'Head').props.title, h.props.seo.title)
     assert.equal(findVNode(h.render(), node => node.type === 'ClassLanding'), null)
+})
+
+test('a saved landing at any catalog level uses its content renderer and current page metadata', t => {
+    const classPage = {
+        guide: 'overview', content: { template: 'overview', hero: { title: 'Ингредиенты' }, blocks: [] },
+        goods: [], inlineGoods: {}, breadcrumbs: [],
+        seo: { title: 'Ингредиенты из карточки', description: 'Описание из карточки', canonical: 'https://example.test/catalog/ingredients', robots: 'noindex,nofollow', image: '/landing.jpg' },
+    }
+    const h = harness(t, 'resources/js/Pages/Catalog/Show.vue', catalogProps({ node: { id: 999, name: 'Ингредиенты', level_name: null }, classPage }))
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogLanding').props.page, h.props.classPage)
+    assert.equal(findVNode(h.render(), node => node.type === 'ClassLanding'), null)
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'catalog-public')), null)
+    assert.equal(findVNode(h.render(), node => node.type === 'Head').props.title, classPage.seo.title)
+    assert.equal(findVNode(h.render(), node => node.props?.name === 'description').props.content, classPage.seo.description)
+    assert.equal(findVNode(h.render(), node => node.props?.name === 'robots').props.content, 'noindex,nofollow')
+    assert.equal(findVNode(h.render(), node => node.props?.property === 'og:image').props.content, '/landing.jpg')
+    assert.equal(findVNode(h.render(), node => node.props?.rel === 'canonical').props.href, classPage.seo.canonical)
+    h.props.classPage = null
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogLanding'), null)
+    assert.ok(findVNode(h.render(), node => hasClass(node, 'catalog-public')), 'Disabling the landing returns the ordinary catalog page')
+    assert.equal(findVNode(h.render(), node => node.type === 'Head').props.title, h.props.seo.title)
 })
 
 test('ordinary Product pages continue to render their original goods grid', t => {
