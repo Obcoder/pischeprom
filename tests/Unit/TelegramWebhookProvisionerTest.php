@@ -77,6 +77,46 @@ class TelegramWebhookProvisionerTest extends TestCase
         self::assertSame($contents, file_get_contents($this->directory.'/.env'));
     }
 
+    public function test_preflight_validates_the_webhook_without_creating_a_secret_or_changing_environment_permissions(): void
+    {
+        $contents = $this->environment();
+        file_put_contents($this->directory.'/.env', $contents);
+        chmod($this->directory.'/.env', 0440);
+        $calls = [];
+        $service = new TelegramWebhookProvisioner(function ($token, $method, $parameters) use (&$calls): array {
+            $calls[] = $method;
+            self::assertSame('getWebhookInfo', $method);
+            self::assertSame([], $parameters);
+
+            return ['ok' => true, 'result' => $this->info()];
+        });
+
+        self::assertSame('checked', $service->provision($this->directory, true));
+        self::assertSame(['getWebhookInfo'], $calls);
+        self::assertSame($contents, file_get_contents($this->directory.'/.env'));
+        self::assertSame(0440, fileperms($this->directory.'/.env') & 0777);
+    }
+
+    public function test_preflight_transport_failure_stops_without_changing_environment_or_disclosing_credentials(): void
+    {
+        $contents = $this->environment();
+        file_put_contents($this->directory.'/.env', $contents);
+        $calls = [];
+        $service = new TelegramWebhookProvisioner(function ($token, $method) use (&$calls): never {
+            $calls[] = $method;
+            throw new RuntimeException('https://api.telegram.org/bot123:test_token/getWebhookInfo');
+        });
+        try {
+            $service->provision($this->directory, true);
+            self::fail('An unavailable provider must block preflight.');
+        } catch (RuntimeException $exception) {
+            self::assertStringNotContainsString('test_token', $exception->getMessage());
+            self::assertNull($exception->getPrevious());
+            self::assertSame(['getWebhookInfo'], $calls);
+            self::assertSame($contents, file_get_contents($this->directory.'/.env'));
+        }
+    }
+
     public function test_no_token_or_unregistered_webhook_never_causes_remote_mutation(): void
     {
         file_put_contents($this->directory.'/.env', "APP_URL=https://example.test\n");
@@ -104,12 +144,14 @@ class TelegramWebhookProvisionerTest extends TestCase
 
             return ['ok' => true, 'result' => $this->info($settings)];
         });
-        try {
-            $service->provision($this->directory);
-            self::fail('Unsupported configuration must fail closed.');
-        } catch (RuntimeException $exception) {
-            self::assertStringNotContainsString('test_token', $exception->getMessage());
-            self::assertSame($contents, file_get_contents($this->directory.'/.env'));
+        foreach ([false, true] as $checkOnly) {
+            try {
+                $service->provision($this->directory, $checkOnly);
+                self::fail('Unsupported configuration must fail closed.');
+            } catch (RuntimeException $exception) {
+                self::assertStringNotContainsString('test_token', $exception->getMessage());
+                self::assertSame($contents, file_get_contents($this->directory.'/.env'));
+            }
         }
     }
 
@@ -150,12 +192,51 @@ class TelegramWebhookProvisionerTest extends TestCase
 
     public function test_cli_reports_only_generic_errors_for_invalid_environment(): void
     {
+        symlink(dirname(__DIR__, 2).'/vendor', $this->directory.'/vendor');
         file_put_contents($this->directory.'/.env', "TELEGRAM_BOT_TOKEN=\"private secret\"\n");
         $process = new Process([PHP_BINARY, dirname(__DIR__, 2).'/scripts/provision-production-telegram.php', $this->directory]);
         $process->run();
         self::assertSame(1, $process->getExitCode());
         self::assertStringNotContainsString('private secret', $process->getOutput().$process->getErrorOutput());
         self::assertStringContainsString('provisioning failed', $process->getErrorOutput());
+    }
+
+    public function test_staged_cli_uses_the_selected_service_and_running_application_dependencies_in_check_mode(): void
+    {
+        symlink(dirname(__DIR__, 2).'/vendor', $this->directory.'/vendor');
+        $contents = "TELEGRAM_BOT_TOKEN=\"invalid token must never reach the old service\"\n";
+        file_put_contents($this->directory.'/.env', $contents);
+        $stage = $this->directory.'/selected';
+        mkdir($stage.'/scripts', 0700, true);
+        mkdir($stage.'/app/Services', 0700, true);
+        copy(dirname(__DIR__, 2).'/scripts/provision-production-telegram.php', $stage.'/scripts/provision-production-telegram.php');
+        file_put_contents($stage.'/app/Services/TelegramWebhookProvisioner.php', <<<'PHP'
+<?php
+namespace App\Services;
+final class TelegramWebhookProvisioner
+{
+    public function __construct(\Closure $request) {}
+    public function provision(string $directory, bool $checkOnly = false): string
+    {
+        if (! $checkOnly) { throw new \RuntimeException('Expected check mode.'); }
+        return 'checked';
+    }
+}
+PHP);
+        try {
+            $process = new Process([PHP_BINARY, $stage.'/scripts/provision-production-telegram.php', $this->directory, '--check']);
+            $process->run();
+            self::assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+            self::assertStringContainsString('preflight passed', $process->getOutput());
+            self::assertSame($contents, file_get_contents($this->directory.'/.env'));
+        } finally {
+            unlink($stage.'/scripts/provision-production-telegram.php');
+            unlink($stage.'/app/Services/TelegramWebhookProvisioner.php');
+            rmdir($stage.'/scripts');
+            rmdir($stage.'/app/Services');
+            rmdir($stage.'/app');
+            rmdir($stage);
+        }
     }
 
     private function environment(): string

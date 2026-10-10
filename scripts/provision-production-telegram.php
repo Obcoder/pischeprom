@@ -13,12 +13,15 @@ set_error_handler(static function (): never {
     throw new RuntimeException('Telegram provisioning operation failed.');
 });
 
-if ($argc !== 2 || ! is_dir($argv[1])) {
-    fwrite(STDERR, "Expected an application directory.\n");
+if (($argc !== 2 && $argc !== 3) || ! is_dir($argv[1]) || ($argc === 3 && $argv[2] !== '--check')) {
+    fwrite(STDERR, "Expected an application directory and optional --check.\n");
     exit(2);
 }
 
-require dirname(__DIR__).'/vendor/autoload.php';
+require rtrim($argv[1], '/').'/vendor/autoload.php';
+// Preflight stages this script and its matching service from the selected
+// commit, while dependencies still belong to the running application.
+require_once dirname(__DIR__).'/app/Services/TelegramWebhookProvisioner.php';
 
 $client = new Client(['connect_timeout' => 10, 'timeout' => 30, 'allow_redirects' => false, 'http_errors' => false]);
 $provisioner = new TelegramWebhookProvisioner(static function (string $token, string $method, array $parameters) use ($client): array {
@@ -38,5 +41,9 @@ $provisioner = new TelegramWebhookProvisioner(static function (string $token, st
     return $result;
 });
 
-$status = $provisioner->provision($argv[1]);
-fwrite(STDOUT, $status === 'secured' ? "Telegram webhook secret configured; pending updates retained.\n" : "Telegram webhook not configured; no remote changes.\n");
+$status = $provisioner->provision($argv[1], $argc === 3);
+fwrite(STDOUT, match ($status) {
+    'checked' => "Telegram webhook preflight passed; no remote or environment changes.\n",
+    'secured' => "Telegram webhook secret configured; pending updates retained.\n",
+    default => "Telegram webhook not configured; no remote changes.\n",
+});

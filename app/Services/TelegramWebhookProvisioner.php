@@ -14,23 +14,23 @@ final class TelegramWebhookProvisioner
     /** @param Closure(string, string, array): array $request */
     public function __construct(private readonly Closure $request) {}
 
-    public function provision(string $directory): string
+    public function provision(string $directory, bool $checkOnly = false): string
     {
         try {
-            return $this->configure(rtrim($directory, '/').'/.env');
+            return $this->configure(rtrim($directory, '/').'/.env', $checkOnly);
         } catch (Throwable) {
             // Transport exceptions can contain a bot token in their request URL.
             throw new RuntimeException('Telegram webhook provisioning failed; configuration was not disclosed.');
         }
     }
 
-    private function configure(string $path): string
+    private function configure(string $path, bool $checkOnly): string
     {
         if (! is_file($path) || is_link($path)) {
             throw new RuntimeException;
         }
-        $handle = fopen($path, 'r+');
-        if (! is_resource($handle) || ! flock($handle, LOCK_EX)) {
+        $handle = fopen($path, $checkOnly ? 'r' : 'r+');
+        if (! is_resource($handle) || ! flock($handle, $checkOnly ? LOCK_SH : LOCK_EX)) {
             throw new RuntimeException;
         }
 
@@ -58,6 +58,9 @@ final class TelegramWebhookProvisioner
                 return 'disabled';
             }
             $parameters = $this->parameters($info, $env['APP_URL'] ?? '');
+            if ($checkOnly) {
+                return 'checked';
+            }
             $secret = $env['TELEGRAM_WEBHOOK_SECRET'] ?? '';
             if (! preg_match('/\A[A-Za-z0-9_-]{1,256}\z/D', $secret)) {
                 $secret = bin2hex(random_bytes(32));
