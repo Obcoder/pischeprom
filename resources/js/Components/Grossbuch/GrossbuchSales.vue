@@ -1,5 +1,6 @@
 <script setup>
 import axios from 'axios'
+import { usePage } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, toRefs } from 'vue'
 import { route } from 'ziggy-js'
 import { saleRequestId } from '@/Pages/Helpers/saleRequestId.js'
@@ -9,6 +10,8 @@ import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
 import { useRealtimeResource } from '@/Composables/useRealtimeResource.js'
 import RealtimeStatus from '@/Components/Realtime/RealtimeStatus.vue'
 
+const page = usePage()
+const canManageSales = computed(() => page.props.auth?.permissions?.sales?.manage === true)
 const resource = useRealtimeResource({
     key: 'grossbuch-sales',
     initialValue: { rows: [], totalItems: 0, totalAmount: 0, months: [], selectedSale: null, stockRows: null },
@@ -23,6 +26,13 @@ const stockLoading = ref(false)
 const stockError = ref(false)
 const loading = ref(false)
 const saving = ref(false)
+const editingSaleId = ref(null)
+const editLoading = ref(false)
+const formErrorMessage = ref('')
+const deleteDialog = ref(false)
+const deletingSale = ref(null)
+const deleting = ref(false)
+const deleteErrorMessage = ref('')
 const dialog = ref(false)
 const entityDialog = ref(false)
 const entitySaving = ref(false)
@@ -40,6 +50,7 @@ const dateForm = reactive({ saleId: null, date: '' })
 const dateRangeMenu = ref(false)
 let salesRequestId = 0
 let stockRequestId = 0
+let editRequestId = 0
 let lastSalesParams = null
 
 const entities = ref([])
@@ -79,6 +90,7 @@ const saleForm = reactive({
     request_id: null,
     date: new Date().toISOString().slice(0, 10),
     entity_id: null,
+    payment_reference: '',
     manualTotal: false,
     total: null,
     goods: [],
@@ -87,12 +99,13 @@ const saleForm = reactive({
 const detailsLine = reactive(makeLine())
 const detailsRequestId = ref(null)
 
-const headers = [
+const headers = computed(() => [
     { title: 'Дата', key: 'date', sortable: true, width: '78px' },
     { title: 'Покупатель / адрес', key: 'entity', sortable: true },
     { title: 'Сумма', key: 'total', sortable: true, width: '116px', align: 'end' },
     { title: 'Предыдущая', key: 'previous_sale', sortable: false, width: '126px', align: 'end' },
-]
+    ...(canManageSales.value ? [{ title: '', key: 'actions', sortable: false, width: '72px' }] : []),
+])
 
 const pageCount = computed(() => Math.max(1, Math.ceil(totalItems.value / options.itemsPerPage)))
 const firstRow = computed(() => rows.value.length ? (options.page - 1) * options.itemsPerPage + 1 : 0)
@@ -140,18 +153,23 @@ const entityDialogLoading = computed(() => entitySaving.value || entityMetaLoadi
 
 const canSubmitSale = computed(() => {
     const hasBase = Boolean(saleForm.date && saleForm.entity_id)
-    const hasManualTotal = saleForm.manualTotal && nullableNumber(saleForm.total) !== null
-    const hasLine = saleForm.goods.some((line) => {
+    const hasManualTotal = saleForm.manualTotal && nullableNumber(saleForm.total) !== null && toNumber(saleForm.total) >= 0
+    const lines = saleForm.goods.filter((line) => line.good_id)
+    const validLines = lines.every((line) => {
         const filledValues = [
             nullableNumber(line.quantity),
             nullableNumber(line.price),
             nullableNumber(line.total),
         ].filter((value) => value !== null).length
 
-        return Boolean(line.good_id && line.measure_id && filledValues >= 2)
+        return Boolean(line.measure_id && filledValues >= 2
+            && (nullableNumber(line.quantity) === null || toNumber(line.quantity) >= 0.000001)
+            && (nullableNumber(line.price) === null || toNumber(line.price) >= 0)
+            && (nullableNumber(line.total) === null || toNumber(line.total) >= 0))
     })
 
-    return hasBase && (hasManualTotal || hasLine)
+    return hasBase && validLines && (!saleForm.manualTotal || hasManualTotal)
+        && (hasManualTotal || lines.length > 0 || editingSaleId.value !== null)
 })
 
 const canAttachGood = computed(() => {
@@ -384,7 +402,7 @@ async function loadEntityMeta() {
     try {
         entityMeta.value = await getEntityMeta()
     } catch (error) {
-        errorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники контрагентов'
+        formErrorMessage.value = error?.response?.data?.message || 'Не удалось загрузить справочники контрагентов'
         console.error('load entity meta error:', error?.response?.data || error)
     } finally {
         entityMetaLoading.value = false
@@ -541,19 +559,112 @@ function resetFilters() {
 }
 
 function resetForm() {
+    editingSaleId.value = null
+    formErrorMessage.value = ''
     saleForm.request_id = saleRequestId()
     saleForm.date = new Date().toISOString().slice(0, 10)
     saleForm.entity_id = null
+    saleForm.payment_reference = ''
     saleForm.manualTotal = false
     saleForm.total = null
     saleForm.goods = [makeLine()]
 }
 
 function openCreate() {
+    if (saving.value || editLoading.value) return
     resetForm()
     stockRows.value = null
     dialog.value = true
     fetchSaleStock()
+}
+
+async function openSaleEdit(item) {
+    if (!canManageSales.value || saving.value || editLoading.value || !item?.id) return
+    const requestId = ++editRequestId
+    const signal = resource.signal
+    editLoading.value = true
+    errorMessage.value = ''
+    detailsErrorMessage.value = ''
+
+    try {
+        const { data } = await axios.get(`/api/sales/${item.id}`, { signal })
+        if (requestId !== editRequestId || signal?.aborted) return
+        const sale = data.data || data
+        resetForm()
+        editingSaleId.value = sale.id
+        saleForm.date = sale.date?.slice(0, 10) || ''
+        saleForm.entity_id = sale.entity?.id ?? sale.entity_id
+        saleForm.payment_reference = sale.payment_reference || ''
+        upsertEntity(sale.entity)
+        for (const good of saleGoods(sale)) {
+            if (!goodsById.value.has(Number(good.id))) goods.value.push(good)
+        }
+        saleForm.goods = saleGoods(sale).map((good) => ({
+            id: good.pivot.id,
+            good_id: good.id,
+            measure_id: good.pivot.measure_id,
+            quantity: good.pivot.quantity,
+            price: good.pivot.price,
+            total: round(good.pivot.total ?? toNumber(good.pivot.quantity) * toNumber(good.pivot.price), 2),
+        }))
+        saleForm.total = sale.total
+        saleForm.manualTotal = Math.abs(toNumber(sale.total) - saleLinesTotal.value) > 0.009
+        stockRows.value = null
+        dialog.value = true
+        fetchSaleStock()
+    } catch (error) {
+        if (signal?.aborted || axios.isCancel(error)) return
+        errorMessage.value = error?.response?.status === 404
+            ? 'Продажа уже удалена. Обновите список.'
+            : apiError(error, 'Не удалось открыть продажу для редактирования')
+        if (detailsDialog.value) detailsErrorMessage.value = errorMessage.value
+    } finally {
+        if (requestId === editRequestId) editLoading.value = false
+    }
+}
+
+function openSaleDelete(item) {
+    if (!canManageSales.value || deleting.value || !item?.id) return
+    deletingSale.value = item
+    deleteErrorMessage.value = ''
+    deleteDialog.value = true
+}
+
+async function deleteSale() {
+    if (!canManageSales.value || deleting.value || !deletingSale.value?.id) return
+    deleting.value = true
+    deleteErrorMessage.value = ''
+    const saleId = deletingSale.value.id
+
+    try {
+        await axios.delete(`/api/sales/${saleId}`)
+        if (Number(selectedSale.value?.id) === Number(saleId)) {
+            detailsDialog.value = false
+            selectedSale.value = null
+        }
+        if (Number(editingSaleId.value) === Number(saleId)) dialog.value = false
+        if (Number(dateForm.saleId) === Number(saleId)) dateEditDialog.value = false
+        const visibleSale = rows.value.find((sale) => Number(sale.id) === Number(saleId))
+        rows.value = rows.value.filter((sale) => Number(sale.id) !== Number(saleId))
+        if (visibleSale) {
+            totalItems.value = Math.max(0, totalItems.value - 1)
+            totalAmount.value -= toNumber(visibleSale.total)
+        }
+        options.page = Math.min(options.page, pageCount.value)
+        deleteDialog.value = false
+        deletingSale.value = null
+    } catch (error) {
+        deleteErrorMessage.value = apiError(error, 'Не удалось удалить продажу')
+        return
+    } finally {
+        deleting.value = false
+    }
+    await fetchSales()
+}
+
+function apiError(error, fallback) {
+    return Object.values(error?.response?.data?.errors || {}).flat()[0]
+        || error?.response?.data?.message || fallback
 }
 
 function openEntityCreate() {
@@ -643,7 +754,7 @@ function addLine() {
 
 function removeLine(index) {
     saleForm.goods.splice(index, 1)
-    if (!saleForm.goods.length) addLine()
+    if (!saleForm.goods.length && !editingSaleId.value) addLine()
 }
 
 function handleGoodSelected(line) {
@@ -665,20 +776,20 @@ function recalcLine(line, changed) {
 
     if (changed === 'total') {
         if (total === null) return
-        if (quantity !== null && quantity > 0) line.price = round(total / quantity, 4)
-        else if (price !== null && price > 0) line.quantity = round(total / price, 4)
+        if (quantity !== null && quantity > 0) line.price = round(total / quantity, 6)
+        else if (price !== null && price > 0) line.quantity = round(total / price, 6)
     }
 
     if (changed === 'quantity') {
         if (quantity === null) return
         if (price !== null) line.total = round(quantity * price, 2)
-        else if (total !== null && quantity > 0) line.price = round(total / quantity, 4)
+        else if (total !== null && quantity > 0) line.price = round(total / quantity, 6)
     }
 
     if (changed === 'price') {
         if (price === null) return
         if (quantity !== null) line.total = round(quantity * price, 2)
-        else if (total !== null && price > 0) line.quantity = round(total / price, 4)
+        else if (total !== null && price > 0) line.quantity = round(total / price, 6)
     }
 }
 
@@ -690,35 +801,46 @@ function round(value, precision) {
 }
 
 async function submitSale() {
-    if (saving.value || !canSubmitSale.value) return
+    if (saving.value || !canSubmitSale.value || (editingSaleId.value && !canManageSales.value)) return
 
     saving.value = true
-    errorMessage.value = ''
+    formErrorMessage.value = ''
 
     try {
-        await axios.post('/api/sales', {
+        const payload = {
             request_id: saleForm.request_id,
             date: saleForm.date,
             entity_id: saleForm.entity_id,
+            payment_reference: saleForm.payment_reference || null,
             total: saleForm.manualTotal ? effectiveSaleTotal.value : null,
             goods: saleForm.goods
                 .filter((line) => line.good_id)
                 .map((line) => ({
+                    ...(line.id ? { id: line.id } : {}),
                     good_id: line.good_id,
                     measure_id: line.measure_id,
                     quantity: nullableNumber(line.quantity),
                     price: nullableNumber(line.price),
                     total: nullableNumber(line.total),
                 })),
-        })
+        }
+        const { data } = editingSaleId.value
+            ? await axios.patch(`/api/sales/${editingSaleId.value}`, payload)
+            : await axios.post('/api/sales', payload)
+        const updatedSale = data.data
+        if (updatedSale && Number(selectedSale.value?.id) === Number(updatedSale.id)) selectedSale.value = updatedSale
 
         dialog.value = false
-        await fetchSales()
     } catch (error) {
-        errorMessage.value = error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Не удалось сохранить продажу'
-        console.error('submit sale error:', error?.response?.data || error)
+        formErrorMessage.value = apiError(error, 'Не удалось сохранить продажу')
+        return
     } finally {
         saving.value = false
+    }
+    await fetchSales()
+    if (options.page > pageCount.value && !errorMessage.value) {
+        options.page = pageCount.value
+        await fetchSales()
     }
 }
 
@@ -765,7 +887,7 @@ async function attachGoodToSale() {
 
 async function submitEntity() {
     entitySaving.value = true
-    errorMessage.value = ''
+    formErrorMessage.value = ''
 
     try {
         const saved = await createEntity(entityPayload())
@@ -775,7 +897,7 @@ async function submitEntity() {
         entityDialog.value = false
         resetEntityForm()
     } catch (error) {
-        errorMessage.value = error?.response?.data?.message || Object.values(error?.response?.data?.errors || {})?.flat()?.[0] || 'Не удалось сохранить контрагента'
+        formErrorMessage.value = apiError(error, 'Не удалось сохранить контрагента')
         console.error('submit entity error:', error?.response?.data || error)
     } finally {
         entitySaving.value = false
@@ -791,7 +913,7 @@ onMounted(async () => {
         fetchSales(),
     ])
 })
-onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
+onBeforeUnmount(() => { salesRequestId++; stockRequestId++; editRequestId++ })
 </script>
 
 <template>
@@ -904,6 +1026,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                 density="compact"
                 theme="light"
                 class="sales-grid"
+                :class="{ 'sales-grid--admin': canManageSales }"
                 item-value="id"
                 loading-text="Загрузка продаж…"
                 @update:options="handleOptionsUpdate"
@@ -948,6 +1071,13 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                     <span v-else class="sales-first">Первая продажа</span>
                 </template>
 
+                <template #item.actions="{ item }">
+                    <div v-if="canManageSales" class="sales-row-actions">
+                        <v-btn icon="mdi-pencil-outline" size="x-small" variant="text" :disabled="editLoading || saving" :aria-label="`Редактировать продажу № ${item.id}`" title="Редактировать продажу" @click="openSaleEdit(item)" />
+                        <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" :disabled="deleting" :aria-label="`Удалить продажу № ${item.id}`" title="Удалить продажу" @click="openSaleDelete(item)" />
+                    </div>
+                </template>
+
                 <template #no-data>
                     <div class="sales-empty">
                         <v-icon icon="mdi-receipt-text-outline" size="30" />
@@ -980,11 +1110,15 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
             <v-card class="sale-details" theme="light">
                 <v-card-title class="sale-details__title">
                     <div>
-                        <span>Детали продажи</span>
+                        <span>Продажа № {{ selectedSale?.id }}</span>
                         <strong>{{ formatMoney(selectedSale?.total) }}</strong>
                     </div>
 
                     <div class="sale-details__title-actions">
+                        <v-btn v-if="canManageSales" size="small" variant="outlined" prepend-icon="mdi-pencil-outline" :loading="editLoading" :disabled="saving" @click="openSaleEdit(selectedSale)">
+                            Редактировать
+                        </v-btn>
+                        <v-btn v-if="canManageSales" icon="mdi-delete-outline" size="small" variant="text" color="error" aria-label="Удалить продажу" @click="openSaleDelete(selectedSale)" />
                         <v-btn
                             size="small"
                             variant="outlined"
@@ -998,6 +1132,9 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                 </v-card-title>
 
                 <v-card-text v-if="selectedSale" class="sale-details__body">
+                    <v-alert v-if="detailsErrorMessage" type="error" variant="tonal" density="compact" role="alert">
+                        {{ detailsErrorMessage }}
+                    </v-alert>
                     <div class="sale-details__summary">
                         <div>
                             <small>Дата</small>
@@ -1019,6 +1156,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                             </strong>
                             <strong v-else>Первая продажа</strong>
                         </div>
+                    </div>
+
+                    <div v-if="selectedSale.payment_reference" class="sale-details__reference">
+                        Назначение платежа: {{ selectedSale.payment_reference }}
                     </div>
 
                     <div class="sale-details__units">
@@ -1076,15 +1217,6 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                             </div>
                             <small>Сумма позиции будет добавлена к итогу продажи</small>
                         </div>
-
-                        <v-alert
-                            v-if="detailsErrorMessage"
-                            type="error"
-                            variant="tonal"
-                            density="compact"
-                        >
-                            {{ detailsErrorMessage }}
-                        </v-alert>
 
                         <v-alert
                             v-if="detailsMessage"
@@ -1207,12 +1339,13 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
             width="calc(100vw - 24px)"
             max-width="1400"
             scrollable
+            :persistent="saving"
             class="sale-create-dialog"
         >
             <v-card class="sale-dialog" theme="light">
                 <v-card-title class="sale-dialog__title">
                     <div>
-                        <span>Новая продажа</span>
+                        <span>{{ editingSaleId ? `Редактирование продажи № ${editingSaleId}` : 'Новая продажа' }}</span>
                         <strong>{{ formatMoney(effectiveSaleTotal) }}</strong>
                     </div>
 
@@ -1223,19 +1356,21 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                             size="small"
                             class="sale-dialog__entity-btn"
                             :loading="entityMetaLoading"
+                            :disabled="saving"
                             @click="openEntityCreate"
                         >
                             + Покупатель
                         </v-btn>
 
-                        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Закрыть создание продажи" @click="dialog = false" />
+                        <v-btn icon="mdi-close" variant="text" size="small" aria-label="Закрыть форму продажи" :disabled="saving" @click="dialog = false" />
                     </div>
                 </v-card-title>
 
                 <v-card-text class="sale-dialog__body">
-                    <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="mb-3">
-                        {{ errorMessage }}
+                    <v-alert v-if="formErrorMessage" type="error" variant="tonal" density="compact" class="mb-3" role="alert">
+                        {{ formErrorMessage }}
                     </v-alert>
+                    <fieldset class="sale-form-fields" :disabled="saving">
                     <v-row dense>
                         <v-col cols="12" md="2">
                             <div class="sale-form-field sale-form-field--date">
@@ -1333,6 +1468,17 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                                 v-model="saleForm.total"
                                 label="Сумма продажи"
                                 type="number"
+                                min="0"
+                                variant="solo-filled"
+                                density="compact"
+                                hide-details
+                            />
+                        </v-col>
+                        <v-col cols="12">
+                            <v-text-field
+                                v-model="saleForm.payment_reference"
+                                label="Назначение платежа / номер документа"
+                                maxlength="128"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1385,7 +1531,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 
                             <v-text-field
                                 v-model="line.quantity"
+                                :aria-label="`Количество, позиция ${index + 1}`"
                                 type="number"
+                                min="0.000001"
+                                step="any"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1398,6 +1547,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                                 :items="measures"
                                 item-title="name"
                                 item-value="id"
+                                :aria-label="`Единица измерения, позиция ${index + 1}`"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1405,7 +1555,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 
                             <v-text-field
                                 v-model="line.price"
+                                :aria-label="`Цена, позиция ${index + 1}`"
                                 type="number"
+                                min="0"
+                                step="any"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1414,7 +1567,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 
                             <v-text-field
                                 v-model="line.total"
+                                :aria-label="`Сумма, позиция ${index + 1}`"
                                 type="number"
+                                min="0"
+                                step="any"
                                 variant="solo-filled"
                                 density="compact"
                                 hide-details
@@ -1426,6 +1582,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                                 size="small"
                                 variant="text"
                                 color="red-lighten-2"
+                                :aria-label="`Удалить позицию ${index + 1}`"
                                 @click="removeLine(index)"
                             />
                         </div>
@@ -1437,14 +1594,31 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
                         </v-btn>
                         <span>Итого по товарам: <strong>{{ formatMoney(saleLinesTotal) }}</strong></span>
                     </div>
+                    </fieldset>
                 </v-card-text>
 
                 <v-card-actions>
                     <v-spacer />
-                    <v-btn variant="text" @click="dialog = false">Отмена</v-btn>
-                    <v-btn color="#0f766e" variant="flat" :loading="saving" :disabled="saving || !canSubmitSale" @click="submitSale">
+                    <v-btn variant="text" :disabled="saving" @click="dialog = false">Отмена</v-btn>
+                    <v-btn color="#0f766e" variant="flat" :loading="saving" :disabled="saving || !canSubmitSale || (editingSaleId && !canManageSales)" @click="submitSale">
                         Сохранить
                     </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="deleteDialog" max-width="460" :persistent="deleting">
+            <v-card class="sale-dialog" theme="light">
+                <v-card-title class="sale-dialog__title">Удалить продажу № {{ deletingSale?.id }}?</v-card-title>
+                <v-card-text>
+                    <p>{{ deletingSale?.entity?.name || 'Покупатель не указан' }} · {{ formatDate(deletingSale?.date) }} · {{ formatMoney(deletingSale?.total) }}</p>
+                    <p class="mt-3">Продажа и её позиции будут удалены. Списанные по ней товары вернутся в складской остаток.</p>
+                    <v-alert v-if="deleteErrorMessage" type="error" variant="tonal" density="compact" class="mt-3" role="alert">{{ deleteErrorMessage }}</v-alert>
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn variant="text" :disabled="deleting" @click="deleteDialog = false">Отмена</v-btn>
+                    <v-btn color="error" variant="flat" :loading="deleting" :disabled="deleting || !canManageSales" @click="deleteSale">Удалить продажу</v-btn>
                 </v-card-actions>
             </v-card>
         </v-dialog>
@@ -1624,6 +1798,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
     overscroll-behavior: contain;
 }
 .sales-grid :deep(table) { min-width: 540px; table-layout: fixed; }
+.sales-grid--admin :deep(table) { min-width: 612px; }
 .sales-grid :deep(thead th) {
     height: 31px !important;
     padding: 0 8px !important;
@@ -1678,6 +1853,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 .sales-pagination > button:hover:not(:disabled) { border-color: #99d2c8; background: #f0fdfa; color: #0f766e; }
 .sales-pagination > button:disabled { opacity: .35; cursor: default; }
 .sales-pagination__page { min-width: 30px; text-align: center; }
+.sales-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .sales-board button:focus-visible,
 .sales-board a:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
 
@@ -1692,7 +1868,10 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 .sale-details__title strong,
 .sale-dialog__title strong { color: #0f766e; font-size: 17px; font-weight: 600; }
 .sale-details__title .sale-details__title-actions,
-.sale-dialog__title .sale-dialog__title-actions { display: flex; align-items: center; gap: 6px; }
+.sale-dialog__title .sale-dialog__title-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sale-form-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.sale-form-fields:disabled { pointer-events: none; opacity: .7; }
+.sale-details__reference { overflow-wrap: anywhere; }
 .sale-details :deep(.v-btn),
 .sale-dialog :deep(.v-btn) { text-transform: none; letter-spacing: 0; font-size: 12px; }
 .sale-details__body { display: grid; gap: 10px; padding: 12px !important; }

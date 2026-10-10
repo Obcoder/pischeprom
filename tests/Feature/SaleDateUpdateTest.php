@@ -35,7 +35,7 @@ class SaleDateUpdateTest extends TestCase
     public function test_date_correction_updates_existing_stock_dates_and_preserves_sale_and_payment_amounts(): void
     {
         $good = Good::query()->create(['name' => 'Сахар']);
-        $measure = Measure::query()->create(['name' => 'кг']);
+        $measure = Measure::query()->firstOrCreate(['name' => 'кг']);
         GoodStockMovement::query()->create([
             'warehouse_id' => Warehouse::query()->where('code', Warehouse::GOODS_CODE)->sole()->id,
             'good_id' => $good->id,
@@ -69,10 +69,6 @@ class SaleDateUpdateTest extends TestCase
 
         $this->patchJson("/api/sales/{$saleId}", [
             'date' => '2026-08-30',
-            'entity_id' => Entity::query()->create(['name' => 'Другой покупатель'])->id,
-            'total' => 1,
-            'goods' => [],
-            'paid_amount' => 0,
         ])->assertOk()
             ->assertJsonPath('data.id', $saleId)
             ->assertJsonPath('data.date', '2026-08-30')
@@ -100,7 +96,7 @@ class SaleDateUpdateTest extends TestCase
     {
         $sale = $this->sale();
         $sale->goods()->attach(Good::query()->create(['name' => 'Исторический товар'])->id, [
-            'measure_id' => Measure::query()->create(['name' => 'кг'])->id,
+            'measure_id' => Measure::query()->firstOrCreate(['name' => 'кг'])->id,
             'quantity' => 3,
             'price' => 100,
         ]);

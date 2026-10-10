@@ -594,6 +594,8 @@ jobs:
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \
             tests/Feature/SaleGoodAttachmentTest.php \
+            tests/Feature/SaleAdminCrudTest.php \
+            tests/Feature/SaleDateUpdateTest.php \
             tests/Feature/GoodStockMutationTest.php \
             tests/Feature/SaleStockIdempotencyTest.php \
             tests/Feature/WarehouseMutationAuthorizationTest.php \

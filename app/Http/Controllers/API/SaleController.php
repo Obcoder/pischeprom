@@ -10,6 +10,7 @@ use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Order;
 use App\Models\Sale;
+use App\Observers\CommerceDataObserver;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodSaleStockSynchronizer;
 use App\Services\Goods\GoodStockMutationService;
@@ -17,6 +18,7 @@ use App\Services\Goods\SaleStockRequestService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SaleController extends Controller
@@ -70,6 +72,7 @@ class SaleController extends Controller
             'request_id' => ['nullable', 'uuid'],
             'date' => ['required', 'date'],
             'entity_id' => ['required', 'integer', 'exists:entities,id'],
+            'payment_reference' => ['nullable', 'string', 'max:128'],
             'total' => ['nullable', 'numeric', 'min:0'],
             'goods' => ['nullable', 'array'],
             'goods.*.good_id' => ['required_with:goods', 'integer', 'exists:goods,id'],
@@ -101,12 +104,22 @@ class SaleController extends Controller
             'total' => round($saleTotal, 2),
             'goods' => $lines->all(),
         ];
+        if (isset($validated['payment_reference'])) {
+            $payload['payment_reference'] = $validated['payment_reference'];
+        }
 
         $sale = $requests->run($validated['request_id'] ?? null, 'sale.store', $payload, function () use ($payload, $lines, $stock) {
+            if (isset($payload['payment_reference'])
+                && Sale::query()->where('payment_reference', $payload['payment_reference'])->exists()) {
+                throw ValidationException::withMessages([
+                    'payment_reference' => 'Это назначение платежа уже используется другой продажей.',
+                ]);
+            }
             $this->assertCurrentUnits($lines->all());
             $sale = Sale::create([
                 'date' => $payload['date'],
                 'entity_id' => $payload['entity_id'],
+                'payment_reference' => $payload['payment_reference'] ?? null,
                 'total' => $payload['total'],
             ]);
 
@@ -240,29 +253,147 @@ class SaleController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, string $id, GoodStockMutationService $mutations)
-    {
+    public function update(
+        Request $request,
+        string $id,
+        GoodStockMutationService $mutations,
+        GoodSaleStockSynchronizer $stock,
+        PaymentAllocationService $paymentAllocations,
+    ) {
+        $fullEdit = $request->hasAny(['entity_id', 'total', 'payment_reference', 'goods']);
+        if ($fullEdit) {
+            $this->assertAdministrator($request);
+        }
+
         $validated = $request->validate([
             'date' => ['required', 'date_format:Y-m-d'],
+            'entity_id' => ['sometimes', 'required', 'integer', 'exists:entities,id'],
+            'payment_reference' => ['sometimes', 'nullable', 'string', 'max:128', Rule::unique('sales', 'payment_reference')->ignore($id)],
+            'total' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'goods' => ['sometimes', 'array'],
+            'goods.*.id' => ['nullable', 'integer', 'min:1', 'distinct'],
+            'goods.*.good_id' => ['required', 'integer', 'exists:goods,id'],
+            'goods.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
+            'goods.*.quantity' => ['nullable', 'numeric', 'min:0.000001'],
+            'goods.*.price' => ['nullable', 'numeric', 'min:0'],
+            'goods.*.total' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        $sale = DB::transaction(function () use ($id, $validated, $mutations): Sale {
+        $sale = DB::transaction(function () use ($id, $validated, $mutations, $stock, $paymentAllocations): Sale {
             $sale = Sale::query()->without('entity')->whereKey($id)
                 ->lockForUpdate()->firstOrFail();
+            $existing = DB::table('good_sale')->where('sale_id', $sale->id)
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
 
-            $sale->update(['date' => $validated['date']]);
+            $lines = array_key_exists('goods', $validated)
+                ? collect($validated['goods'])->map(function (array $line) use ($existing): array {
+                    $lineId = isset($line['id']) ? (int) $line['id'] : null;
+                    $previous = $lineId !== null ? $existing->get($lineId) : null;
+                    if ($lineId !== null && $previous === null) {
+                        throw ValidationException::withMessages([
+                            'goods' => 'Позиция не принадлежит этой продаже. Обновите данные продажи.',
+                        ]);
+                    }
 
-            $movements = GoodStockMovement::query()
-                ->where('source_type', GoodStockMovement::SOURCE_GOOD_SALE)
-                ->where('sale_id', $sale->id);
+                    // Existing documents keep their unit snapshot when editing metadata or prices.
+                    $historicalMeasureId = $previous
+                        && (int) $previous->good_id === (int) $line['good_id']
+                        && (! isset($line['measure_id']) || (int) $previous->measure_id === (int) $line['measure_id'])
+                        ? (int) $previous->measure_id
+                        : null;
 
-            // Date corrections must not create missing historical write-offs or reprice stock.
-            $mutations->run($movements->pluck('good_id')->all(), function () use ($movements, $validated): void {
-                $movements->orderBy('id')->lockForUpdate()->get()
-                    ->each(fn (GoodStockMovement $movement) => $movement->update([
-                        'moved_at' => $validated['date'],
-                    ]));
-            });
+                    return [...$this->normalizeSaleLine($line, $historicalMeasureId), 'id' => $lineId];
+                })->all()
+                : null;
+
+            $goodsChanged = $lines !== null && $this->saleLinesChanged($existing, $lines);
+            $stockChanged = $lines !== null && $this->saleLinesChanged($existing, $lines, stockOnly: true);
+            $entityChanged = isset($validated['entity_id']) && (int) $validated['entity_id'] !== (int) $sale->entity_id;
+            $total = $validated['total'] ?? ($lines !== null ? array_sum(array_column($lines, 'total')) : (string) $sale->total);
+
+            if (! is_finite((float) $total) || $total < 0 || $total >= 1e18) {
+                throw ValidationException::withMessages([
+                    'total' => 'Укажите допустимую неотрицательную сумму продажи.',
+                ]);
+            }
+
+            $total = isset($validated['total']) || $lines !== null
+                ? number_format((float) $total, 2, '.', '')
+                : (string) $sale->total;
+            $totalChanged = DecimalMoney::compare((string) $sale->total, $total) !== 0;
+
+            if ($goodsChanged || $entityChanged || $totalChanged) {
+                abort_if(Order::query()->where('shipped_sale_id', $sale->id)
+                    ->lockForUpdate()->first(['id']) !== null, 409,
+                    'Продажа создана отгрузкой заказа. Изменение покупателя, суммы и позиций такой продажи недоступно.');
+            }
+
+            if ($entityChanged) {
+                abort_if($sale->activeBankAllocations()->lockForUpdate()->first(['id']) !== null, 409,
+                    'Нельзя изменить покупателя продажи с привязанной оплатой. Сначала отмените распределение оплаты в банковском учёте.');
+            }
+
+            $sale->fill(collect($validated)->only(['date', 'entity_id', 'payment_reference'])->all());
+            if ($totalChanged) {
+                $sale->total = $total;
+            }
+            $sale->save();
+            $saleChanged = $sale->wasChanged();
+
+            if ($goodsChanged) {
+                $goodIds = $existing->pluck('good_id')->merge(array_column($lines, 'good_id'))
+                    ->merge(GoodStockMovement::query()->where('sale_id', $sale->id)->pluck('good_id'))
+                    ->unique()->all();
+
+                $mutations->run($goodIds, function () use ($sale, $lines, $existing, $stockChanged, $stock): void {
+                    $this->assertCurrentUnits(array_values(array_filter($lines, function (array $line) use ($existing): bool {
+                        $previous = $line['id'] !== null ? $existing->get($line['id']) : null;
+
+                        return $previous === null || $this->saleLinesChanged(collect([$previous])->keyBy('id'), [$line], stockOnly: true);
+                    })));
+                    $keptIds = [];
+                    foreach ($lines as $line) {
+                        $attributes = collect($line)->only(['good_id', 'measure_id', 'quantity', 'price'])->all();
+                        if ($line['id'] !== null) {
+                            DB::table('good_sale')->where('sale_id', $sale->id)->where('id', $line['id'])
+                                ->update([...$attributes, 'updated_at' => now()]);
+                            $keptIds[] = $line['id'];
+                        } else {
+                            $keptIds[] = DB::table('good_sale')->insertGetId([
+                                ...$attributes,
+                                'sale_id' => $sale->id,
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                        }
+                    }
+                    DB::table('good_sale')->where('sale_id', $sale->id)
+                        ->whereIn('id', $existing->keys()->diff($keptIds)->all())->delete();
+
+                    if ($stockChanged) {
+                        $stock->sync($sale);
+                    }
+                }, allowNegativeStock: true);
+            }
+
+            if (! $stockChanged) {
+                $this->updateStockDates($sale, $validated['date'], $mutations);
+            }
+
+            if ($goodsChanged && ! $stockChanged && ! $saleChanged) {
+                app(CommerceDataObserver::class)->publishAfterCommit($sale);
+            }
+
+            if ($totalChanged) {
+                $statusChange = $paymentAllocations->recalculateSaleLocked($sale);
+                if ($statusChange !== null) {
+                    DB::afterCommit(fn () => ReceivablePaymentStatusChanged::dispatch(
+                        $sale,
+                        $statusChange['previous'],
+                        $statusChange['current'],
+                    ));
+                }
+            }
 
             return $sale;
         }, 3);
@@ -280,9 +411,76 @@ class SaleController extends Controller
         ]);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id, GoodStockMutationService $mutations)
     {
-        abort(405, 'Отмена проведённой продажи пока не поддерживается.');
+        $this->assertAdministrator($request);
+
+        DB::transaction(function () use ($id, $mutations): void {
+            $sale = Sale::query()->without('entity')->whereKey($id)->lockForUpdate()->firstOrFail();
+
+            abort_if(Order::query()->where('shipped_sale_id', $sale->id)
+                ->lockForUpdate()->first(['id']) !== null, 409,
+                'Нельзя удалить продажу, созданную отгрузкой заказа.');
+            abort_if($sale->bankAllocations()->lockForUpdate()->first(['id']) !== null, 409,
+                'Нельзя удалить продажу с историей банковских оплат. Для корректировки измените сумму и позиции продажи.');
+
+            $movements = GoodStockMovement::query()
+                ->where('source_type', GoodStockMovement::SOURCE_GOOD_SALE)
+                ->where('sale_id', $sale->id);
+            $mutations->run($movements->pluck('good_id')->all(), function () use ($sale, $movements): void {
+                $movements->orderBy('id')->lockForUpdate()->get()->each->delete();
+                $sale->goods()->detach();
+
+                // Keep UUID tombstones so a retry cannot recreate a deleted sale.
+                DB::table('sale_stock_requests')->where('sale_id', $sale->id)->update([
+                    'action' => 'sale.deleted',
+                    'sale_id' => null,
+                    'updated_at' => now(),
+                ]);
+                $sale->delete();
+            });
+        }, 3);
+
+        return response()->noContent();
+    }
+
+    private function assertAdministrator(Request $request): void
+    {
+        abort_unless($request->user()?->hasRole('admin', 'crm'), 403,
+            'Полное редактирование и удаление продаж доступно только администратору.');
+    }
+
+    private function saleLinesChanged($existing, array $lines, bool $stockOnly = false): bool
+    {
+        if ($existing->count() !== count($lines)) {
+            return true;
+        }
+
+        foreach ($lines as $line) {
+            $previous = $line['id'] !== null ? $existing->get($line['id']) : null;
+            if (! $previous
+                || (int) $previous->good_id !== $line['good_id']
+                || (int) $previous->measure_id !== $line['measure_id']
+                || round((float) $previous->quantity, 6) !== $line['quantity']
+                || (! $stockOnly && round((float) $previous->price, 6) !== $line['price'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function updateStockDates(Sale $sale, string $date, GoodStockMutationService $mutations): void
+    {
+        $movements = GoodStockMovement::query()
+            ->where('source_type', GoodStockMovement::SOURCE_GOOD_SALE)
+            ->where('sale_id', $sale->id);
+
+        // Date and price corrections must not post missing historical stock or reprice it.
+        $mutations->run($movements->pluck('good_id')->all(), function () use ($movements, $date): void {
+            $movements->orderBy('id')->lockForUpdate()->get()
+                ->each(fn (GoodStockMovement $movement) => $movement->update(['moved_at' => $date]));
+        });
     }
 
     private function legacyIndex(Request $request)
@@ -339,10 +537,10 @@ class SaleController extends Controller
         };
     }
 
-    private function normalizeSaleLine(array $line): array
+    private function normalizeSaleLine(array $line, ?int $historicalMeasureId = null): array
     {
         $good = Good::query()->findOrFail($line['good_id']);
-        $measureId = app(GoodMeasurement::class)->assertMeasure($good, isset($line['measure_id']) ? (int) $line['measure_id'] : null, 'goods');
+        $measureId = $historicalMeasureId ?? app(GoodMeasurement::class)->assertMeasure($good, isset($line['measure_id']) ? (int) $line['measure_id'] : null, 'goods');
         $quantity = $this->nullableFloat($line['quantity'] ?? null);
         $price = $this->nullableFloat($line['price'] ?? null);
         $total = $this->nullableFloat($line['total'] ?? null);
@@ -554,7 +752,12 @@ class SaleController extends Controller
             'date' => $saleDate->toDateString(),
             'month' => $saleDate->format('Y-m'),
             'entity_id' => $sale->entity_id,
+            'payment_reference' => $sale->payment_reference,
             'total' => (float) $sale->total,
+            'payment_status' => $sale->payment_status,
+            'paid_amount' => (float) $sale->paid_amount,
+            'outstanding_amount' => (float) $sale->outstanding_amount,
+            'overpaid_amount' => (float) $sale->overpaid_amount,
             'entity' => $sale->entity ? [
                 'id' => $sale->entity->id,
                 'name' => $sale->entity->name,

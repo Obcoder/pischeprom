@@ -59,6 +59,12 @@ class HandleInertiaRequests extends Middleware
                     ]
                     : null,
                 'permissions' => fn () => [
+                    'sales' => [
+                        'manage' => $request->user() !== null
+                            && $request->user()->status !== 'blocked'
+                            && $request->user()->hasVerifiedEmail()
+                            && $request->user()->hasRole('admin', 'crm'),
+                    ],
                     'sales_mailings' => [
                         'view' => $request->user() !== null
                             && $request->user()->status !== 'blocked'

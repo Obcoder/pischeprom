@@ -9,9 +9,10 @@ const projectRoot = new URL('../../', import.meta.url)
 
 // Run the actual compiled page loaders with Vue reactivity and deferred HTTP
 // responses. Rendering widgets and transport setup are outside these tests.
-function pageHarness(filename, { props = {}, purchases = false } = {}) {
+function pageHarness(filename, { props = {}, purchases = false, manageSales = false } = {}) {
     const requests = []
     const disposal = []
+    const page = Vue.reactive({ props: { auth: { permissions: { sales: { manage: manageSales } } } } })
     let registration
     let scopeController = new AbortController()
     let resourceState
@@ -34,8 +35,21 @@ function pageHarness(filename, { props = {}, purchases = false } = {}) {
                 requests.push({ method: 'PATCH', url, body, options, resolve: data => resolve({ data }), reject })
                 return promise
             },
+            post(url, body, options = {}) {
+                let resolve, reject
+                const promise = new Promise((success, failure) => { resolve = success; reject = failure })
+                requests.push({ method: 'POST', url, body, options, resolve: data => resolve({ data }), reject })
+                return promise
+            },
+            delete(url, options = {}) {
+                let resolve, reject
+                const promise = new Promise((success, failure) => { resolve = success; reject = failure })
+                requests.push({ method: 'DELETE', url, options, resolve: data => resolve({ data }), reject })
+                return promise
+            },
             isCancel: error => error?.code === 'ERR_CANCELED',
         },
+        usePage: () => page,
         useRealtimeResource: options => {
             registration = options
             resourceState = Vue.reactive(options.initialValue)
@@ -92,6 +106,7 @@ function pageHarness(filename, { props = {}, purchases = false } = {}) {
 
     return {
         api,
+        page,
         requests,
         refresh: () => registration.load({ signal: new AbortController().signal }),
         dispose: () => disposal.forEach(callback => callback()),
@@ -100,6 +115,30 @@ function pageHarness(filename, { props = {}, purchases = false } = {}) {
             scopeController = new AbortController()
         },
     }
+}
+
+function editableSale() {
+    return {
+        id: 5,
+        date: '2026-09-20T00:00:00.000000Z',
+        entity_id: 452,
+        entity: { id: 452, name: 'Покупатель' },
+        payment_reference: 'Счёт 15',
+        total: '250.00',
+        goods: [
+            { id: 132, name: 'Мука', pivot: { id: 71, measure_id: 1, quantity: '2.000000', price: '50.000000', total: '100.00' } },
+            { id: 132, name: 'Мука', pivot: { id: 72, measure_id: 1, quantity: '3.000000', price: '30.000000', total: '90.00' } },
+        ],
+    }
+}
+
+async function loadEditableSale(harness, sale = editableSale()) {
+    const pending = harness.api.openSaleEdit({ id: sale.id, total: -1 })
+    harness.requests.at(-1).resolve({ data: sale })
+    await pending
+    harness.requests.at(-1).resolve([])
+    await Promise.resolve()
+    return sale
 }
 
 test('goods catchup preserves newer stock, initial dictionaries, filters and unsaved movement', async () => {
@@ -354,6 +393,321 @@ test('sales realtime refresh updates saved dates without overwriting an open dat
     assert.equal(api.dateEditDialog.value, true)
     assert.equal(api.dateForm.saleId, 5)
     assert.equal(api.dateForm.date, '2026-09-10')
+})
+
+test('full sale editing and deletion require the Admin permission', async () => {
+    const { api, requests, page } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue')
+    assert.equal(api.canManageSales.value, false)
+    assert.equal(api.headers.value.some(header => header.key === 'actions'), false)
+    await api.openSaleEdit({ id: 5 })
+    api.openSaleDelete({ id: 5 })
+    await api.deleteSale()
+    assert.equal(requests.length, 0)
+    assert.equal(api.dialog.value, false)
+    assert.equal(api.deleteDialog.value, false)
+
+    page.props.auth.permissions.sales.manage = true
+    assert.equal(api.canManageSales.value, true)
+    assert.equal(api.headers.value.some(header => header.key === 'actions'), true)
+    page.props.auth.permissions = {}
+    assert.equal(api.canManageSales.value, false, 'missing permissions fail closed')
+})
+
+test('Admin sale edit loads current sale fields and keeps distinct line identifiers for duplicate goods', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const sale = editableSale()
+    const pending = api.openSaleEdit({ id: 5, total: -1 })
+    assert.equal(api.editLoading.value, true)
+    assert.equal(requests[0].method, 'GET')
+    assert.equal(requests[0].url, '/api/sales/5')
+    await api.openSaleEdit({ id: 6 })
+    assert.equal(requests.length, 1, 'repeated edit clicks do not race sale responses')
+    requests[0].resolve({ data: sale })
+    await pending
+    assert.equal(api.editLoading.value, false)
+    assert.equal(api.editingSaleId.value, 5)
+    assert.equal(api.dialog.value, true)
+    assert.equal(api.saleForm.date, '2026-09-20')
+    assert.equal(api.saleForm.entity_id, 452)
+    assert.equal(api.saleForm.payment_reference, 'Счёт 15')
+    assert.equal(api.saleForm.total, '250.00')
+    assert.equal(api.saleForm.manualTotal, true, 'an existing total different from the line sum remains manual')
+    assert.deepEqual(api.saleForm.goods.map(line => line.id), [71, 72])
+    assert.deepEqual(api.saleForm.goods.map(line => line.good_id), [132, 132])
+    assert.equal(api.goods.value.length, 1, 'missing goods are added once to the selector dictionary')
+    assert.equal(api.selectedEntityOption.value.name, 'Покупатель')
+    api.saleForm.goods[0].quantity = 17
+    assert.equal(sale.goods[0].pivot.quantity, '2.000000', 'editing a line does not mutate saved sale data')
+    assert.equal(requests[1].url, 'good-warehouse-stock.index')
+    requests[1].resolve([])
+    await Promise.resolve()
+})
+
+test('Admin sale save updates headers, retained lines and new goods in one PATCH', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests } = harness
+    await loadEditableSale(harness)
+    api.saleForm.date = '2026-10-01'
+    api.saleForm.entity_id = 453
+    api.saleForm.payment_reference = 'Счёт 16'
+    api.saleForm.manualTotal = false
+    api.removeLine(0)
+    api.saleForm.goods[0].quantity = '4,5'
+    api.recalcLine(api.saleForm.goods[0], 'quantity')
+    api.addLine()
+    Object.assign(api.saleForm.goods[1], { good_id: 133, measure_id: 2, quantity: 2, price: 7.5, total: 15 })
+    const pending = api.submitSale()
+    assert.equal(api.saving.value, true)
+    assert.equal(requests[2].method, 'PATCH')
+    assert.equal(requests[2].url, '/api/sales/5')
+    assert.deepEqual(requests[2].body, {
+        request_id: 'test-request-id',
+        date: '2026-10-01',
+        entity_id: 453,
+        payment_reference: 'Счёт 16',
+        total: null,
+        goods: [
+            { id: 72, good_id: 132, measure_id: 1, quantity: 4.5, price: 30, total: 135 },
+            { good_id: 133, measure_id: 2, quantity: 2, price: 7.5, total: 15 },
+        ],
+    })
+    await api.submitSale()
+    assert.equal(requests.length, 3, 'repeated submission does not send another PATCH')
+    requests[2].resolve({ data: { id: 5, total: 150 } })
+    await Promise.resolve()
+    assert.equal(api.dialog.value, false)
+    assert.equal(requests[3].url, '/api/sales')
+    requests[3].resolve({ data: [{ id: 5, total: 150 }], meta: { total: 1, total_amount: 150 } })
+    await pending
+    assert.equal(api.saving.value, false)
+    assert.equal(api.totalAmount.value, 150)
+})
+
+test('sale form validates every selected good and allows removing all lines when editing', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests } = harness
+    await loadEditableSale(harness, { ...editableSale(), total: '190.00' })
+    assert.equal(api.saleForm.manualTotal, false)
+    api.addLine()
+    api.saleForm.goods[2].good_id = 133
+    assert.equal(api.canSubmitSale.value, false, 'one valid line does not hide an incomplete selected line')
+    await api.submitSale()
+    assert.equal(requests.length, 2)
+    Object.assign(api.saleForm.goods[2], { measure_id: 1, quantity: 0, price: 20, total: 0 })
+    assert.equal(api.canSubmitSale.value, false, 'selected lines require a positive quantity')
+    api.saleForm.goods[2].quantity = 1
+    api.saleForm.goods[2].price = -1
+    assert.equal(api.canSubmitSale.value, false)
+    api.saleForm.goods[2].price = 20
+    assert.equal(api.canSubmitSale.value, true)
+    api.saleForm.manualTotal = true
+    api.saleForm.total = -1
+    assert.equal(api.canSubmitSale.value, false, 'manual total cannot be negative')
+    api.saleForm.manualTotal = false
+    while (api.saleForm.goods.length) api.removeLine(0)
+    assert.equal(api.canSubmitSale.value, true)
+    assert.equal(api.effectiveSaleTotal.value, 0)
+    const pending = api.submitSale()
+    assert.deepEqual(requests[2].body.goods, [])
+    assert.equal(requests[2].body.total, null)
+    requests[2].resolve({ data: { id: 5, total: 0 } })
+    await Promise.resolve()
+    requests[3].resolve({ data: [{ id: 5, total: 0 }], meta: { total: 1, total_amount: 0 } })
+    await pending
+})
+
+test('moving the last sale out of a filtered page reloads the last remaining page', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests } = harness
+    await loadEditableSale(harness)
+    api.filters.month = '2026-09'
+    api.options.page = 2
+    api.rows.value = [editableSale()]
+    api.totalItems.value = 201
+    api.saleForm.date = '2026-10-01'
+    const pending = api.submitSale()
+    requests[2].resolve({ data: { ...editableSale(), date: '2026-10-01' } })
+    await Promise.resolve()
+    assert.equal(requests[3].options.params.page, 2)
+    requests[3].resolve({ data: [], meta: { total: 200, total_amount: 750 } })
+    await new Promise(setImmediate)
+    assert.equal(api.options.page, 1)
+    assert.equal(requests[4].url, '/api/sales')
+    assert.equal(requests[4].options.params.page, 1)
+    assert.equal(requests[4].options.params.month, '2026-09')
+    requests[4].resolve({ data: [{ id: 4, total: 25 }], meta: { total: 200, total_amount: 750 } })
+    await pending
+    assert.equal(api.rows.value[0].id, 4)
+    assert.equal(api.pageCount.value, 1)
+    assert.equal(api.dialog.value, false)
+})
+
+test('failed sale validation preserves the full Admin draft and reports its field error', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests, page } = harness
+    await loadEditableSale(harness)
+    api.saleForm.payment_reference = 'Черновик'
+    api.saleForm.goods[0].price = 13
+    const pending = api.submitSale()
+    requests[2].reject({ response: { status: 422, data: {
+        message: 'The given data was invalid.',
+        errors: { 'goods.0.price': ['Цена товара некорректна.'] },
+    } } })
+    await pending
+    assert.equal(api.saving.value, false)
+    assert.equal(api.dialog.value, true)
+    assert.equal(api.editingSaleId.value, 5)
+    assert.equal(api.saleForm.payment_reference, 'Черновик')
+    assert.equal(api.saleForm.goods[0].price, 13)
+    assert.equal(api.formErrorMessage.value, 'Цена товара некорректна.')
+    assert.equal(requests.length, 3, 'failed saves do not reload or replace the draft')
+    page.props.auth.permissions.sales.manage = false
+    await api.submitSale()
+    assert.equal(requests.length, 3, 'a revoked Admin permission blocks resubmitting an existing edit')
+})
+
+test('starting a new sale after editing clears persisted identifiers and uses POST', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests } = harness
+    await loadEditableSale(harness)
+    api.dialog.value = false
+    api.openCreate()
+    requests[2].resolve([])
+    await Promise.resolve()
+    assert.equal(api.editingSaleId.value, null)
+    assert.equal(api.saleForm.payment_reference, '')
+    api.saleForm.entity_id = 452
+    api.saleForm.manualTotal = true
+    api.saleForm.total = 50
+    api.saleForm.payment_reference = 'Новый счёт'
+    const pending = api.submitSale()
+    assert.equal(requests[3].method, 'POST')
+    assert.equal(requests[3].url, '/api/sales')
+    assert.deepEqual(requests[3].body.goods, [])
+    assert.equal(requests[3].body.total, 50)
+    assert.equal(requests[3].body.payment_reference, 'Новый счёт')
+    requests[3].resolve({ data: { id: 6, total: 50 } })
+    await Promise.resolve()
+    requests[4].resolve({ data: [{ id: 6, total: 50 }], meta: { total: 1, total_amount: 50 } })
+    await pending
+})
+
+test('sale edit handles a deleted sale and ignores responses after disposal or actor change', async () => {
+    const missing = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const pending = missing.api.openSaleEdit({ id: 5 })
+    missing.requests[0].reject({ response: { status: 404 } })
+    await pending
+    assert.equal(missing.api.editLoading.value, false)
+    assert.equal(missing.api.dialog.value, false)
+    assert.match(missing.api.errorMessage.value, /удалена/)
+
+    for (const action of ['dispose', 'changeActor']) {
+        const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+        const pending = harness.api.openSaleEdit({ id: 5 })
+        harness[action]()
+        harness.requests[0].resolve({ data: editableSale() })
+        await pending
+        assert.equal(harness.api.dialog.value, false)
+        assert.equal(harness.api.editingSaleId.value, null)
+        assert.equal(harness.requests.length, 1, 'an obsolete response must not open a draft or fetch its stock')
+    }
+})
+
+test('sales realtime refresh preserves every field in an open Admin draft', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests, refresh } = harness
+    await loadEditableSale(harness)
+    api.saleForm.date = '2026-10-01'
+    api.saleForm.entity_id = 453
+    api.saleForm.payment_reference = 'Черновик'
+    api.saleForm.total = 300
+    api.saleForm.goods[0].quantity = 7
+    api.saleForm.goods[0].price = 9
+    api.saleForm.goods[0].total = 63
+    const pending = refresh()
+    requests[2].resolve({ data: [{ id: 5, total: 500 }], meta: { total: 1, total_amount: 500 } })
+    requests[3].resolve([])
+    await pending
+    assert.equal(api.totalAmount.value, 500)
+    assert.equal(api.dialog.value, true)
+    assert.equal(api.editingSaleId.value, 5)
+    assert.equal(api.saleForm.date, '2026-10-01')
+    assert.equal(api.saleForm.entity_id, 453)
+    assert.equal(api.saleForm.payment_reference, 'Черновик')
+    assert.equal(api.saleForm.total, 300)
+    assert.equal(api.saleForm.manualTotal, true)
+    assert.deepEqual({ ...api.saleForm.goods[0] }, { id: 71, good_id: 132, measure_id: 1, quantity: 7, price: 9, total: 63 })
+})
+
+test('sale deletion waits for confirmation, preserves errors and supports retry', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const sale = { id: 5, total: 250 }
+    api.rows.value = [sale]
+    api.totalItems.value = 1
+    api.totalAmount.value = 250
+    api.openSaleDelete(sale)
+    assert.equal(api.deleteDialog.value, true)
+    assert.equal(requests.length, 0, 'opening confirmation does not delete the sale')
+    api.deleteDialog.value = false
+    assert.equal(requests.length, 0, 'cancelling confirmation does not send a mutation')
+    assert.equal(api.rows.value.length, 1)
+    api.openSaleDelete(sale)
+    const failed = api.deleteSale()
+    assert.equal(api.deleting.value, true)
+    assert.equal(requests[0].method, 'DELETE')
+    assert.equal(requests[0].url, '/api/sales/5')
+    await api.deleteSale()
+    assert.equal(requests.length, 1, 'repeated confirmation does not send another DELETE')
+    requests[0].reject({ response: { status: 422, data: { message: 'У продажи есть активные оплаты.' } } })
+    await failed
+    assert.equal(api.deleting.value, false)
+    assert.equal(api.deleteDialog.value, true)
+    assert.equal(api.deletingSale.value.id, 5)
+    assert.equal(api.deleteErrorMessage.value, 'У продажи есть активные оплаты.')
+    assert.equal(api.rows.value[0].id, 5)
+    assert.equal(api.totalAmount.value, 250)
+    const retried = api.deleteSale()
+    assert.equal(api.deleteErrorMessage.value, '')
+    requests[1].resolve({ message: 'Продажа удалена' })
+    await Promise.resolve()
+    assert.equal(api.deleteDialog.value, false)
+    assert.equal(api.deletingSale.value, null)
+    requests[2].resolve({ data: [], meta: { total: 0, total_amount: 0 } })
+    await retried
+    assert.equal(api.rows.value.length, 0)
+    assert.equal(api.totalAmount.value, 0)
+})
+
+test('deleting the last sale on a page goes back and closes its obsolete dialogs', async () => {
+    const { api, requests } = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const sale = { id: 5, date: '2026-09-20', total: 250 }
+    api.rows.value = [sale]
+    api.totalItems.value = 201
+    api.totalAmount.value = 1000
+    api.options.page = 2
+    api.filters.month = '2026-09'
+    api.openSaleDetails(sale)
+    api.openSaleDateEdit(sale)
+    api.editingSaleId.value = 5
+    api.dialog.value = true
+    api.openSaleDelete(sale)
+    const pending = api.deleteSale()
+    requests[0].resolve({ message: 'Продажа удалена' })
+    await Promise.resolve()
+    assert.equal(api.selectedSale.value, null)
+    assert.equal(api.detailsDialog.value, false)
+    assert.equal(api.dateEditDialog.value, false)
+    assert.equal(api.dialog.value, false)
+    assert.equal(api.totalItems.value, 200)
+    assert.equal(api.totalAmount.value, 750)
+    assert.equal(api.options.page, 1)
+    assert.equal(requests[1].url, '/api/sales')
+    assert.equal(requests[1].options.params.page, 1)
+    assert.equal(requests[1].options.params.month, '2026-09')
+    requests[1].resolve({ data: [{ id: 4, total: 25 }], meta: { total: 200, total_amount: 750 } })
+    await pending
+    assert.equal(requests.length, 2, 'deletion does not refetch obsolete sale details')
+    assert.equal(api.rows.value[0].id, 4)
 })
 
 test('entity sales ignores a slow response for the previously selected entity', async () => {

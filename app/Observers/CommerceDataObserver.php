@@ -28,7 +28,7 @@ class CommerceDataObserver
         $this->publishAfterCommit($model);
     }
 
-    private function publishAfterCommit(Model $model): void
+    public function publishAfterCommit(Model $model): void
     {
         if (! config('realtime.enabled')) {
             return;
