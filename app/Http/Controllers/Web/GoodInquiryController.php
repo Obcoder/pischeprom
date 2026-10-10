@@ -7,6 +7,7 @@ use App\Http\Requests\StoreGoodInquiryRequest;
 use App\Jobs\NotifyGoodInquiry;
 use App\Models\Good;
 use App\Models\GoodInquiry;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Goods\GoodInquiryOrderWriter;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\PublicGoodOffer;
@@ -25,7 +26,7 @@ class GoodInquiryController extends Controller
         PublicGoodOffer $offers,
         GoodInquiryOrderWriter $orders,
     ): JsonResponse {
-        abort_unless($good->is_published, 404);
+        abort_unless($good->is_published && app(CatalogSiteContext::class)->allowsGood($good->id), 404);
 
         $data = $request->validated();
         $attributes = Arr::except($data, ['request_token', 'consent', 'website', 'measurement']);

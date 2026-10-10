@@ -850,3 +850,22 @@ test('products open the market deep link and expose the shared tools with the en
     assert.equal(child.props['active-tab'], 'market')
     assert.equal(child.props.active, true)
 })
+
+test('domain hosts are editable only on Domain records and normalized server values survive save', async t => {
+    const domain = sourceNode({ entity_type: 'custom', entity_id: null, level_id: 3, parent_id: null, domain_hosts: ['food.test'] })
+    const h = harness(t, { node: domain })
+    const hosts = findVNode(h.render(), node => node.type === 'v-combobox' && node.props.label === 'Интернет-адреса этого Домена')
+    assert.deepEqual(hosts.props.modelValue, ['food.test'])
+    updateModel(hosts, ['food.test', 'ПИЩЕПРОМ-СЕРВЕР.РФ'])
+    const pending = h.api.save()
+    assert.deepEqual(h.requests[0].data.domain_hosts, ['food.test', 'ПИЩЕПРОМ-СЕРВЕР.РФ'])
+    h.requests[0].resolve({ ...domain, domain_hosts: ['food.test', 'xn----dtbhbbn3apgclecj7i.xn--p1ai'] })
+    await pending
+    assert.deepEqual(h.api.form.domain_hosts, ['food.test', 'xn----dtbhbbn3apgclecj7i.xn--p1ai'])
+    const category = harness(t, { node: sourceNode({ entity_type: 'category' }) })
+    assert.equal(findVNode(category.render(), node => node.type === 'v-combobox' && node.props.label === 'Интернет-адреса этого Домена'), null)
+    const saving = category.api.save()
+    assert.equal(Object.hasOwn(category.requests[0].data, 'domain_hosts'), false)
+    category.requests[0].resolve(sourceNode({ entity_type: 'category' }))
+    await saving
+})

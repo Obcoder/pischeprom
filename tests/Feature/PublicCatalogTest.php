@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
+use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
@@ -154,6 +155,7 @@ class PublicCatalogTest extends TestCase
     {
         $domainLevel = CatalogLevel::query()->create(['name' => 'Домен', 'is_domain' => true]);
         $domain = $this->node('Продукты пищевые', ['level_id' => $domainLevel->id, 'slug' => 'produkty-pishhevye']);
+        CatalogSiteDomain::create(['catalog_node_id' => $domain->id, 'hostname' => 'localhost']);
         $category = Category::query()->create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
         $fish = $this->node('Устаревшее имя', [
             'parent_id' => $domain->id, 'entity_type' => 'category', 'entity_id' => $category->id, 'slug' => 'obsolete',
@@ -164,7 +166,7 @@ class PublicCatalogTest extends TestCase
         $this->node('Закрытая', ['entity_type' => 'category', 'entity_id' => $hiddenCategory->id]);
         $canonical = url('/catalog/ryba/skumbriia');
 
-        $this->assertSame(url('/catalog/produkty-pishhevye'), $this->url($domain));
+        $this->assertSame(route('public.goods.index'), $this->url($domain));
         $this->assertSame($canonical, $this->url($mackerel));
         $this->assertSame($canonical.'/zamorozhennaia', $this->url($frozen));
         $this->assertSame($canonical, app(CatalogService::class)->nodePayload($mackerel)['public_url']);
@@ -174,7 +176,7 @@ class PublicCatalogTest extends TestCase
             ->assertJsonPath('component', 'Catalog/Show')
             ->assertJsonPath('props.node.id', $mackerel->id)
             ->assertJsonPath('props.seo.canonical', $canonical)
-            ->assertJsonPath('props.breadcrumbs.1.public_url', url('/catalog/ryba'))
+            ->assertJsonPath('props.breadcrumbs.0.public_url', url('/catalog/ryba'))
             ->assertJsonPath('props.children.0.public_url', $canonical.'/zamorozhennaia')
             ->assertJsonPath('props.publicCategoryUrls.'.$category->id, url('/catalog/ryba'))
             ->assertJsonMissingPath('props.publicCategoryUrls.'.$hiddenCategory->id)
@@ -224,7 +226,8 @@ class PublicCatalogTest extends TestCase
     {
         $domainLevel = CatalogLevel::query()->create(['name' => 'Домен', 'is_domain' => true]);
         $domain = $this->node('Домен', ['level_id' => $domainLevel->id, 'slug' => 'domain']);
-        $root = $this->node('Рыба без домена', ['slug' => 'fish']);
+        CatalogSiteDomain::create(['catalog_node_id' => $domain->id, 'hostname' => 'localhost']);
+        $root = $this->node('Рыба в домене', ['slug' => 'fish', 'parent_id' => $domain->id]);
         $otherRoot = $this->node('Рыба под доменом', ['slug' => 'fish', 'parent_id' => $domain->id]);
         $first = $this->node('Один раздел', ['slug' => 'same', 'parent_id' => $root->id]);
         $second = $this->node('Другой раздел', ['slug' => 'same', 'parent_id' => $root->id]);

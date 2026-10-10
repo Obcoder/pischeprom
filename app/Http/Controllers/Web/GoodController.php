@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\Country;
-use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodUrlAlias;
+use App\Services\Catalog\CatalogSiteContext;
+use App\Services\Catalog\PublicGoodsCatalog;
 use App\Services\Goods\GoodStockService;
 use App\Services\Goods\GoodTradeCodes;
 use App\Services\Goods\PublicGoodOffer;
@@ -20,116 +20,9 @@ use Inertia\Response;
 
 class GoodController extends Controller
 {
-    public function index(
-        Request $request,
-        GoodStockService $stock,
-    ): Response {
-        $search = trim((string) $request->query('search', ''));
-        $countryId = $request->integer('country_id') ?: null;
-        $country = $countryId
-            ? Country::query()->select('id', 'name', 'flag')->find($countryId)
-            : null;
-        $canSeePartnerPrices = $request->user() !== null;
-
-        $goods = Good::query()
-            ->select([
-                'goods.id',
-                'goods.country_id',
-                'goods.name',
-                'goods.slug',
-                'goods.ava_image',
-                'goods.ava_thumb',
-                'goods.denominator',
-                'goods.measure_id',
-                'goods.unit_weight_kg',
-                'goods.description',
-                'goods.created_at',
-            ])
-            ->where('is_published', true)
-            ->when($country, function ($query) use ($country): void {
-                $query->where('country_id', $country->id);
-            })
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($searchQuery) use ($search): void {
-                    $searchQuery
-                        ->where('name', 'like', "%{$search}%")
-                        ->orWhere('slug', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhereHas('products', function ($productQuery) use ($search): void {
-                            $productQuery
-                                ->where('rus', 'like', "%{$search}%")
-                                ->orWhere('eng', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->with([
-                'seo',
-                'stockAvailability',
-                'products.category',
-                'country:id,name,flag',
-                'priceTypeValues' => function ($query) use ($canSeePartnerPrices): void {
-                    $query
-                        ->where('is_published', true)
-                        ->whereHas('priceType', function ($priceTypeQuery) use ($canSeePartnerPrices): void {
-                            $priceTypeQuery
-                                ->where('is_active', true)
-                                ->where(function ($visibleQuery) use ($canSeePartnerPrices): void {
-                                    $visibleQuery
-                                        ->where('is_public', true)
-                                        ->orWhere('code', 'like', '%retail%')
-                                        ->orWhere('code', 'like', '%rozn%')
-                                        ->orWhere('name', 'like', '%рознич%')
-                                        ->orWhere('name', 'like', '%розница%');
-
-                                    if ($canSeePartnerPrices) {
-                                        $visibleQuery
-                                            ->orWhere('code', 'like', '%partner%')
-                                            ->orWhere('code', 'like', '%diler%')
-                                            ->orWhere('code', 'like', '%dealer%')
-                                            ->orWhere('name', 'like', '%партн%')
-                                            ->orWhere('name', 'like', '%дилер%');
-                                    }
-                                })
-                                ->when(! $canSeePartnerPrices, function ($visibleQuery): void {
-                                    $visibleQuery
-                                        ->where('code', 'not like', '%partner%')
-                                        ->where('code', 'not like', '%diler%')
-                                        ->where('code', 'not like', '%dealer%')
-                                        ->where('name', 'not like', '%партн%')
-                                        ->where('name', 'not like', '%дилер%');
-                                });
-                        })
-                        ->with([
-                            'priceType.currency',
-                            'currency',
-                        ])
-                        ->orderByDesc('updated_at');
-                },
-                'publishedMedia' => function ($query): void {
-                    $query
-                        ->where('type', 'image')
-                        ->where('is_published', true)
-                        ->orderByDesc('is_ava')
-                        ->orderBy('sort_order')
-                        ->orderBy('id');
-                },
-            ])
-            ->withExists('stockMovements')
-            ->orderBy('name')
-            ->limit(96)
-            ->get();
-
-        $stock->appendAvailability($goods);
-
-        return Inertia::render('Goods', [
-            'goods' => $goods,
-            'filters' => [
-                'search' => $search,
-                'country_id' => $country?->id,
-            ],
-            'country' => $country,
-            'fields' => $this->fieldFilters(),
-        ]);
+    public function index(Request $request, PublicGoodsCatalog $catalog): Response
+    {
+        return Inertia::render('Goods', $catalog->page($request));
     }
 
     public function show(
@@ -139,6 +32,7 @@ class GoodController extends Controller
         GoodStockService $stock,
         PublicGoodOffer $offers,
         MaxMessengerService $max,
+        CatalogSiteContext $site,
     ): Response|RedirectResponse {
         $requestedSlug = trim($good);
 
@@ -165,7 +59,7 @@ class GoodController extends Controller
             $good = Good::query()->with(['seo', 'stockAvailability'])->find($requestedSlug);
         }
 
-        abort_unless($good?->is_published, 404);
+        abort_unless($good?->is_published && $site->allowsGood($good->id), 404);
 
         $canonicalSlug = $seoService->publicSlug($good);
 
@@ -176,7 +70,8 @@ class GoodController extends Controller
         }
 
         $good->load([
-            'products.category',
+            'products' => fn ($query) => $site->scopeEntities($query, 'product')->where('products.is_published', true),
+            'products.category' => fn ($query) => $site->scopeEntities($query, 'category')->where('categories.is_published', true),
             'country:id,name,flag',
             'vatRate:id,title,rate',
             'seo',
@@ -204,7 +99,7 @@ class GoodController extends Controller
         $good->setRelation('priceTypeValues', $offers->pricesFor($good));
         $purchase = $offers->for($good);
 
-        $relatedGoods = Good::query()
+        $relatedGoods = $site->scopeGoods(Good::query())
             ->where('id', '!=', $good->id)
             ->where('is_published', true)
             ->with([
@@ -280,20 +175,5 @@ class GoodController extends Controller
             'publicPurchase' => [...$purchase, 'max_url' => $max->publicProductUrl($good)],
             'seo' => $pageSeo,
         ]);
-    }
-
-    private function fieldFilters()
-    {
-        return Field::query()
-            ->published()
-            ->withCount(['publishedGoods as goods_count'])
-            ->orderBy('sort_order')
-            ->orderBy('title')
-            ->get([
-                'id',
-                'title',
-                'slug',
-                'description',
-            ]);
     }
 }

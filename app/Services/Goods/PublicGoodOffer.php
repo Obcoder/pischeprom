@@ -6,6 +6,7 @@ use App\Models\Good;
 use App\Models\GoodPriceTypeValue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PublicGoodOffer
@@ -30,6 +31,35 @@ class PublicGoodOffer
             $good,
             $this->preferredPrices($prices->get($good->id, collect()))->first(),
         ));
+    }
+
+    /** Correlated scalar query using the same public-offer precedence as forMany(). */
+    public function catalogPriceQuery(): \Illuminate\Database\Query\Builder
+    {
+        $query = DB::table('good_price_type_values as catalog_prices')
+            ->join('price_types as catalog_types', 'catalog_types.id', '=', 'catalog_prices.price_type_id')
+            ->whereColumn('catalog_prices.good_id', 'goods.id')
+            ->where('catalog_prices.is_published', true)
+            ->where('catalog_types.is_active', true)
+            ->where('catalog_types.is_public', true)
+            ->where(fn ($q) => $q->whereNull('catalog_prices.valid_from')->orWhereDate('catalog_prices.valid_from', '<=', today()))
+            ->where(fn ($q) => $q->whereNull('catalog_prices.valid_to')->orWhereDate('catalog_prices.valid_to', '>=', today()))
+            ->whereRaw('COALESCE(catalog_prices.price_gross, catalog_prices.price_net) > 0');
+        foreach (['partner', 'партн', 'дилер', 'dealer', 'diler'] as $private) {
+            $query->whereRaw('LOWER(catalog_types.code) NOT LIKE ?', ['%'.$private.'%'])
+                ->whereRaw('LOWER(catalog_types.name) NOT LIKE ?', ['%'.$private.'%']);
+        }
+        $retail = [];
+        $bindings = [];
+        foreach (['retail', 'rozn', 'рознич', 'розница'] as $label) {
+            $retail[] = '(LOWER(catalog_types.code) LIKE ? OR LOWER(catalog_types.name) LIKE ?)';
+            array_push($bindings, '%'.$label.'%', '%'.$label.'%');
+        }
+
+        return $query->selectRaw('COALESCE(catalog_prices.price_gross, catalog_prices.price_net)')
+            ->orderByRaw('CASE WHEN '.implode(' OR ', $retail).' THEN 0 ELSE 1 END', $bindings)
+            ->orderByRaw('COALESCE(catalog_types.sort_order, 100)')
+            ->orderByDesc('catalog_prices.updated_at')->orderByDesc('catalog_prices.id')->limit(1);
     }
 
     private function offer(Good $good, ?GoodPriceTypeValue $price): array

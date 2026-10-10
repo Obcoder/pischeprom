@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ class ProductController extends Controller
         GoodStockService $stock,
         PublicClassPage $classPages,
     ): Response|RedirectResponse {
-        abort_unless($product->is_published, 404);
+        abort_unless($product->is_published && app(CatalogSiteContext::class)->allowsEntity('product', $product->id), 404);
 
         if ($classPages->hasLandingForProduct($product)) {
             $target = $classPages->catalogPageForProduct($product);
@@ -34,6 +35,7 @@ class ProductController extends Controller
         ]);
 
         $goods = $product->goods()
+            ->tap(fn ($query) => app(CatalogSiteContext::class)->scopeGoods($query))
             ->select([
                 'goods.id',
                 'goods.name',

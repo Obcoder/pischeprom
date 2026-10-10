@@ -5,9 +5,10 @@ namespace App\Services\Goods;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\User;
+use App\Services\Catalog\CatalogSiteContext;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class HomeGoodsModuleService
 {
@@ -46,17 +47,19 @@ class HomeGoodsModuleService
 
     private function tableOfContents(): array
     {
-        $categoriesQuery = Category::query()
+        $categoriesQuery = app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
             ->published()
             ->with([
                 'products' => fn ($query) => $query
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
                     ->withCount([
-                        'goods as published_goods_count' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true),
+                        'goods as published_goods_count' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true)
+                            ->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)),
                     ])
                     ->orderBy('rus')
                     ->limit(14),
             ])
-            ->withCount('goods')
+            ->withCount(['goods' => fn ($query) => $query->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods))])
             ->when(
                 Schema::hasColumn('categories', 'is_featured'),
                 fn ($query) => $query->orderByDesc('is_featured')
@@ -121,14 +124,16 @@ class HomeGoodsModuleService
     private function orderedGoods(Collection $entityIds): EloquentCollection
     {
         if ($entityIds->isEmpty()) {
-            return new EloquentCollection();
+            return new EloquentCollection;
         }
 
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->whereHas('sales', fn ($query) => $query->whereIn('sales.entity_id', $entityIds))
             ->with([
-                'products.category',
+                'products' => fn ($query) => $query
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                    ->with('category'),
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
                 'industries:id,code,title',
@@ -142,15 +147,17 @@ class HomeGoodsModuleService
     private function recommendedGoods(array $industryIds, array $excludeGoodIds): EloquentCollection
     {
         if (empty($industryIds)) {
-            return new EloquentCollection();
+            return new EloquentCollection;
         }
 
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->when(! empty($excludeGoodIds), fn ($query) => $query->whereNotIn('id', $excludeGoodIds))
             ->whereHas('industries', fn ($query) => $query->whereIn('industries.id', $industryIds))
             ->with([
-                'products.category',
+                'products' => fn ($query) => $query
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                    ->with('category'),
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
                 'industries:id,code,title',

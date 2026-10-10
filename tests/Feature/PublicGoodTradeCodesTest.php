@@ -83,13 +83,13 @@ class PublicGoodTradeCodesTest extends TestCase
 
         $catalog = $this->get(route('public.goods.index'), ['X-Inertia' => 'true'])
             ->assertOk()
-            ->assertJsonPath('props.goods.0.id', $good->id);
+            ->assertJsonPath('props.goods.data.0.id', $good->id);
         $published = $this->getJson(route('goods.published'))
             ->assertOk()
             ->assertJsonPath('0.id', $good->id);
 
         foreach (self::STAFF_CODES as $field => $value) {
-            $catalog->assertJsonMissingPath('props.goods.0.'.$field);
+            $catalog->assertJsonMissingPath('props.goods.data.0.'.$field);
             $published->assertJsonMissingPath('0.'.$field);
             $this->assertStringNotContainsString($value, $catalog->getContent());
             $this->assertStringNotContainsString($value, $published->getContent());

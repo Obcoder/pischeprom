@@ -24,7 +24,7 @@ class GoodStockAlertManager
         private readonly MaxMessengerService $max,
     ) {}
 
-    public function createPending(Good $good, ?User $user = null): array
+    public function createPending(Good $good, ?User $user = null, ?string $siteUrl = null): array
     {
         if (! $this->max->configured()) {
             throw new RuntimeException(
@@ -53,6 +53,7 @@ class GoodStockAlertManager
         $alert = GoodStockAlert::query()->create([
             'good_id' => $good->getKey(),
             'user_id' => $user?->getKey(),
+            'site_url' => $siteUrl,
             'start_token_hash' => $this->tokenHash($token),
             'status' => GoodStockAlert::STATUS_PENDING,
             'expires_at' => now()->addDays(7),

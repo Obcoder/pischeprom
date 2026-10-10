@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CatalogLanding;
+use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Currency;
 use App\Models\Good;
@@ -46,15 +47,30 @@ class ClassPageSsrTest extends TestCase
         Http::allowStrayRequests(['http://127.0.0.1:13714/*']);
     }
 
+    public function test_catalog_server_html_renders_both_views_and_server_pagination(): void
+    {
+        for ($i = 1; $i <= 12; $i++) {
+            Good::create(['name' => sprintf('Каталог SSR %02d', $i), 'is_published' => true]);
+        }
+        $cards = $this->rawPage('/g?per_page=10')->assertSee('Каталог товаров')->assertSee('Каталог SSR 01')
+            ->assertDontSee('Каталог SSR 11')->assertSee('catalog-grid', false);
+        $xpath = $this->xpath($cards->getContent());
+        $this->assertSame(10, $xpath->query('//body//*[contains(concat(" ", normalize-space(@class), " "), " catalog-card ")]')->length);
+        $this->rawPage('/g?per_page=10&page=2&view=tree&show_filters=0')->assertSee('Каталог SSR 11')
+            ->assertDontSee('Каталог SSR 01')->assertSee('catalog-tree__good', false)->assertDontSee('id="catalog-filters"', false);
+    }
+
     public function test_real_raw_html_contains_article_current_catalog_and_metadata(): void
     {
         $product = Product::forceCreate(['id' => 124, 'rus' => 'Скумбрия', 'is_published' => true]);
-        $this->createClassCatalog($product);
+        $guideNode = $this->createClassCatalog($product);
         $source = Product::forceCreate(['id' => 201, 'rus' => 'Скумбрия замороженная', 'is_published' => true]);
+        $sourceNode = $this->sourceNode($source, $guideNode);
         $good = Good::forceCreate(['id' => 75, 'name' => 'Скумбрия атлантическая 600+ неразделанная, Фарерские острова — тестовая партия',
             'slug' => 'fresh-mackerel-ssr', 'is_published' => true, 'denominator' => 20,
             'ava_thumb' => '/class-assets/mackerel/mackerel-hero.jpg']);
         $good->products()->attach($source);
+        $this->placeGood($good, $sourceNode);
         GoodSeo::create(['good_id' => $good->id, 'availability_status' => 'in_stock']);
         $currency = Currency::query()->where('code', 'RUB')->first()
             ?: Currency::forceCreate(['code' => 'RUB', 'name' => 'Рубль']);
@@ -69,9 +85,11 @@ class ClassPageSsrTest extends TestCase
                 'is_published' => true, 'denominator' => $id === 173 ? null : 10,
                 'ava_thumb' => $id === 173 ? null : '/class-assets/mackerel/mackerel-hero.jpg']);
             $item->products()->attach($source);
+            $this->placeGood($item, $sourceNode);
         }
         $hidden = Good::forceCreate(['id' => 95, 'name' => 'Скрытая партия SSR', 'slug' => 'hidden-mackerel-ssr', 'is_published' => false]);
         $hidden->products()->attach($source);
+        $this->placeGood($hidden, $sourceNode);
 
         $this->get('/p/124')->assertStatus(301)->assertRedirect($this->classUrl());
         $this->get('/catalog/160/skumbriia')->assertStatus(301)->assertRedirect($this->classUrl());
@@ -278,11 +296,13 @@ class ClassPageSsrTest extends TestCase
         $node = $this->createClassCatalog($product);
         $node->update(['meta_title' => 'Скумбрия из карточки — SSR', 'meta_description' => 'Описание из карточки для SSR']);
         $source = Product::forceCreate(['id' => 201, 'rus' => 'Скумбрия замороженная', 'is_published' => true]);
+        $sourceNode = $this->sourceNode($source, $node);
         $first = null;
         foreach ([75 => 'Скумбрия 600+ — актуальная партия', 104 => 'Скумбрия 500+ — актуальная партия'] as $id => $name) {
             $good = Good::forceCreate(['id' => $id, 'name' => $name, 'is_published' => true,
                 'slug' => $id === 75 ? 'database-initial-mackerel' : 'database-mackerel-104', 'denominator' => 10]);
             $good->products()->attach($source);
+            $this->placeGood($good, $sourceNode);
             $first ??= $good;
         }
         $content = app(CatalogLandingTemplates::class)->named('mackerel');
@@ -290,6 +310,21 @@ class ClassPageSsrTest extends TestCase
             'published_content' => $content, 'published_at' => now(), 'activated_at' => now(), 'version' => 1]);
 
         return [$product, $node, $landing, $first];
+    }
+
+    private function sourceNode(Product $product, CatalogNode $guide): CatalogNode
+    {
+        return CatalogNode::create(['level_id' => $guide->level_id, 'parent_id' => $guide->parent_id,
+            'entity_type' => 'product', 'entity_id' => $product->id, 'name' => $product->rus,
+            'slug' => 'frozen-mackerel', 'is_published' => true]);
+    }
+
+    private function placeGood(Good $good, CatalogNode $parent): void
+    {
+        $level = CatalogLevel::firstOrCreate(['name' => 'Товар SSR'], ['entity_type' => 'good']);
+        CatalogNode::create(['level_id' => $level->id, 'parent_id' => $parent->id,
+            'entity_type' => 'good', 'entity_id' => $good->id, 'name' => $good->name,
+            'slug' => $good->slug, 'is_published' => $good->is_published]);
     }
 
     private function xpath(string $html): DOMXPath

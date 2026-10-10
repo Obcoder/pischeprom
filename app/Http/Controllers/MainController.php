@@ -7,6 +7,7 @@ use App\Models\Field;
 use App\Models\Good;
 use App\Models\GoodOfTheDay;
 use App\Models\Product;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicCatalogService;
 use App\Services\Goods\HomeGoodsModuleService;
 use App\Services\HomeBanners\HomeBannerFeedService;
@@ -20,9 +21,12 @@ class MainController extends Controller
 {
     public function index(Request $request, HomeGoodsModuleService $homeGoodsModuleService, HomeBannerFeedService $homeBannerFeed, PublicCatalogService $catalog): Response
     {
-        $categoriesQuery = Category::query()
+        $categoriesQuery = app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
             ->where('is_published', true)
-            ->withCount(['products', 'goods'])
+            ->withCount([
+                'products' => fn ($query) => $query->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product')),
+                'goods' => fn ($query) => $query->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)),
+            ])
             ->when(
                 Schema::hasColumn('categories', 'is_featured'),
                 fn ($query) => $query->orderByDesc('is_featured')
@@ -41,7 +45,7 @@ class MainController extends Controller
 
         $fields = $this->homeFields();
 
-        $heroGoodsQuery = Good::query()
+        $heroGoodsQuery = app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->whereNotNull(Schema::hasColumn('goods', 'ava_thumb') ? 'ava_thumb' : 'ava_image')
             ->inRandomOrder()
@@ -58,8 +62,8 @@ class MainController extends Controller
             'catalogShowcase' => $catalog->showcase(),
             'fields' => $fields,
             'goodOfTheDay' => $goodOfTheDay,
-            'productsCount' => Product::query()->count(),
-            'goodsCount' => Good::query()->count(),
+            'productsCount' => app(CatalogSiteContext::class)->scopeEntities(Product::query(), 'product')->where('is_published', true)->count(),
+            'goodsCount' => app(CatalogSiteContext::class)->scopeGoods(Good::query())->where('is_published', true)->count(),
             'heroGoods' => $heroGoods,
             'homeGoodsModule' => $homeGoodsModuleService->build($request->user()),
             'countryCollections' => $this->countryCollections(),
@@ -72,7 +76,9 @@ class MainController extends Controller
     {
         $hasGoodCountry = Schema::hasColumn('goods', 'country_id');
         $relations = [
-            'products.category:id,name,slug',
+            'products' => fn ($query) => $query
+                ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                ->with('category:id,name,slug'),
             'publishedMedia' => function ($query): void {
                 $query
                     ->where('type', 'image')
@@ -101,7 +107,7 @@ class MainController extends Controller
             $relations[] = 'fields:id,title,description';
         }
 
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->with($relations)
             ->inRandomOrder()
@@ -144,8 +150,11 @@ class MainController extends Controller
 
         return Field::query()
             ->published()
+            ->when(app(CatalogSiteContext::class)->goodIds() !== null, fn ($query) => $query->whereHas('publishedGoods',
+                fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)))
             ->withCount([
-                'goods as goods_count' => fn ($query) => $query->where('goods.is_published', true),
+                'goods as goods_count' => fn ($query) => $query->where('goods.is_published', true)
+                    ->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)),
             ])
             ->orderBy('sort_order')
             ->orderBy('title')
@@ -177,7 +186,7 @@ class MainController extends Controller
             return [];
         }
 
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->whereNotNull('country_id')
             ->with('country:id,name,flag')
@@ -228,17 +237,24 @@ class MainController extends Controller
             ->with('good')
             ->firstWhere('date', $today);
 
-        if ($record) {
+        if ($record?->good?->is_published && app(CatalogSiteContext::class)->allowsGood($record->good_id)) {
             return $record;
         }
 
-        $randomGood = Good::query()
+        $randomGood = app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->inRandomOrder()
             ->first();
 
         if (! $randomGood) {
             return null;
+        }
+
+        // The historical table has one global entry per date. Other sites use a
+        // local suggestion without overwriting the original site's selection.
+        if ($record || app(CatalogSiteContext::class)->goodIds() !== null) {
+            return (new GoodOfTheDay(['good_id' => $randomGood->id, 'date' => $today]))
+                ->setRelation('good', $randomGood);
         }
 
         return GoodOfTheDay::query()

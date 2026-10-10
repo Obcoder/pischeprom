@@ -3,6 +3,7 @@
 namespace App\Services\Feeds;
 
 use App\Models\Good;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Seo\GoodSeoService;
 use XMLWriter;
 
@@ -26,7 +27,7 @@ class YandexDirectFeedService
 
         $xml->writeElement('name', config('app.name', 'pischeprom'));
         $xml->writeElement('company', config('app.name', 'pischeprom'));
-        $xml->writeElement('url', config('app.url'));
+        $xml->writeElement('url', route('home'));
 
         $xml->startElement('currencies');
         $xml->startElement('currency');
@@ -50,11 +51,13 @@ class YandexDirectFeedService
 
         $xml->startElement('offers');
 
-        Good::query()
+        app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->with([
                 'seo',
-                'products.category',
+                'products' => fn ($query) => $query
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                    ->with('category'),
                 'publishedMedia',
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
@@ -92,9 +95,11 @@ class YandexDirectFeedService
     {
         $categories = [];
 
-        Good::query()
+        app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
-            ->with(['seo', 'products.category'])
+            ->with(['seo', 'products' => fn ($query) => $query
+                ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                ->with('category')])
             ->whereHas('seo', function ($query) {
                 $query
                     ->where('is_active', true)

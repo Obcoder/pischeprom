@@ -9,6 +9,7 @@ use App\Models\GoodPriceTypeValue;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\User;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Entities\UserEntityResolver;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\PublicGoodOffer;
@@ -176,7 +177,7 @@ class CustomerOrderController extends Controller
 
     private function publishedGoods(Collection $goodIds): Collection
     {
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->whereIn('id', $goodIds)
             ->where('is_published', true)
             ->sharedLock()

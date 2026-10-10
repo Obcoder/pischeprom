@@ -350,6 +350,7 @@ function reset(node = props.node, resetTabs = true) {
         name: node?.name || '', slug: node?.slug || '', image: node?.image || '',
         description: node?.description || '', h1: node?.h1 || '', meta_title: node?.meta_title || '',
         meta_description: node?.meta_description || '',
+        domain_hosts: [...(node?.domain_hosts || [])],
         is_published: node?.is_published ?? false, is_featured: node?.is_featured ?? false,
         sort_order: node?.sort_order ?? 0, properties: clone(node?.properties),
     })
@@ -468,6 +469,7 @@ async function save(nextTab = null) {
     let phase = 'record'
     try {
         const payload = { ...form, h1: form.h1?.trim() || null, properties: {} }
+        if (!currentLevel.value?.is_domain) delete payload.domain_hosts
         if (record.value) delete payload.entity_type
         if (isGood.value) {
             delete payload.image
@@ -494,6 +496,7 @@ async function save(nextTab = null) {
         if (own(saved, 'slug')) form.slug = saved.slug || ''
         if (own(saved, 'image')) form.image = saved.image || ''
         if (own(saved, 'h1')) form.h1 = saved.h1 || ''
+        if (own(saved, 'domain_hosts')) form.domain_hosts = [...saved.domain_hosts]
         baseline.value = JSON.stringify(form)
         goodBaseline.value = JSON.stringify(goodForm)
         if (selectedFile.value) {
@@ -565,6 +568,8 @@ async function remove() {
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
                             <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent" />
                             <p v-if="parentPath" class="catalog-node-dialog__path">{{ parentPath }}</p>
+                            <v-combobox v-if="currentLevel?.is_domain" v-model="form.domain_hosts" label="Интернет-адреса этого Домена" multiple chips closable-chips variant="outlined" density="compact" :disabled="saving" :error-messages="Object.entries(errors).filter(([key]) => key === 'domain_hosts' || key.startsWith('domain_hosts.')).flatMap(([, value]) => value)" hint="Например: пищепром-сервер.рф и www.пищепром-сервер.рф. Введите каждый адрес и нажмите Enter." persistent-hint class="mb-3" />
+                            <v-alert v-if="currentLevel?.is_domain" type="info" variant="tonal" density="compact" class="mb-4">На каждом сайте доступны только опубликованные товары его Домена. Каталог и навигация начинаются с вложенных категорий. Для нового сайта также настройте DNS, HTTPS и подключение сайта на сервере.</v-alert>
                             <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" min="0" max="1000000" variant="outlined" density="compact" :error-messages="fieldErrors('sort_order')" />
                             <GoodTradeCodeFields v-if="isGood && goodReady" class="catalog-node-dialog__trade-codes" compact :model-value="goodForm" :context="seoGood" :errors="goodErrors" :disabled="busy" :active="open && mainTab && goodReady" @update:model-value="updateGoodForm" />
                             <div class="catalog-node-dialog__publication">

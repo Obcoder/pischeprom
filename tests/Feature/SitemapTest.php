@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
@@ -31,6 +32,10 @@ class SitemapTest extends TestCase
             'entity_type' => 'product', 'entity_id' => $hidden->id, 'name' => $hidden->rus,
             'slug' => 'hidden', 'is_published' => true]);
         $good = Good::create(['name' => 'Скумбрия', 'slug' => 'mackerel', 'is_published' => true]);
+        $goodLevel = CatalogLevel::create(['name' => 'Товар SSR', 'entity_type' => 'good']);
+        CatalogNode::create(['level_id' => $goodLevel->id, 'parent_id' => $node->id,
+            'entity_type' => 'good', 'entity_id' => $good->id, 'name' => $good->name,
+            'slug' => $good->slug, 'is_published' => true]);
         GoodSeo::create(['good_id' => $good->id, 'slug_override' => 'current-mackerel', 'is_active' => true,
             'include_in_sitemap' => true, 'robots' => 'index,follow']);
 

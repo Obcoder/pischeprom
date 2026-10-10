@@ -6,6 +6,7 @@ use App\Models\CatalogLanding;
 use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Good;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicClassPage;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +33,7 @@ class SitemapService
 
         $managedCategoryIds = Schema::hasTable('catalog_landings') ? CatalogNode::where('entity_type', 'category')
             ->whereIn('id', CatalogLanding::whereNotNull('activated_at')->select('catalog_node_id'))->pluck('entity_id')->all() : [];
-        Category::query()
+        app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
             ->where('is_published', true)
             ->whereNotIn('id', $managedCategoryIds)
             ->orderBy('id')
@@ -61,7 +62,7 @@ class SitemapService
             $this->writeUrl($xml, $page['node']['public_url'], $page['lastmod'], 'weekly', '0.8');
         }
 
-        Good::query()
+        app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->where('is_published', true)
             ->with('seo')
             ->whereHas('seo', function ($query): void {

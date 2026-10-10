@@ -422,6 +422,7 @@ jobs:
             app/Models/CatalogLanding.php \
             app/Models/CatalogLevel.php \
             app/Models/CatalogNode.php \
+            app/Models/CatalogSiteDomain.php \
             app/Models/Component.php \
             app/Services/Catalog \
             database/migrations/2026_10_07_150000_create_catalog_tree_tables.php \
@@ -433,6 +434,8 @@ jobs:
             database/migrations/2026_10_08_150000_create_good_url_aliases_table.php \
             database/migrations/2026_10_10_120000_create_catalog_landings_table.php \
             database/migrations/2026_10_10_130000_add_h1_to_catalog_nodes_table.php \
+            database/migrations/2026_10_11_120000_create_catalog_site_domains_table.php \
+            database/migrations/2026_10_11_120100_add_site_url_to_good_stock_alerts.php \
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
@@ -443,6 +446,9 @@ jobs:
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/PublicCatalogTest.php \
+            tests/Feature/PublicGoodsCatalogTest.php \
+            tests/Feature/CatalogSiteDomainTest.php \
+            tests/Feature/CatalogSiteCommerceTest.php \
             tests/Feature/PublicCatalogLandingTest.php \
             tests/Feature/ComponentCatalogManagementTest.php
 
@@ -625,6 +631,9 @@ jobs:
             tests/Feature/GoodsSeoSemanticCoreTest.php \
             tests/Feature/FlexibleCatalogClassificationTest.php \
             tests/Feature/PublicCatalogTest.php \
+            tests/Feature/PublicGoodsCatalogTest.php \
+            tests/Feature/CatalogSiteDomainTest.php \
+            tests/Feature/CatalogSiteCommerceTest.php \
             tests/Feature/PublicCatalogLandingTest.php \
             tests/Feature/PublicClassPageTest.php \
             tests/Feature/SitemapTest.php \

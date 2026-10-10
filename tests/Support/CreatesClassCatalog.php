@@ -4,6 +4,7 @@ namespace Tests\Support;
 
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
+use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Product;
 
@@ -17,6 +18,7 @@ trait CreatesClassCatalog
         $productLevel = CatalogLevel::create(['name' => 'Класс SSR', 'entity_type' => 'product']);
         CatalogNode::forceCreate(['id' => 417, 'level_id' => $domainLevel->id, 'name' => 'Продукты пищевые',
             'slug' => 'produkty-pishchevye', 'is_published' => true]);
+        CatalogSiteDomain::create(['catalog_node_id' => 417, 'hostname' => 'localhost']);
         CatalogNode::forceCreate(['id' => 25, 'parent_id' => 417, 'level_id' => $categoryLevel->id,
             'entity_type' => 'category', 'entity_id' => $category->id, 'name' => $category->name,
             'slug' => $category->slug, 'is_published' => true]);

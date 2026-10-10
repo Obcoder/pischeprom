@@ -14,6 +14,7 @@ use App\Models\Industry;
 use App\Models\Measure;
 use App\Models\Product;
 use App\Models\VatRate;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Goods\GoodAvatarImages;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
@@ -120,11 +121,13 @@ class GoodController extends Controller
 
     public function indexPublished()
     {
-        return Good::query()
+        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->with([
                 'vatRate',
                 'country:id,name,flag',
-                'products.category',
+                'products' => fn ($query) => $query
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                    ->with('category'),
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
                 'industries',

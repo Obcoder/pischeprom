@@ -60,6 +60,10 @@ class CatalogTreeController extends Controller
                 }
                 $data['display_mode'] ??= 'tabs';
             }
+            if (array_key_exists('is_domain', $data) && ! $data['is_domain']
+                && \App\Models\CatalogSiteDomain::query()->whereIn('catalog_node_id', $level->nodes()->select('id'))->exists()) {
+                throw ValidationException::withMessages(['is_domain' => 'Сначала удалите адреса сайтов у элементов этого уровня.']);
+            }
             $level->update($data);
         });
 
@@ -246,6 +250,8 @@ class CatalogTreeController extends Controller
             'is_featured' => ['sometimes', 'boolean'],
             'sort_order' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'properties' => ['sometimes', 'nullable', 'array'],
+            'domain_hosts' => ['sometimes', 'array', 'max:20'],
+            'domain_hosts.*' => ['required', 'string', 'max:253'],
             ...$nested,
         ]);
     }

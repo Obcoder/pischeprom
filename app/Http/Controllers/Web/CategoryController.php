@@ -7,6 +7,7 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Good;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicCatalogService;
 use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
@@ -78,7 +79,7 @@ class CategoryController extends Controller
             })
             ->firstOrFail();
 
-        if (! $category->is_published) {
+        if (! $category->is_published || ! app(CatalogSiteContext::class)->allowsEntity('category', $category->id)) {
             abort(404);
         }
 
@@ -98,12 +99,17 @@ class CategoryController extends Controller
         $category
             ->load(['products' => function ($query): void {
                 $query
-                    ->withCount(['goods' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true)])
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product'))
+                    ->withCount(['goods' => fn ($goodsQuery) => $goodsQuery->where('goods.is_published', true)
+                        ->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods))])
                     ->orderBy('rus');
             }])
-            ->loadCount(['products', 'goods']);
+            ->loadCount([
+                'products' => fn ($query) => $query->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product')),
+                'goods' => fn ($query) => $query->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)),
+            ]);
 
-        $goods = Good::query()
+        $goods = app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->select([
                 'goods.id',
                 'goods.name',
@@ -119,7 +125,8 @@ class CategoryController extends Controller
                 'stockAvailability',
                 'priceTypeValues.priceType.currency',
                 'priceTypeValues.currency',
-                'products:id,rus,category_id',
+                'products' => fn ($query) => $query->select(['products.id', 'rus', 'category_id'])
+                    ->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product')),
                 'publishedMedia' => function ($query): void {
                     $query
                         ->where('type', 'image')
@@ -135,10 +142,13 @@ class CategoryController extends Controller
 
         $stock->appendAvailability($goods);
 
-        $relatedCategories = Category::query()
+        $relatedCategories = app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
             ->published()
             ->whereKeyNot($category->id)
-            ->withCount(['products', 'goods'])
+            ->withCount([
+                'products' => fn ($query) => $query->tap(fn ($products) => app(CatalogSiteContext::class)->scopeEntities($products, 'product')),
+                'goods' => fn ($query) => $query->tap(fn ($goods) => app(CatalogSiteContext::class)->scopeGoods($goods)),
+            ])
             ->orderByDesc('is_featured')
             ->orderBy('sort_order')
             ->orderBy('name')

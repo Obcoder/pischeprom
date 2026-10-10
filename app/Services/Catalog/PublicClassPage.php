@@ -133,7 +133,7 @@ class PublicClassPage
             $configuration['source_product_ids'] = [];
             $configuration['good_ids'] = [];
         }
-        $result = $this->buildPage($page, $configuration);
+        $result = $this->buildPage($page, $configuration, $preview);
         $result['content'] = $content;
         $result['children'] = $page['children'];
         $result['preview'] = $preview;
@@ -153,11 +153,12 @@ class PublicClassPage
         return Schema::hasTable('catalog_landings');
     }
 
-    private function buildPage(array $page, array $configuration): array
+    private function buildPage(array $page, array $configuration, bool $preview = false): array
     {
         $sourceIds = array_values(array_unique(array_map('intval', $configuration['source_product_ids'] ?? [])));
         $goodIds = array_values(array_unique(array_map('intval', $configuration['good_ids'] ?? [])));
         $goods = Good::query()
+            ->when(! $preview, fn ($query) => app(CatalogSiteContext::class)->scopeGoods($query))
             ->where('is_published', true)
             ->where(fn ($query) => $query->whereIn('id', $goodIds)
                 ->orWhereHas('products', fn ($products) => $products->whereIn('products.id', $sourceIds)->where('products.is_published', true)))

@@ -5,6 +5,7 @@ namespace App\Services\HomeBanners;
 use App\Models\HomeBanner;
 use App\Models\HomeBannerSetting;
 use App\Rules\HomeBannerUrl;
+use App\Services\Catalog\CatalogSiteContext;
 use Illuminate\Support\Facades\Schema;
 
 class HomeBannerFeedService
@@ -26,6 +27,12 @@ class HomeBannerFeedService
                 ->published()
                 ->active()
                 ->whereBetween('slot_number', [1, self::SLOT_COUNT])
+                ->when(app(CatalogSiteContext::class)->isScoped(), function ($query): void {
+                    foreach (['good', 'product', 'category'] as $type) {
+                        $query->where(fn ($linked) => $linked->whereNull($type.'_id')
+                            ->orWhereHas($type, fn ($entity) => app(CatalogSiteContext::class)->scopeEntities($entity, $type)));
+                    }
+                })
                 ->with(self::relations(public: true))
                 ->orderBy('sort_order')
                 ->orderBy('id')

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Good;
+use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Goods\GoodStockAlertManager;
 use App\Services\Goods\GoodStockService;
 use Illuminate\Http\JsonResponse;
@@ -17,8 +18,9 @@ class GoodStockAlertController extends Controller
         Good $good,
         GoodStockService $stock,
         GoodStockAlertManager $alerts,
+        CatalogSiteContext $site,
     ): JsonResponse {
-        abort_unless($good->is_published, 404);
+        abort_unless($good->is_published && $site->allowsGood($good->id), 404);
 
         $good->loadMissing(['seo', 'stockAvailability']);
 
@@ -32,7 +34,8 @@ class GoodStockAlertController extends Controller
         }
 
         try {
-            $result = $alerts->createPending($good, $request->user());
+            $result = $alerts->createPending($good, $request->user(),
+                $site->site() ? $request->getSchemeAndHttpHost() : null);
         } catch (RuntimeException $exception) {
             return response()->json([
                 'message' => $exception->getMessage(),

@@ -752,6 +752,7 @@ class GoodStockAlertTest extends TestCase
 
         Schema::create('good_stock_alerts', function (Blueprint $table): void {
             $table->id();
+            $table->string('site_url', 2048)->nullable();
             $table->unsignedBigInteger('good_id');
             $table->unsignedBigInteger('max_chat_id')->nullable();
             $table->unsignedBigInteger('user_id')->nullable();

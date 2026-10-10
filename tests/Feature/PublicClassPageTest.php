@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Category;
 use App\Models\Country;
@@ -190,11 +191,10 @@ class PublicClassPageTest extends TestCase
             ->assertJsonPath('props.seo.jsonLd.0.@type', 'CollectionPage')
             ->assertJsonPath('props.seo.jsonLd.0.mainEntity.@type', 'ItemList')
             ->assertJsonPath('props.seo.jsonLd.0.mainEntity.numberOfItems', 1)
-            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.1.name', 'Продукты пищевые')
-            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.2.name', 'Рыба')
+            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.1.name', 'Рыба')
+            ->assertJsonPath('props.seo.jsonLd.1.itemListElement.2.name', 'Скумбрия')
             ->assertJsonPath('props.classPage.breadcrumbs', [
                 ['name' => 'Главная', 'url' => route('home')],
-                ['name' => 'Продукты пищевые', 'url' => url('/catalog/produkty-pishchevye')],
                 ['name' => 'Рыба', 'url' => url('/catalog/ryba')],
                 ['name' => 'Скумбрия', 'url' => $this->classUrl()],
             ]);
@@ -219,7 +219,7 @@ class PublicClassPageTest extends TestCase
         $this->get($newUrl, ['X-Inertia' => 'true'])->assertOk()
             ->assertJsonPath('props.classPage.seo.canonical', $newUrl)
             ->assertJsonPath('props.classPage.seo.jsonLd.0.url', $newUrl)
-            ->assertJsonPath('props.classPage.breadcrumbs.2.url', url('/catalog/morskaia-ryba'));
+            ->assertJsonPath('props.classPage.breadcrumbs.1.url', url('/catalog/morskaia-ryba'));
         CatalogNode::whereKey(417)->update(['is_published' => false]);
         $this->get($newUrl)->assertNotFound();
         $this->get('/p/124')->assertNotFound();
@@ -263,14 +263,25 @@ class PublicClassPageTest extends TestCase
             Product::forceCreate(['id' => 124, 'rus' => 'Скумбрия', 'category_id' => $category->id, 'is_published' => true]),
             Product::forceCreate(['id' => 201, 'rus' => 'Скумбрия замороженная', 'category_id' => $category->id, 'is_published' => true]),
         ];
-        $this->createClassCatalog($products[0], $category);
+        $guideNode = $this->createClassCatalog($products[0], $category);
+        CatalogNode::create(['level_id' => $guideNode->level_id, 'parent_id' => $guideNode->parent_id,
+            'entity_type' => 'product', 'entity_id' => $products[1]->id, 'name' => $products[1]->rus,
+            'slug' => 'frozen-mackerel', 'is_published' => true]);
 
         return $products;
     }
 
     private function good(int $id, string $name, array $attributes = []): Good
     {
-        return Good::forceCreate(['id' => $id, 'name' => $name, 'is_published' => true, ...$attributes]);
+        $good = Good::forceCreate(['id' => $id, 'name' => $name, 'is_published' => true, ...$attributes]);
+        if ($parent = CatalogNode::where('entity_type', 'product')->where('entity_id', 201)->first()) {
+            $level = CatalogLevel::firstOrCreate(['name' => 'Товар SSR'], ['entity_type' => 'good']);
+            CatalogNode::create(['level_id' => $level->id, 'parent_id' => $parent->id,
+                'entity_type' => 'good', 'entity_id' => $good->id, 'name' => $good->name,
+                'slug' => $good->slug, 'is_published' => $good->is_published]);
+        }
+
+        return $good;
     }
 
     private function price(Good $good, float $value, array $typeAttributes = [], array $attributes = []): void

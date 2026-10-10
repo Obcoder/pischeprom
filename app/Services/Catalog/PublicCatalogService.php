@@ -3,6 +3,10 @@
 namespace App\Services\Catalog;
 
 use App\Models\CatalogLevel;
+use App\Models\CatalogNode;
+use App\Models\Category;
+use App\Models\Good;
+use App\Models\Product;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 
@@ -91,6 +95,16 @@ class PublicCatalogService
     private function pagePayload(array $node, Collection $nodes): array
     {
         $id = $node['id'];
+        if (! array_key_exists('properties', $node)) {
+            $record = CatalogNode::query()->findOrFail($id);
+            $source = match ($record->entity_type) {
+                'category' => Category::query()->find($record->entity_id),
+                'product' => Product::without(['category', 'manufacturers'])->find($record->entity_id),
+                'good' => Good::with('seo')->find($record->entity_id),
+                default => null,
+            };
+            $node = [...$this->catalog->nodePayload($record, $source, true), ...$node];
+        }
         $level = CatalogLevel::query()->with(['fields' => fn ($query) => $query->where('is_public', true)->orderBy('sort_order')->orderBy('id')])->find($node['level_id']);
         $breadcrumbs = [];
         $parent = $node['parent_id'] ? $nodes->get($node['parent_id']) : null;
@@ -145,44 +159,7 @@ class PublicCatalogService
             return collect();
         }
 
-        $nodes = $this->catalog->nodes()->keyBy('id');
-        $visibility = [];
-
-        // A published child remains private while any ancestor is hidden or
-        // missing. Resolve iteratively so arbitrary depth cannot recurse forever.
-        foreach ($nodes as $node) {
-            $path = [];
-            $current = $node;
-            $visible = true;
-
-            while ($current) {
-                $id = $current['id'];
-                if (array_key_exists($id, $visibility)) {
-                    $visible = $visibility[$id];
-                    break;
-                }
-                if (isset($path[$id]) || ! $current['is_published']) {
-                    $visible = false;
-                    break;
-                }
-                $path[$id] = true;
-                if (! $current['parent_id']) {
-                    break;
-                }
-                $current = $nodes->get($current['parent_id']);
-                if (! $current) {
-                    $visible = false;
-                }
-            }
-
-            foreach (array_keys($path) as $id) {
-                $visibility[$id] = $visible;
-            }
-        }
-
-        return $nodes
-            ->filter(fn (array $node): bool => $visibility[$node['id']] ?? false)
-            ->sortBy([['sort_order', 'asc'], ['name', 'asc'], ['id', 'asc']]);
+        return app(CatalogSiteContext::class)->visibleNodes();
     }
 
     private function card(array $node): array

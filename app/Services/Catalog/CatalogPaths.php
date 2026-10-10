@@ -11,7 +11,7 @@ class CatalogPaths
      * Build paths from the complete tree, including hidden nodes, so toggling
      * publication never changes the URL of a neighbouring published section.
      * Domain levels organize the editor; their descendants start at the first
-     * ordinary section, while the domain itself still has its own public page.
+     * ordinary section. Identical paths on different sites never collide.
      *
      * @return array<int, string>
      */
@@ -20,12 +20,14 @@ class CatalogPaths
         $nodes = $nodes->keyBy('id');
         $domains = array_fill_keys($domainLevelIds, true);
         $chains = [];
+        $siteScopes = [];
         $segments = [];
         $suffixed = [];
 
         foreach ($nodes as $node) {
             $segments[$node['id']] = Str::slug($node['slug'] ?: $node['name']) ?: 'catalog';
             $chain = [];
+            $scope = 0;
             $seen = [];
             $current = $node;
 
@@ -35,6 +37,9 @@ class CatalogPaths
                     continue 2;
                 }
                 $seen[$id] = true;
+                if (isset($domains[$current['level_id']])) {
+                    $scope = $id;
+                }
                 if ($id === $node['id'] || ! isset($domains[$current['level_id']])) {
                     array_unshift($chain, $id);
                 }
@@ -48,6 +53,7 @@ class CatalogPaths
             }
 
             $chains[$node['id']] = $chain;
+            $siteScopes[$node['id']] = $scope;
         }
 
         // A numeric first segment is reserved for permanent legacy ID routes.
@@ -63,7 +69,9 @@ class CatalogPaths
             foreach ($chains as $id => $chain) {
                 $path = implode('/', array_map(fn (int $part): string => $segments[$part].(isset($suffixed[$part]) ? '-node-'.$part : ''), $chain));
                 $paths[$id] = $path;
-                $groups[$path][] = $id;
+                if (! isset($domains[$nodes[$id]['level_id']])) {
+                    $groups[$siteScopes[$id].':'.$path][] = $id;
+                }
             }
 
             $collisions = array_filter($groups, fn (array $ids): bool => count($ids) > 1);

@@ -128,6 +128,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->scoped(\App\Services\Catalog\CatalogSiteContext::class);
         $this->app->singleton(AvitoApiCatalog::class);
         $this->app->bind(EntityCreateLinkGuard::class, DeterministicEntityCreateLinkGuard::class);
         $this->app->bind(GitRepositoryStateInspectorInterface::class, RealGitRepositoryStateInspector::class);

@@ -45,7 +45,11 @@ class GoodStockAlertMessenger
     public function sendAvailable(GoodStockAlert $alert): array
     {
         $alert->loadMissing(['good.seo', 'maxChat']);
-        $url = $this->seo->canonical($alert->good);
+        // Queue workers use APP_URL; retain the subscriber's site while resolving
+        // the latest product slug. Old subscriptions keep their canonical URL.
+        $url = $alert->site_url
+            ? rtrim($alert->site_url, '/').route('public.goods.show', ['good' => $this->seo->publicSlug($alert->good)], absolute: false)
+            : $this->seo->canonical($alert->good);
 
         return $this->send(
             $alert->maxChat,

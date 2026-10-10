@@ -27,6 +27,7 @@ class GoodStockAlert extends Model
         'good_id',
         'max_chat_id',
         'user_id',
+        'site_url',
         'start_token_hash',
         'status',
         'expires_at',

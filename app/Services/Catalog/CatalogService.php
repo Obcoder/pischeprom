@@ -4,6 +4,7 @@ namespace App\Services\Catalog;
 
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
+use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
@@ -42,7 +43,7 @@ class CatalogService
     /** Read-only, with one source query per entity type rather than per node. */
     public function nodes(): Collection
     {
-        $nodes = CatalogNode::orderBy('sort_order')->orderBy('name')->orderBy('id')->get();
+        $nodes = CatalogNode::with('siteDomains')->orderBy('sort_order')->orderBy('name')->orderBy('id')->get();
         $sources = [
             'category' => Category::whereIn('id', $nodes->where('entity_type', 'category')->pluck('entity_id'))->get()->keyBy('id'),
             'product' => Product::without(['category', 'manufacturers'])->whereIn('id', $nodes->where('entity_type', 'product')->pluck('entity_id'))->get()->keyBy('id'),
@@ -50,12 +51,37 @@ class CatalogService
         ];
 
         $payloads = $nodes->map(fn (CatalogNode $node): array => $this->nodePayload($node, $sources[$node->entity_type][$node->entity_id] ?? null, true));
-        $paths = app(CatalogPaths::class)->forNodes($payloads, CatalogLevel::where('is_domain', true)->pluck('id')->all());
+        $domainLevels = CatalogLevel::where('is_domain', true)->pluck('id')->all();
+        $paths = app(CatalogPaths::class)->forNodes($payloads, $domainLevels);
+        $byId = $payloads->keyBy('id');
+        $currentHost = CatalogHost::normalize(request()->getHost());
 
-        return $payloads->map(function (array $node) use ($paths): array {
+        return $payloads->map(function (array $node) use ($paths, $domainLevels, $byId, $currentHost): array {
             $node['catalog_path'] = $paths[$node['id']] ?? null;
             if ($node['catalog_path'] !== null && $node['entity_type'] !== 'good') {
                 $node['public_url'] = route('public.catalog.path', ['path' => $node['catalog_path']]);
+            }
+
+            $ancestor = $node;
+            $seen = [];
+            while ($ancestor && ! isset($seen[$ancestor['id']])) {
+                $seen[$ancestor['id']] = true;
+                if (in_array($ancestor['level_id'], $domainLevels, true)) {
+                    if ($ancestor['id'] === $node['id']) {
+                        $node['public_url'] = route('public.goods.index');
+                    }
+                    $hosts = $ancestor['domain_hosts'];
+                    if ($hosts !== [] && ! in_array($currentHost, $hosts, true)) {
+                        $origin = (parse_url($node['public_url'], PHP_URL_SCHEME) ?: 'https').'://'.$hosts[0];
+                        foreach (['public_url', 'offer_url'] as $key) {
+                            if ($node[$key] ?? null) {
+                                $node[$key] = $origin.(parse_url($node[$key], PHP_URL_PATH) ?: '/');
+                            }
+                        }
+                    }
+                    break;
+                }
+                $ancestor = $ancestor['parent_id'] ? $byId->get($ancestor['parent_id']) : null;
             }
 
             return $node;
@@ -77,6 +103,7 @@ class CatalogService
             'id', 'level_id', 'parent_id', 'entity_type', 'entity_id', 'name', 'slug', 'image',
             'description', 'h1', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
         ]);
+        $data['domain_hosts'] = $node->siteDomains->pluck('hostname')->all();
         $data['properties'] = $data['properties'] ?: (object) [];
         $data['properties_by_level'] = (object) ($data['properties_by_level'] ?? []);
         if ($node->entity_type === 'good') {
@@ -257,7 +284,8 @@ class CatalogService
     {
         return DB::transaction(function () use ($data, $node): CatalogNode {
             $goodData = $data['good'] ?? null;
-            unset($data['good']);
+            $domainHosts = $data['domain_hosts'] ?? null;
+            unset($data['good'], $data['domain_hosts']);
             if (array_key_exists('parent_id', $data) && $data['parent_id'] !== null) {
                 $data['parent_id'] = (int) $data['parent_id'];
             }
@@ -269,6 +297,12 @@ class CatalogService
             abort_if(! $creating && $node->entity_type && ! $this->source($node, true), 409, 'Исходная сущность удалена. Обновите дерево.');
             $levelId = array_key_exists('level_id', $data) ? $data['level_id'] : $node->level_id;
             $level = $levelId === null ? null : CatalogLevel::with('fields')->findOrFail($levelId);
+            if ($domainHosts !== null && $domainHosts !== [] && ! $level?->is_domain) {
+                throw ValidationException::withMessages(['domain_hosts' => 'Адреса сайтов можно назначить только Домену.']);
+            }
+            if ($node->exists && ! $level?->is_domain && $node->siteDomains()->exists()) {
+                throw ValidationException::withMessages(['level_id' => 'Сначала удалите адреса сайтов из этого Домена.']);
+            }
             $type = array_key_exists('entity_type', $data)
                 ? ($data['entity_type'] === 'custom' ? null : $data['entity_type'])
                 : ($creating ? ($level?->entity_type === 'custom' ? null : $level?->entity_type) : $node->entity_type);
@@ -332,6 +366,9 @@ class CatalogService
                 $node->entity_id = $source?->id;
             }
             $node->save();
+            if ($domainHosts !== null) {
+                $this->saveDomainHosts($node, $domainHosts);
+            }
             $this->syncSource($node, $data);
             foreach ($this->subtree($node) as $item) {
                 $this->syncRelationships($item, $oldParents[$item->id] ?? null);
@@ -342,6 +379,28 @@ class CatalogService
 
             return $node->fresh();
         }, 3);
+    }
+
+    private function saveDomainHosts(CatalogNode $node, array $hosts): void
+    {
+        $normalized = [];
+        foreach ($hosts as $index => $host) {
+            $hostname = CatalogHost::normalize((string) $host);
+            if ($hostname === null) {
+                throw ValidationException::withMessages(['domain_hosts.'.$index => 'Укажите имя сайта без https://, пути и порта, например пищепром-сервер.рф.']);
+            }
+            if (in_array($hostname, $normalized, true)) {
+                throw ValidationException::withMessages(['domain_hosts.'.$index => 'Этот адрес уже указан в списке.']);
+            }
+            if (CatalogSiteDomain::query()->where('hostname', $hostname)->where('catalog_node_id', '<>', $node->id)->exists()) {
+                throw ValidationException::withMessages(['domain_hosts.'.$index => 'Этот сайт уже привязан к другому Домену.']);
+            }
+            $normalized[] = $hostname;
+        }
+        $node->siteDomains()->whereNotIn('hostname', $normalized)->delete();
+        foreach ($normalized as $hostname) {
+            $node->siteDomains()->firstOrCreate(['hostname' => $hostname]);
+        }
     }
 
     public function goodOverview(CatalogNode $node): array
