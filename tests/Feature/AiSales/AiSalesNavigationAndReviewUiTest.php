@@ -65,15 +65,21 @@ final class AiSalesNavigationAndReviewUiTest extends Stage14TestCase
 
         $layout = file_get_contents(resource_path('js/Layouts/VerwalterLayout.vue'));
         $productPage = file_get_contents(resource_path('js/Pages/Ameise/Product_02.vue'));
+        $marketPanel = file_get_contents(resource_path('js/Components/ProductMarketPanel.vue'));
+        $catalogueProduct = file_get_contents(resource_path('js/Components/Catalog/CatalogProductOperations.vue'));
         $productCard = file_get_contents(resource_path('js/Components/AiSales/ProductAiSalesCampaignCard.vue'));
         $aiSalesPage = file_get_contents(resource_path('js/Pages/Ameise/AiSales.vue'));
         $this->assertStringContainsString("route('Ameise.ai-sales')", $layout);
         $this->assertStringContainsString('v-if="canViewAiSales"', $layout);
-        $this->assertSame(1, substr_count($productPage, '<ProductAiSalesCampaignCard'));
-        $this->assertSame(1, substr_count($productPage, '<ProductYandexSearchCard'));
-        $this->assertStringContainsString('Legacy manual Yandex search', $productPage);
+        $this->assertSame(1, substr_count($marketPanel, '<ProductAiSalesCampaignCard'));
+        $this->assertSame(1, substr_count($marketPanel, '<ProductYandexSearchCard'));
+        $this->assertSame(1, substr_count($productPage, '<ProductMarketPanel'));
+        $this->assertSame(1, substr_count($catalogueProduct, '<ProductMarketPanel'));
+        $this->assertStringContainsString('value="market"', $productPage);
+        $this->assertStringContainsString('AI-поиск покупателей', $marketPanel);
+        $this->assertStringContainsString('Выдача Яндекса', $marketPanel);
         $this->assertStringContainsString('🤖 Найти покупателей', file_get_contents(resource_path('js/Components/AiSales/FindBuyersLauncher.vue')));
-        foreach (['campaigns:', 'results:', 'research:', 'candidates:', 'review items:'] as $counter) {
+        foreach (['Кампании', 'Найдено страниц', 'Изучено страниц', 'Кандидаты', 'На проверке'] as $counter) {
             $this->assertStringContainsString($counter, $productCard);
         }
         foreach (['Кампании', 'На проверке', 'Кандидаты', 'Units', 'Scores', 'Черновики', 'Аудит'] as $tab) {

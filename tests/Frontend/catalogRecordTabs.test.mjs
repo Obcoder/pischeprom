@@ -113,3 +113,12 @@ test('legacy goods orders migrate merged tabs and products keep a separate compl
     await Vue.nextTick()
     assert.deepEqual(h.state.order.value, ['overview', 'landing'])
 })
+
+
+test('saved product tab orders receive the new market tab exactly once', () => {
+    const previous = productRecordTabs.filter(tab => tab.id !== 'market').map(tab => tab.id)
+    const migrated = normalizeTabOrder(previous, productRecordTabs)
+    assert.deepEqual(migrated.slice(0, previous.length), previous)
+    assert.equal(migrated.at(-1), 'market')
+    assert.deepEqual(normalizeTabOrder([...migrated, 'market'], productRecordTabs), migrated)
+})

@@ -22,6 +22,7 @@ export const productRecordTabs = [
     { id: 'units', label: 'Единицы', icon: 'mdi-format-list-bulleted' },
     { id: 'consumers', label: 'Потребители', icon: 'mdi-account-group-outline' },
     { id: 'sales', label: 'Продажи', icon: 'mdi-cart-outline' },
+    { id: 'market', label: 'Маркет', icon: 'mdi-storefront-outline' },
     { id: 'landing', label: 'Лендинг', icon: 'mdi-web' },
 ]
 

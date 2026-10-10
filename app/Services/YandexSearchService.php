@@ -15,6 +15,8 @@ class YandexSearchService
 
     public const ENDPOINT_PATH = '/v2/web/search';
 
+    public const RESULTS_PER_PAGE = 10;
+
     public function __construct(
         protected HttpFactory $http,
         protected YandexSearchProfileRegistry $profiles,
@@ -54,6 +56,11 @@ class YandexSearchService
             ],
             'folderId' => $folderId,
             'responseFormat' => 'FORMAT_XML',
+            'groupSpec' => [
+                'groupMode' => 'GROUP_MODE_FLAT',
+                'groupsOnPage' => self::RESULTS_PER_PAGE,
+                'docsInGroup' => 1,
+            ],
         ];
 
         try {
@@ -117,7 +124,7 @@ class YandexSearchService
         }
 
         $rawData = Arr::get($json, 'rawData', '');
-        if (! is_string($rawData) || strlen($rawData) > (int) ceil($profile->maxXmlBytes * 1.4)) {
+        if (! is_string($rawData) || trim($rawData) === '' || strlen($rawData) > (int) ceil($profile->maxXmlBytes * 1.4)) {
             throw new YandexSearchException('response', 'yandex_search_xml_envelope_invalid');
         }
 
@@ -173,14 +180,40 @@ class YandexSearchService
             libxml_use_internal_errors($previousErrors);
         }
 
-        if (! $xmlObject) {
+        if ($xmlObject === false) {
+            throw new YandexSearchException('response', 'yandex_search_xml_invalid');
+        }
+
+        $response = ($xmlObject->xpath('/yandexsearch/response | /response') ?: [])[0] ?? null;
+        if ($response === null) {
+            throw new YandexSearchException('response', 'yandex_search_xml_invalid');
+        }
+        if (isset($response->error)) {
+            $code = (string) $response->error['code'];
+            if ($code === '15') {
+                return [];
+            }
+
+            $category = match ($code) {
+                '32', '55' => 'rate_limit',
+                '31', '33', '42' => 'authentication',
+                '20' => 'provider_unavailable',
+                default => 'provider_rejected',
+            };
+            $safeCode = preg_match('/^[0-9]{1,5}$/', $code) === 1
+                ? 'yandex_search_xml_error_'.$code
+                : 'yandex_search_xml_error_unknown';
+
+            throw new YandexSearchException($category, $safeCode);
+        }
+        if (! isset($response->results)) {
             throw new YandexSearchException('response', 'yandex_search_xml_invalid');
         }
 
         $results = [];
         $position = $positionOffset + 1;
 
-        $docs = $xmlObject->xpath('//response/results/grouping/group/doc') ?: [];
+        $docs = $response->xpath('results/grouping/group/doc') ?: [];
 
         foreach ($docs as $doc) {
             if (count($results) >= $profile->maxResults) {
@@ -202,7 +235,8 @@ class YandexSearchService
 
             $results[] = [
                 'position' => $position++,
-                'title' => mb_substr($title !== '' ? $title : $headline, 0, 512) ?: null,
+                // product_search_results.title is VARCHAR(255) on MySQL.
+                'title' => mb_substr($title !== '' ? $title : $headline, 0, 255) ?: null,
                 'url' => mb_substr($url, 0, 2048),
                 'domain' => $domain ? mb_substr(mb_strtolower($domain), 0, 253) : null,
                 'snippet' => $snippet ? mb_substr($snippet, 0, 2000) : null,

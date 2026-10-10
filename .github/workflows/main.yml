@@ -580,6 +580,12 @@ jobs:
             tests/Feature/MailMessageAttachmentDownloadTest.php \
             tests/Feature/MailMessageFilterTest.php \
             tests/Feature/AiSales/ProspectingTimelineIsolationTest.php \
+            tests/Feature/AiSales/YandexProductSearchReliabilityTest.php \
+            tests/Feature/AiSales/ExistingYandexProductPageRegressionTest.php \
+            tests/Feature/AiSales/ExistingYandexLiveProbeCommandTest.php \
+            tests/Feature/AiSales/Stage09ArchitectureGuardTest.php \
+            tests/Feature/AiSales/AiSalesNavigationAndReviewUiTest.php \
+            tests/Feature/AiSales/Stage11DefaultOffAndCliTest.php \
             tests/Feature/GoodStockAlertTest.php \
             tests/Feature/GoodInquiryTest.php \
             tests/Feature/GoodInquiryMeasurementNotificationTest.php \

@@ -20,7 +20,7 @@ function harness(t, overrides = {}) {
         ...Vue, emptyProductTranslationForm, productTranslationFields,
         usePage: () => ({ props: { auth: { permissions: { ai_sales: { view: true } } } } }),
         route: (name, id) => `${name}/${id}`,
-        ...Object.fromEntries(['ProductUnitConsumersCard', 'ProductEntityConsumptionsCard', 'ProductAiSalesCampaignCard', 'ProductYandexSearchCard'].map(name => [name, name])),
+        ...Object.fromEntries(['ProductUnitConsumersCard', 'ProductEntityConsumptionsCard', 'ProductMarketPanel'].map(name => [name, name])),
         axios: Object.fromEntries(['get', 'put'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])),
     }
     const code = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -37,7 +37,7 @@ function harness(t, overrides = {}) {
     return { props, api, requests, emitted, load, render: templateRenderer(template, api, props) }
 }
 
-test('restored product panels load the linked entity lazily and preserve real consumers and sales tools', async t => {
+test('product panels load lazily and move buyer services into the separate market tab', async t => {
     const h = harness(t)
     assert.equal(h.requests.length, 0)
     await h.load()
@@ -51,10 +51,19 @@ test('restored product panels load the linked entity lazily and preserve real co
     h.props.activeTab = 'consumers'; await Vue.nextTick()
     assert.equal(findVNode(h.render(), node => node.type === 'ProductEntityConsumptionsCard').props['product-id'], 42)
     assert.deepEqual(findVNode(h.render(), node => node.type === 'ProductUnitConsumersCard').props.consumers, source().consumers)
-    assert.equal(findVNode(h.render(), node => node.type === 'ProductAiSalesCampaignCard'), null)
+    assert.equal(findVNode(h.render(), node => node.type === 'ProductMarketPanel'), null)
     h.props.activeTab = 'sales'; await Vue.nextTick()
-    assert.equal(findVNode(h.render(), node => node.type === 'ProductAiSalesCampaignCard').props['product-id'], 42)
-    assert.equal(findVNode(h.render(), node => node.type === 'ProductYandexSearchCard').props['product-id'], 42)
+    assert.equal(findVNode(h.render(), node => node.type === 'ProductMarketPanel'), null)
+    h.props.activeTab = 'market'; await Vue.nextTick()
+    const market = findVNode(h.render(), node => node.type === 'ProductMarketPanel')
+    assert.equal(market.props['product-id'], 42)
+    assert.equal(market.props['product-name'], 'Скумбрия')
+    assert.equal(market.props['can-view-ai-sales'], true)
+    assert.equal(market.props.active, true)
+    h.props.activeTab = 'sales'; await Vue.nextTick()
+    assert.equal(findVNode(h.render(), node => node.type === 'ProductMarketPanel').props.active, false)
+    h.props.activeTab = 'market'; h.props.active = false; await Vue.nextTick()
+    assert.equal(findVNode(h.render(), node => node.type === 'ProductMarketPanel').props.active, false)
     assert.equal(h.requests.length, 1)
 })
 

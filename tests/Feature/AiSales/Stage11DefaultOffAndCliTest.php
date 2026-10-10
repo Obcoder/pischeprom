@@ -46,16 +46,22 @@ class Stage11DefaultOffAndCliTest extends TestCase
     public function test_existing_product_yandex_card_is_not_duplicated_by_find_buyers_ui(): void
     {
         $productPage = file_get_contents(resource_path('js/Pages/Ameise/Product_02.vue'));
+        $marketPanel = file_get_contents(resource_path('js/Components/ProductMarketPanel.vue'));
+        $catalogueProduct = file_get_contents(resource_path('js/Components/Catalog/CatalogProductOperations.vue'));
         $goodOperations = file_get_contents(resource_path('js/Components/Catalog/CatalogGoodOperations.vue'));
         $productAiSalesCard = file_get_contents(resource_path('js/Components/AiSales/ProductAiSalesCampaignCard.vue'));
         $yandexCard = file_get_contents(resource_path('js/Components/ProductYandexSearchCard.vue'));
         $wizard = file_get_contents(resource_path('js/Components/AiSales/FindBuyersWizard.vue'));
 
-        $this->assertSame(1, substr_count($productPage, '<ProductYandexSearchCard'));
-        $this->assertSame(1, substr_count($productPage, '<ProductAiSalesCampaignCard'));
+        $this->assertSame(1, substr_count($marketPanel, '<ProductYandexSearchCard'));
+        $this->assertSame(1, substr_count($productPage, '<ProductMarketPanel'));
+        $this->assertSame(1, substr_count($catalogueProduct, '<ProductMarketPanel'));
+        $this->assertSame(1, substr_count($marketPanel, '<ProductAiSalesCampaignCard'));
         $this->assertSame(1, substr_count($productAiSalesCard, '<FindBuyersLauncher'));
         $this->assertSame(1, substr_count($goodOperations, '<FindBuyersLauncher'));
-        $this->assertStringContainsString('Legacy manual Yandex search', $productPage);
+        $this->assertStringContainsString('value="market"', $productPage);
+        $this->assertStringContainsString('AI-поиск покупателей', $marketPanel);
+        $this->assertStringContainsString('Выдача Яндекса', $marketPanel);
         $this->assertStringContainsString('AI-поиск покупателей', $productAiSalesCard);
         $this->assertStringContainsString('/api/products/${props.productId}/yandex-search', $yandexCard);
         $this->assertStringNotContainsString('FindBuyers', $yandexCard);

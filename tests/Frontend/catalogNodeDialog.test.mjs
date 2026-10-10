@@ -839,3 +839,14 @@ test('user tab navigation is locked during writes while validation may still sel
     updateModel(tabs, 'sales')
     assert.equal(h.api.activeTab.value, 'sales')
 })
+
+
+test('products open the market deep link and expose the shared tools with the entity ID', t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'product', level_id: null }), initialTab: 'market' })
+    assert.equal(h.api.activeTab.value, 'market')
+    assert.equal(h.api.recordTabs.value.find(tab => tab.id === 'market').label, 'Маркет')
+    const child = findVNode(h.render(), node => node.type === 'CatalogProductOperations')
+    assert.equal(child.props['product-id'], 42)
+    assert.equal(child.props['active-tab'], 'market')
+    assert.equal(child.props.active, true)
+})

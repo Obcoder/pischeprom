@@ -3,8 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import axios from 'axios'
 import { Link, usePage } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
-import ProductAiSalesCampaignCard from '@/Components/AiSales/ProductAiSalesCampaignCard.vue'
-import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
+import ProductMarketPanel from '@/Components/ProductMarketPanel.vue'
 import ProductEntityConsumptionsCard from '@/Components/ProductEntityConsumptionsCard.vue'
 import ProductUnitConsumersCard from '@/Components/ProductUnitConsumersCard.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
@@ -296,7 +295,12 @@ onMounted(loadProduct)
 
                     <v-tab value="sales">
                         <v-icon start size="18">mdi-cash-multiple</v-icon>
-                        Sales
+                        Продажи
+                    </v-tab>
+
+                    <v-tab value="market">
+                        <v-icon start size="18">mdi-storefront-outline</v-icon>
+                        Маркет
                     </v-tab>
                 </v-tabs>
             </div>
@@ -439,31 +443,19 @@ onMounted(loadProduct)
                                         </v-card-text>
                                     </v-card>
                                 </v-col>
-
-                                <v-col v-if="canViewAiSales" cols="12">
-                                    <ProductAiSalesCampaignCard :product-id="product.id" />
-                                </v-col>
-
-                                <v-col cols="12">
-                                    <section aria-labelledby="legacy-yandex-search-title">
-                                        <div class="d-flex align-center ga-2 mb-2">
-                                            <v-icon icon="mdi-magnify" color="blue" />
-                                            <div>
-                                                <div id="legacy-yandex-search-title" class="text-subtitle-1 font-weight-bold">
-                                                    Legacy manual Yandex search
-                                                </div>
-                                                <div class="text-caption text-medium-emphasis">
-                                                    Независимый legacy-блок «Выдача Яндекса»; его контракт не изменён.
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <ProductYandexSearchCard
-                                            :product-id="product.id"
-                                            :product-name="product.rus"
-                                        />
-                                    </section>
-                                </v-col>
                             </v-row>
+                        </div>
+                    </v-window-item>
+
+                    <v-window-item value="market" class="window-pane">
+                        <div class="tab-scroll pa-3">
+                            <ProductMarketPanel
+                                :key="product.id"
+                                :product-id="product.id"
+                                :product-name="product.rus || ''"
+                                :can-view-ai-sales="canViewAiSales"
+                                :active="tab === 'market'"
+                            />
                         </div>
                     </v-window-item>
 

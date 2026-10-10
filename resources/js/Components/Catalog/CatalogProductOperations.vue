@@ -5,8 +5,7 @@ import { usePage } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import ProductUnitConsumersCard from '@/Components/ProductUnitConsumersCard.vue'
 import ProductEntityConsumptionsCard from '@/Components/ProductEntityConsumptionsCard.vue'
-import ProductAiSalesCampaignCard from '@/Components/AiSales/ProductAiSalesCampaignCard.vue'
-import ProductYandexSearchCard from '@/Components/ProductYandexSearchCard.vue'
+import ProductMarketPanel from '@/Components/ProductMarketPanel.vue'
 import { emptyProductTranslationForm, productTranslationFields } from '@/Pages/Helpers/productLanguages.js'
 
 const props = defineProps({
@@ -275,9 +274,17 @@ defineExpose({ reset, refresh, syncName })
                         <template #item.total="{ item }"><span class="text-no-wrap">{{ money(item.total) }}</span></template>
                     </v-data-table>
                 </v-card>
-                <ProductAiSalesCampaignCard v-if="active && canViewAiSales" :key="product.id" :product-id="product.id" />
-                <ProductYandexSearchCard v-if="active" :key="product.id" :product-id="Number(product.id)" :product-name="product.rus || ''" />
             </div>
+
+            <ProductMarketPanel
+                v-if="visitedTabs.has('market')"
+                v-show="activeTab === 'market'"
+                :key="product.id"
+                :product-id="product.id"
+                :product-name="product.rus || ''"
+                :can-view-ai-sales="canViewAiSales"
+                :active="active && activeTab === 'market'"
+            />
         </template>
     </section>
 </template>

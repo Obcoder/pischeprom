@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import FindBuyersWizard from '@/Components/AiSales/FindBuyersWizard.vue'
 
 const props = defineProps({
+    compact: { type: Boolean, default: false },
     sourceType: {
         type: String,
         required: true,
@@ -56,13 +57,14 @@ onMounted(loadContext)
     <div v-if="visible" class="find-buyers-launcher">
         <v-btn
             color="deep-purple"
-            variant="elevated"
+            :variant="compact ? 'flat' : 'elevated'"
+            :size="compact ? 'small' : 'default'"
             prepend-icon="mdi-robot-outline"
             :loading="loading"
             :disabled="!selectable"
             @click="wizardOpen = true"
         >
-            🤖 Найти покупателей
+            {{ compact ? 'Найти покупателей' : '🤖 Найти покупателей' }}
         </v-btn>
 
         <div
