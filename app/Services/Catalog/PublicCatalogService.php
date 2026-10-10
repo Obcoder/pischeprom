@@ -119,6 +119,7 @@ class PublicCatalogService
                 'slug' => $node['slug'],
                 'level_name' => $level?->name,
                 'description' => $node['description'],
+                'h1' => $node['h1'] ?? null,
                 'offer_url' => $node['offer_url'] ?? null,
             ],
             'breadcrumbs' => $breadcrumbs,
@@ -128,6 +129,7 @@ class PublicCatalogService
                 ->values()->all(),
             'properties' => $properties,
             'seo' => [
+                'h1' => trim($node['h1'] ?? '') ?: $node['name'],
                 'title' => $node['meta_title'] ?: $node['name'].' — ПИЩЕПРОМ-СЕРВЕР',
                 'description' => $node['meta_description'] ?: mb_substr(strip_tags($node['description'] ?: $node['name']), 0, 240),
                 'canonical' => $node['public_url'],

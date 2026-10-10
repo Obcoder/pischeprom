@@ -74,18 +74,97 @@ function chooseLevel(h, id) {
 }
 
 test('goods use the full SEO tab regardless of their classification while other entities retain generic metadata', async t => {
-    const h = harness(t, { node: sourceNode({ level_id: null, meta_title: 'Устаревшее SEO' }), initialTab: 'seo' })
+    const h = harness(t, { node: sourceNode({ level_id: null, h1: 'Устаревший H1', meta_title: 'Устаревшее SEO' }), initialTab: 'seo' })
     await h.ready()
     assert.equal(h.api.activeTab.value, 'seo')
     assert.equal(h.api.seoVisited.value, true)
     assert.equal(findVNode(h.render(), node => node.props?.label === 'Заголовок · Title'), null)
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'SEO H1'), null)
     const saved = h.api.save()
     assert.equal(Object.hasOwn(h.requests[0].data, 'meta_title'), false)
     assert.equal(Object.hasOwn(h.requests[0].data, 'meta_description'), false)
+    assert.equal(Object.hasOwn(h.requests[0].data, 'h1'), false)
     h.requests[0].resolve(sourceNode())
     await saved
     const other = harness(t, { node: sourceNode({ entity_type: 'custom', entity_id: null, meta_title: 'SEO категории' }) })
     assert.ok(findVNode(other.render(), node => node.props?.label === 'Заголовок · Title'))
+})
+
+test('SEO H1 loads for every classification level and non-good entity without making the card dirty', t => {
+    for (const entity_type of ['category', 'product', 'custom']) {
+        for (const level_id of [null, ...levels.map(level => level.id)]) {
+            const h = harness(t, { node: sourceNode({ entity_type, level_id, h1: 'Мука оптом с доставкой' }) })
+            const input = findVNode(h.render(), node => node.props?.label === 'SEO H1')
+            assert.ok(input)
+            assert.equal(input.props.modelValue, 'Мука оптом с доставкой')
+            assert.equal(input.props.maxlength, '255')
+            assert.match(input.props.hint, /заголовок лендинга или название записи/)
+            assert.equal(h.api.dirty.value, false)
+            assert.equal(h.reads.length, 0)
+        }
+    }
+})
+
+test('editing and resetting SEO H1 preserves the record name and address, and saves the confirmed value', async t => {
+    const original = sourceNode({ entity_type: 'product', slug: 'muka', h1: 'Мука оптом' })
+    const h = harness(t, { node: original })
+    const input = () => findVNode(h.render(), node => node.props?.label === 'SEO H1')
+    updateModel(input(), 'Черновик H1')
+    assert.equal(h.api.dirty.value, true)
+    h.api.requestReset()
+    assert.equal(h.api.resetOpen.value, true)
+    h.api.confirmReset()
+    assert.equal(input().props.modelValue, 'Мука оптом')
+    assert.equal(h.api.dirty.value, false)
+    updateModel(input(), '  Мука с доставкой  ')
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    h.api.discardOpen.value = false
+    const pending = h.api.save('landing')
+    assert.equal(h.requests[0].data.h1, 'Мука с доставкой')
+    assert.equal(h.requests[0].data.name, 'Мука')
+    assert.equal(h.requests[0].data.slug, 'muka')
+    h.requests[0].resolve({ ...original, h1: 'Мука с доставкой' })
+    await pending
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.form.h1, 'Мука с доставкой')
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('empty or missing SEO H1 values render blank and clearing an existing heading sends null', async t => {
+    for (const h1 of [null, undefined]) {
+        const h = harness(t, { node: sourceNode({ entity_type: 'category', h1 }) })
+        assert.equal(findVNode(h.render(), node => node.props?.label === 'SEO H1').props.modelValue, '')
+        assert.equal(h.api.dirty.value, false)
+    }
+    for (const cleared of ['', null, '   ']) {
+        const original = sourceNode({ entity_type: 'category', h1: 'Сохранённый H1' })
+        const h = harness(t, { node: original })
+        updateModel(findVNode(h.render(), node => node.props?.label === 'SEO H1'), cleared)
+        assert.equal(h.api.dirty.value, true)
+        const pending = h.api.save()
+        assert.equal(h.requests[0].data.h1, null)
+        h.requests[0].resolve({ ...original, h1: null })
+        await pending
+        assert.equal(h.props.modelValue, false)
+        assert.equal(h.api.form.h1, '')
+        assert.equal(h.api.dirty.value, false)
+    }
+})
+
+test('SEO H1 validation errors remain beside the field without discarding the heading draft', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'custom', h1: 'Исходный H1' }) })
+    updateModel(findVNode(h.render(), node => node.props?.label === 'SEO H1'), 'Новый H1')
+    h.api.selectTab('landing')
+    const pending = h.api.save()
+    h.requests[0].reject({ response: { data: { errors: { h1: ['Заголовок не должен быть длиннее 255 символов.'] } } } })
+    await pending
+    const input = findVNode(h.render(), node => node.props?.label === 'SEO H1')
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.activeTab.value, 'overview')
+    assert.equal(input.props.modelValue, 'Новый H1')
+    assert.deepEqual(input.props['error-messages'], ['Заголовок не должен быть длиннее 255 символов.'])
+    assert.equal(h.api.dirty.value, true)
 })
 
 test('changing tabs preserves the base draft and mounts each tool lazily', async t => {

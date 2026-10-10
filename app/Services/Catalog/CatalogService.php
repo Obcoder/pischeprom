@@ -74,10 +74,13 @@ class CatalogService
 
         $data = $node->only([
             'id', 'level_id', 'parent_id', 'entity_type', 'entity_id', 'name', 'slug', 'image',
-            'description', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
+            'description', 'h1', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
         ]);
         $data['properties'] = $data['properties'] ?: (object) [];
         $data['properties_by_level'] = (object) ($data['properties_by_level'] ?? []);
+        if ($node->entity_type === 'good') {
+            $data['h1'] = null;
+        }
         $source = $resolved ? $source : $this->source($node);
         if ($node->entity_type && ! $source) {
             $data['is_published'] = false;
@@ -86,7 +89,7 @@ class CatalogService
             $data['name'] = $source instanceof Product ? $source->rus : $source->name;
             $data['is_published'] = (bool) $source->is_published;
             if ($source instanceof Category) {
-                foreach (['slug', 'image', 'description', 'meta_title', 'meta_description', 'is_featured'] as $key) {
+                foreach (['slug', 'image', 'description', 'h1', 'meta_title', 'meta_description', 'is_featured'] as $key) {
                     $data[$key] = $source->{$key};
                 }
             } elseif ($source instanceof Good) {
@@ -274,9 +277,13 @@ class CatalogService
             if ($type === 'good') {
                 // The full Good SEO editor owns these fields. A stale generic card
                 // must never overwrite SEO saved independently in its dedicated tab.
-                unset($data['meta_title'], $data['meta_description']);
+                unset($data['h1'], $data['meta_title'], $data['meta_description']);
+                $node->h1 = null;
                 $node->meta_title = null;
                 $node->meta_description = null;
+            } elseif (array_key_exists('h1', $data)) {
+                $heading = trim((string) ($data['h1'] ?? ''));
+                $data['h1'] = $heading !== '' ? $heading : null;
             }
             $parentChanged = $creating || (array_key_exists('parent_id', $data) && $node->parent_id !== $data['parent_id']);
             $levelChanged = $node->level_id !== $level?->id;
@@ -507,7 +514,7 @@ class CatalogService
             }
         }
         if ($source instanceof Category) {
-            foreach (['slug', 'image', 'description', 'meta_title', 'meta_description', 'is_featured', 'sort_order'] as $key) {
+            foreach (['slug', 'image', 'description', 'h1', 'meta_title', 'meta_description', 'is_featured', 'sort_order'] as $key) {
                 if (array_key_exists($key, $data)) {
                     $changes[$key] = $data[$key];
                 }

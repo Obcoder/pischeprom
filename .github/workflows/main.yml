@@ -409,7 +409,9 @@ jobs:
             database/migrations/2026_10_08_120000_add_incoming_code_to_goods_table.php \
             database/migrations/2026_10_08_150000_create_good_url_aliases_table.php \
             database/migrations/2026_10_10_120000_create_catalog_landings_table.php \
+            database/migrations/2026_10_10_130000_add_h1_to_catalog_nodes_table.php \
             tests/Feature/CatalogLandingManagementTest.php \
+            tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
@@ -578,6 +580,7 @@ jobs:
             tests/Feature/RegistrationTest.php \
             tests/Feature/AmeiseProductsPageTest.php \
             tests/Feature/CatalogLandingManagementTest.php \
+            tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \

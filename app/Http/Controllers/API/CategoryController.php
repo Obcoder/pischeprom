@@ -150,7 +150,7 @@ class CategoryController extends Controller
             $data['robots'] = 'index,follow';
         }
 
-        if (empty($data['h1']) && !empty($data['name'])) {
+        if (!$category && !array_key_exists('h1', $data) && !empty($data['name'])) {
             $data['h1'] = $data['name'];
         }
 

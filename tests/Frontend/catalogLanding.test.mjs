@@ -14,7 +14,7 @@ before(async () => {
 })
 after(async () => { await server?.close() })
 const mackerel = () => JSON.parse(readFileSync('resources/landings/mackerel.json', 'utf8'))
-const page = (changes = {}) => ({ guide: 'editorial', content: mackerel(), seo: { h1: 'Скумбрия' }, goods: [], inlineGoods: {}, breadcrumbs: [{ name: 'Главная', url: '/' }, { name: 'Скумбрия', url: '/c/fish/mackerel' }], ...changes })
+const page = (changes = {}) => ({ guide: 'editorial', content: mackerel(), seo: { h1: changes.content?.hero?.title?.trim() || 'Скумбрия' }, goods: [], inlineGoods: {}, breadcrumbs: [{ name: 'Главная', url: '/' }, { name: 'Скумбрия', url: '/c/fish/mackerel' }], ...changes })
 const render = data => renderToString(createSSRApp({ render: () => h(CatalogLanding, { page: data }) }))
 const text = html => html.replace(/<!--[^]*?-->/g, '').replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()
 
@@ -32,6 +32,17 @@ test('the migrated content renders all original article paragraphs, diagrams, FA
     assert.equal((html.match(/<details(?:\s|>)/g) || []).length, 9)
     for (const expected of ['95% — рыба', '5% — глазурь', '9,5', 'Сравнение калибров', 'ГОСТ 35273-2025', 'Petar Milošević', 'Jocian', 'CC BY-SA 4.0', 'CC BY-SA 3.0', '/class-assets/mackerel/mackerel-hero.jpg', '/class-assets/mackerel/mackerel-smoked.jpg']) assert.ok(html.includes(expected), expected)
     assert.doesNotMatch(html, /\[\[|data-inline-good-link/)
+})
+
+test('SSR uses the resolved SEO H1 over the hero title without changing breadcrumbs or saved hero text', async () => {
+    const data = page({ seo: { h1: 'Скумбрия <оптом>' } })
+    const html = await render(data)
+    assert.match(html, /<h1 id="hero-title">Скумбрия &lt;оптом&gt;<\/h1>/)
+    assert.equal((html.match(/<h1\b/g) || []).length, 1)
+    assert.match(html, /aria-current="page">Скумбрия<\/span>/)
+    assert.equal(data.content.hero.title, 'Скумбрия')
+    const fallback = await render(page({ seo: { h1: ' ' } }))
+    assert.match(fallback, /<h1 id="hero-title">Скумбрия<\/h1>/)
 })
 
 test('live inline goods use the current canonical URL and unpublished goods retain readable text', async () => {

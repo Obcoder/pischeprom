@@ -90,7 +90,7 @@ onUnmounted(() => cleanup())
             <section class="hero wrap" :class="{ 'landing-no-image': !safeLandingUrl(hero.image) }" aria-labelledby="hero-title">
                 <div class="hero-copy">
                     <div v-if="hero.eyebrow" class="eyebrow light"><span class="small-line" /> {{ hero.eyebrow }}</div>
-                    <h1 id="hero-title">{{ hero.title?.trim() || page.seo?.h1 }}</h1>
+                    <h1 id="hero-title">{{ page.seo?.h1?.trim() || hero.title?.trim() }}</h1>
                     <p v-if="hero.subtitle" class="hero-serif landing-lines">{{ hero.subtitle }}</p>
                     <p v-if="hero.description" class="hero-description landing-lines"><LandingText :text="hero.description" :goods="inlineGoods" :anchors="availableAnchors" /></p>
                     <div class="hero-actions"><a v-if="hero.action && actionUrl(hero.actionUrl)" class="button lime" :href="actionUrl(hero.actionUrl)">{{ hero.action }}</a><a v-if="hero.secondaryAction && actionUrl(hero.secondaryActionUrl)" class="hero-text-link" :href="actionUrl(hero.secondaryActionUrl)">{{ hero.secondaryAction }}</a></div>

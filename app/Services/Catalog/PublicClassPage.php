@@ -137,7 +137,8 @@ class PublicClassPage
         $result['content'] = $content;
         $result['children'] = $page['children'];
         $result['preview'] = $preview;
-        $result['seo']['h1'] = trim($content['hero']['title'] ?? '') ?: $page['node']['name'];
+        $result['seo']['h1'] = trim($page['node']['h1'] ?? '')
+            ?: trim($content['hero']['title'] ?? '') ?: $page['node']['name'];
         $result['seo']['image'] = $content['hero']['image'] ?? $page['seo']['image'] ?? null;
         if ($preview) {
             $result['seo']['robots'] = 'noindex,nofollow';
@@ -201,7 +202,7 @@ class PublicClassPage
         $seo = [
             'title' => $configuration['title'] ?? $page['seo']['title'],
             'description' => $configuration['description'] ?? $page['seo']['description'],
-            'h1' => $page['node']['name'],
+            'h1' => $page['seo']['h1'] ?? $page['node']['name'],
             'canonical' => $page['node']['public_url'],
             'robots' => 'index,follow',
         ];

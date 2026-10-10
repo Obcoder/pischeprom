@@ -154,13 +154,17 @@ class ClassPageSsrTest extends TestCase
         $response->assertDontSee('Непубличный черновик скумбрии');
         $this->capture($response, 'database-migrated-124');
 
-        $node->update(['meta_title' => 'Изменённый Title карточки — SSR', 'meta_description' => 'Изменённый Description карточки']);
+        $node->update(['meta_title' => 'Изменённый Title карточки — SSR', 'meta_description' => 'Изменённый Description карточки',
+            'h1' => 'Скумбрия оптом <для магазинов>']);
         $good->update(['slug' => 'database-current-mackerel']);
         $response = $this->rawPage($this->classUrl());
         app(ClassPageHtmlVerifier::class)->verify($response->getContent(), app(PublicClassPage::class)->for($product));
         $xpath = $this->xpath($response->getContent());
         $this->assertSame('Изменённый Title карточки — SSR', $xpath->evaluate('string(//head/title)'));
         $this->assertSame('Изменённый Description карточки', $xpath->evaluate('string(//head/meta[@name="description"]/@content)'));
+        $this->assertSame('Скумбрия оптом <для магазинов>', $xpath->evaluate('string(//body//*[@data-class-guide]//h1)'));
+        $this->assertSame('Скумбрия', $xpath->evaluate('string(//body//*[@data-class-guide]//nav[@aria-label="Хлебные крошки"]/*[@aria-current="page"])'));
+        $this->assertSame('Скумбрия', $landing->fresh()->published_content['hero']['title']);
         $this->assertSame(2, $xpath->query('//body//*[@data-guide-article]//a[@data-good-id="75" and contains(@href,"database-current-mackerel")]')->length);
         $response->assertDontSee('database-initial-mackerel');
 
@@ -170,6 +174,9 @@ class ClassPageSsrTest extends TestCase
         $xpath = $this->xpath($response->getContent());
         $this->assertSame(0, $xpath->query('//body//*[@data-class-guide]//*[@data-good-id="75"]')->length);
         $this->assertStringContainsString('скумбрию 600+ с Фарерских островов', $xpath->query('//body//*[@data-guide-article]')->item(0)->textContent);
+        $node->update(['h1' => null]);
+        $response = $this->rawPage($this->classUrl());
+        $this->assertSame('Скумбрия', $this->xpath($response->getContent())->evaluate('string(//body//*[@data-class-guide]//h1)'));
         $this->artisan('app:check-class-pages')->assertSuccessful();
     }
 

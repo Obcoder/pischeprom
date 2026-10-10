@@ -276,7 +276,7 @@ defineExpose({ reset, save: () => mutate('save') })
                         <v-btn v-if="published" variant="text" color="error" :disabled="controlsDisabled || dirty || cardDirty" @click="unpublishOpen = true">Отключить лендинг</v-btn>
                     </div>
                     <p v-if="dirty && hasSavedDraft" class="catalog-landing__hint">Предпросмотр показывает последний сохранённый черновик. Новые изменения появятся в нём после сохранения.</p>
-                    <details class="catalog-landing__section" open><summary>Первый экран</summary><CatalogLandingFields v-model="content.hero" :fields="heroFields" context="hero" :links="textLinks" :disabled="controlsDisabled" @upload="uploadImage" /></details>
+                    <details class="catalog-landing__section" open><summary>Первый экран</summary><p class="catalog-landing__hint">Если в основных данных карточки заполнено SEO H1, он используется вместо заголовка первого экрана.</p><CatalogLandingFields v-model="content.hero" :fields="heroFields" context="hero" :links="textLinks" :disabled="controlsDisabled" @upload="uploadImage" /></details>
                     <details class="catalog-landing__section"><summary>Ассортимент</summary>
                         <CatalogLandingFields v-model="content.catalog" :fields="assortmentFields" :disabled="controlsDisabled" @upload="uploadImage" />
                         <template v-if="content.catalog?.mode === 'selection'">

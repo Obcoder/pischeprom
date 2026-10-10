@@ -64,6 +64,17 @@ test('generic catalog pages retain breadcrumbs, properties, children and metadat
     assert.equal(findVNode(h.render(), node => node.type === 'ClassLanding'), null)
 })
 
+test('a catalog SEO H1 changes only the visible heading and falls back to the record name when empty', t => {
+    const h = harness(t, 'resources/js/Pages/Catalog/Show.vue', catalogProps())
+    h.props.seo.h1 = 'Скумбрия оптом для магазинов'
+    assert.equal(findVNode(h.render(), node => node.type === 'h1').children, h.props.seo.h1)
+    assert.equal(findVNode(h.render(), node => node.props?.['aria-current'] === 'page').children, 'Скумбрия')
+    assert.equal(findVNode(h.render(), node => node.props?.rel === 'canonical').props.href, h.props.seo.canonical)
+    assert.equal(h.props.node.name, 'Скумбрия')
+    h.props.seo.h1 = '   '
+    assert.equal(findVNode(h.render(), node => node.type === 'h1').children, 'Скумбрия')
+})
+
 test('a saved landing at any catalog level uses its content renderer and current page metadata', t => {
     const classPage = {
         guide: 'overview', content: { template: 'overview', hero: { title: 'Ингредиенты' }, blocks: [] },

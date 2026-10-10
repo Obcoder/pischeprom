@@ -299,7 +299,7 @@ function reset(node = props.node, resetTabs = true) {
         entity_type: node ? node.entity_type || 'custom' : props.initialEntityType || 'custom',
         parent_id: node ? node.parent_id ?? null : props.initialParentId,
         name: node?.name || '', slug: node?.slug || '', image: node?.image || '',
-        description: node?.description || '', meta_title: node?.meta_title || '',
+        description: node?.description || '', h1: node?.h1 || '', meta_title: node?.meta_title || '',
         meta_description: node?.meta_description || '',
         is_published: node?.is_published ?? false, is_featured: node?.is_featured ?? false,
         sort_order: node?.sort_order ?? 0, properties: clone(node?.properties),
@@ -410,10 +410,11 @@ async function save(nextTab = null) {
     let saved = null
     let phase = 'record'
     try {
-        const payload = { ...form, properties: {} }
+        const payload = { ...form, h1: form.h1?.trim() || null, properties: {} }
         if (record.value) delete payload.entity_type
         if (isGood.value) {
             delete payload.image
+            delete payload.h1
             delete payload.meta_title
             delete payload.meta_description
             const extras = goodPayload()
@@ -434,6 +435,7 @@ async function save(nextTab = null) {
         if (own(saved, 'parent_id')) form.parent_id = saved.parent_id ?? null
         if (own(saved, 'slug')) form.slug = saved.slug || ''
         if (own(saved, 'image')) form.image = saved.image || ''
+        if (own(saved, 'h1')) form.h1 = saved.h1 || ''
         baseline.value = JSON.stringify(form)
         goodBaseline.value = JSON.stringify(goodForm)
         if (selectedFile.value) {
@@ -530,6 +532,7 @@ async function remove() {
                         <section v-if="!isGood" class="catalog-node-dialog__section catalog-node-dialog__seo">
                             <h3><v-icon icon="mdi-magnify" size="18" /> Поиск и SEO</h3>
                             <v-text-field v-model="form.slug" label="Адрес страницы" variant="outlined" density="compact" :error-messages="fieldErrors('slug')" hint="Латинские буквы, цифры и дефисы. Пустое значение создаст адрес автоматически." persistent-hint class="mb-3" />
+                            <v-text-field v-model="form.h1" label="SEO H1" variant="outlined" density="compact" maxlength="255" clearable :error-messages="fieldErrors('h1')" hint="Главный заголовок публичной страницы. Если поле пустое, используется заголовок лендинга или название записи." persistent-hint class="mb-3" />
                             <v-text-field v-model="form.meta_title" label="Заголовок · Title" variant="outlined" density="compact" maxlength="255" :error-messages="fieldErrors('meta_title')" />
                             <v-textarea v-model="form.meta_description" label="Описание · Description" variant="outlined" density="compact" rows="5" maxlength="2000" :error-messages="fieldErrors('meta_description')" />
                             <div v-if="record?.public_url || record?.edit_url" class="catalog-node-dialog__links">

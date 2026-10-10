@@ -10,7 +10,7 @@ class CatalogNode extends Model
 {
     protected $fillable = [
         'level_id', 'parent_id', 'entity_type', 'entity_id', 'import_key', 'is_manual', 'name', 'slug', 'image',
-        'description', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
+        'description', 'h1', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order', 'properties', 'properties_by_level',
     ];
 
     protected $casts = [

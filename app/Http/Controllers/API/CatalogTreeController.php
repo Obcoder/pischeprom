@@ -237,6 +237,7 @@ class CatalogTreeController extends Controller
             'slug' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
             'image' => ['sometimes', 'nullable', 'string', 'max:2048', 'regex:~^(https?://|/storage/)~i'],
             'description' => ['sometimes', 'nullable', 'string', 'max:100000'],
+            'h1' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meta_title' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meta_description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'is_published' => ['sometimes', 'boolean'],

@@ -57,7 +57,7 @@ function displayValue(property) {
         <header class="catalog-public__header">
             <div>
                 <div class="catalog-public__kicker">{{ node.level_name || 'Каталог' }}</div>
-                <h1>{{ node.name }}</h1>
+                <h1>{{ pageSeo.h1?.trim() || node.name }}</h1>
                 <p v-if="node.description" class="catalog-public__description">{{ node.description }}</p>
                 <Link v-if="node.offer_url" :href="node.offer_url" class="catalog-public__offer">
                     Перейти к товару <v-icon icon="mdi-arrow-right" size="18" />

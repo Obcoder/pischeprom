@@ -32,6 +32,7 @@ class PublicCatalogTest extends TestCase
         $node = $this->node('Пищевые волокна', [
             'parent_id' => $root->id,
             'description' => 'Волокна для пищевой промышленности.',
+            'h1' => 'Пищевые волокна для производства',
             'meta_title' => 'Пищевые волокна оптом',
             'meta_description' => 'Описание для поиска',
             'properties' => ['origin' => 'Россия', 'margin' => 'private-margin-sentinel', 'unknown' => 'unregistered-value-sentinel'],
@@ -45,6 +46,7 @@ class PublicCatalogTest extends TestCase
             ->assertOk()
             ->assertJsonPath('component', 'Catalog/Show')
             ->assertJsonPath('props.node.name', 'Пищевые волокна')
+            ->assertJsonPath('props.seo.h1', 'Пищевые волокна для производства')
             ->assertJsonPath('props.breadcrumbs.0.id', $root->id)
             ->assertJsonPath('props.children.0.id', $child->id)
             ->assertJsonCount(1, 'props.children')

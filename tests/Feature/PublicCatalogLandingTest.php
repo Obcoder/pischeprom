@@ -54,6 +54,75 @@ class PublicCatalogLandingTest extends TestCase
             ->assertJsonPath('props.seo.title', 'Заголовок из карточки');
     }
 
+    public function test_card_h1_overrides_landing_hero_in_public_page_preview_and_structured_data(): void
+    {
+        $node = $this->node('Бакалея', ['h1' => 'Бакалея для магазинов']);
+        $landing = $this->landing($node);
+        $draft = $landing->draft_content;
+        $draft['hero']['title'] = 'Черновик заголовка первого экрана';
+        $landing->update(['draft_content' => $draft]);
+        $url = $this->url($node);
+
+        $this->get($url, ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.node.name', 'Бакалея')
+            ->assertJsonPath('props.classPage.content.hero.title', 'Бакалея')
+            ->assertJsonPath('props.seo.h1', 'Бакалея для магазинов')
+            ->assertJsonPath('props.seo.jsonLd.0.name', 'Бакалея для магазинов')
+            ->assertJsonPath('props.classPage.breadcrumbs.1.name', 'Бакалея')
+            ->assertJsonPath('props.seo.canonical', $url)
+            ->assertDontSee('Черновик заголовка первого экрана');
+
+        $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']))
+            ->get('/Ameise/catalog/nodes/'.$node->id.'/landing/preview', ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.classPage.content.hero.title', 'Черновик заголовка первого экрана')
+            ->assertJsonPath('props.seo.h1', 'Бакалея для магазинов')
+            ->assertJsonPath('props.seo.jsonLd.0.name', 'Бакалея для магазинов');
+    }
+
+    public function test_clearing_h1_restores_hero_then_name_without_rewriting_the_landing(): void
+    {
+        $node = $this->node('Группа продуктов', ['h1' => 'Заданный H1']);
+        $landing = $this->landing($node);
+        $content = $landing->published_content;
+        $content['hero']['title'] = 'Заголовок лендинга';
+        $landing->update(['published_content' => $content]);
+        $node->update(['h1' => null]);
+
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.seo.h1', 'Заголовок лендинга')
+            ->assertJsonPath('props.seo.jsonLd.0.name', 'Заголовок лендинга');
+        $this->assertSame($content, $landing->fresh()->published_content);
+
+        $content['hero']['title'] = '   ';
+        $landing->update(['published_content' => $content]);
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.seo.h1', 'Группа продуктов');
+
+        $node->update(['h1' => 'H1 обычной страницы']);
+        $landing->update(['published_content' => null]);
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.classPage', null)->assertJsonPath('props.seo.h1', 'H1 обычной страницы');
+        $node->update(['h1' => null]);
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.seo.h1', 'Группа продуктов');
+    }
+
+    public function test_category_heading_stays_authoritative_over_stale_node_and_landing_values(): void
+    {
+        $category = Category::create(['name' => 'Рыба', 'h1' => 'Рыба оптом', 'is_published' => true]);
+        $node = $this->node('Старая подпись', ['entity_type' => 'category', 'entity_id' => $category->id, 'h1' => 'Старый H1 узла']);
+        $landing = $this->landing($node);
+        $content = $landing->published_content;
+        $content['hero']['title'] = 'Заголовок первого экрана';
+        $landing->update(['published_content' => $content]);
+
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.node.name', 'Рыба')->assertJsonPath('props.seo.h1', 'Рыба оптом');
+        $category->update(['h1' => null]);
+        $this->get($this->url($node), ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.seo.h1', 'Заголовок первого экрана');
+    }
+
     public function test_branch_assortment_deduplicates_goods_and_excludes_hidden_descendant_branches(): void
     {
         $node = $this->node('Каталог');
