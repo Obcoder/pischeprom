@@ -10,6 +10,7 @@ use App\Models\GoodStockAlert;
 use App\Models\GoodStockAvailability;
 use App\Models\GoodStockMovement;
 use App\Models\MaxChat;
+use App\Models\Measure;
 use App\Models\Warehouse;
 use App\Services\Goods\GoodStockAlertMessenger;
 use App\Services\Goods\GoodStockService;
@@ -585,6 +586,7 @@ class GoodStockAlertTest extends TestCase
     {
         $good = Good::query()->create([
             'name' => 'Тестовый товар',
+            'measure_id' => Measure::query()->firstOrCreate(['name' => 'кг'])->id,
             'is_published' => true,
         ]);
 
@@ -622,6 +624,8 @@ class GoodStockAlertTest extends TestCase
             $table->string('ava_thumb')->nullable();
             $table->text('description')->nullable();
             $table->double('denominator')->nullable();
+            $table->unsignedBigInteger('measure_id')->nullable();
+            $table->decimal('unit_weight_kg', 18, 6)->nullable();
             $table->boolean('is_published')->default(true);
             $table->unsignedBigInteger('vat_rate_id')->nullable();
             $table->unsignedBigInteger('country_id')->nullable();

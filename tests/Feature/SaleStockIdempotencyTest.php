@@ -36,8 +36,8 @@ class SaleStockIdempotencyTest extends TestCase
         $this->actingAs($user);
 
         $this->entity = Entity::query()->create(['name' => 'Покупатель']);
-        $this->good = Good::query()->create(['name' => 'Сахар']);
         $this->measure = Measure::query()->create(['name' => 'кг']);
+        $this->good = Good::query()->create(['name' => 'Сахар', 'measure_id' => $this->measure->id]);
         GoodStockMovement::query()->create([
             'warehouse_id' => Warehouse::query()->where('code', Warehouse::GOODS_CODE)->sole()->id,
             'good_id' => $this->good->id,
