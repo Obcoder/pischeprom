@@ -1,0 +1,86 @@
+name: Recover the release before the catalog landing migration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pischeprom-production
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  recover:
+    name: Restore the verified previous release
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: production
+    steps:
+      - name: Check out the bounded recovery script
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Configure pinned SSH host identity
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
+          for required_name in SSH_HOST SSH_KNOWN_HOSTS SSH_PORT SSH_PRIVATE_KEY SSH_USER TARGET_DIR; do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "::error::Required production secret ${required_name} is missing."
+              exit 1
+            fi
+          done
+          if [[ ! "$SSH_PORT" =~ ^[0-9]+$ ]] || (( SSH_PORT < 1 || SSH_PORT > 65535 )); then
+            echo '::error::PORT must be a valid TCP port.'
+            exit 1
+          fi
+          if [[ "$TARGET_DIR" != /* || "$TARGET_DIR" == / ]]; then
+            echo '::error::TARGET_DIR must be an absolute non-root path.'
+            exit 1
+          fi
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -y -P '' -f "$HOME/.ssh/deploy_key" >/dev/null
+          if ! ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null \
+            && ! ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null; then
+            echo '::error::SSH_KNOWN_HOSTS does not contain the configured host.'
+            exit 1
+          fi
+
+      - name: Recover only the failed pre-migration deployment
+        env:
+          SSH_HOST: ${{ secrets.HOST }}
+          SSH_PORT: ${{ secrets.PORT }}
+          SSH_USER: ${{ secrets.USERNAME }}
+          TARGET_DIR: ${{ secrets.TARGET_DIR }}
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/recover-production-before-migration.sh
+          ssh_options=(
+            -i "$HOME/.ssh/deploy_key"
+            -p "$SSH_PORT"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+          )
+          target_dir_base64="$(printf '%s' "$TARGET_DIR" | base64 -w 0)"
+          ssh "${ssh_options[@]}" "${SSH_USER}@${SSH_HOST}" \
+            "bash -se -- '$target_dir_base64'" < scripts/recover-production-before-migration.sh
