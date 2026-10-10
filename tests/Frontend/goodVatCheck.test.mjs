@@ -232,7 +232,7 @@ function goodCardHarness() {
     const props = Vue.reactive({ modelValue: true, node, nodes: [], levels: [], initialParentId: null, initialLevelId: null, initialEntityType: 'custom' })
     const environment = {
         ...Vue, ...tradeCodes, descendantIds, goodRecordTabs, CatalogGoodOverview: {}, CatalogGoodSeo: {},
-        CatalogGoodOperations: {}, CatalogRecordTabs: {}, GoodTradeCodeFields: {}, _mergeModels: Vue.mergeModels,
+        CatalogGoodOperations: {}, CatalogRecordTabs: {}, CatalogLandingEditor: {}, GoodTradeCodeFields: {}, _mergeModels: Vue.mergeModels,
         _useModel: (source, key) => Vue.computed({ get: () => source[key], set: value => { source[key] = value } }),
         axios: {
             async patch(url, body) { requests.push({ url, body }); return { data: { data: node } } },
