@@ -7,15 +7,26 @@
     <h1 style="font-size:26px;line-height:1.2">{{ $inquiry->kindLabel() }}</h1>
     <p><strong>{{ $inquiry->number }}</strong> · {{ $inquiry->created_at->format('d.m.Y H:i') }}</p>
     <h2 style="font-size:20px"><a href="{{ $inquiry->good_url }}" style="color:#356d38">{{ $inquiry->good_name }}</a></h2>
+    @php
+        $measurement = $inquiry->measurement();
+        $quantityUnit = $measurement['unit_label'] ?: 'единица не задана';
+        $legacyInquiry = $inquiry->measure_id === null;
+        $priceUnit = $legacyInquiry ? ($inquiry->price_unit === 'kg' ? 'кг' : 'упак.') : $quantityUnit;
+        // Preserve the price basis of inquiries created before explicit units.
+        $priceQuantity = $inquiry->quantity * ($legacyInquiry && $inquiry->price_unit === 'kg' ? ($inquiry->package_weight ?? 1) : 1);
+    @endphp
     <table style="width:100%;border-collapse:collapse;text-align:left" cellpadding="8">
-        <tr><th>Количество</th><td>{{ $inquiry->quantity }} упак.</td></tr>
+        <tr><th>Количество</th><td>{{ $inquiry->quantity }} {{ $quantityUnit }}</td></tr>
         @if($inquiry->package_weight)
-            <tr><th>Вес упаковки / общий вес</th><td>{{ $inquiry->package_weight }} кг / {{ $inquiry->quantity * $inquiry->package_weight }} кг</td></tr>
+            <tr><th>Вес упаковки</th><td>{{ $inquiry->package_weight }} кг</td></tr>
         @endif
-        <tr><th>Цена на сайте</th><td>{{ $inquiry->listed_price !== null ? number_format($inquiry->listed_price, 2, ',', ' ').' '.$inquiry->currency_code.' / '.($inquiry->price_unit === 'kg' ? 'кг' : 'упак.') : 'Требует согласования' }}</td></tr>
+        @if($measurement['kilograms_per_unit'])
+            <tr><th>Общий вес</th><td>{{ rtrim(rtrim(number_format($inquiry->quantity * $measurement['kilograms_per_unit'], 6, ',', ' '), '0'), ',') }} кг</td></tr>
+        @endif
+        <tr><th>Цена на сайте</th><td>{{ $inquiry->listed_price !== null ? number_format($inquiry->listed_price, 2, ',', ' ').' '.$inquiry->currency_code.' / '.$priceUnit : 'Требует согласования' }}</td></tr>
         @if($inquiry->kind === 'bargain')
-            <tr style="background:#f0f6e7"><th>Предложенная цена</th><td><strong>{{ number_format($inquiry->proposed_price, 2, ',', ' ') }} {{ $inquiry->currency_code }} / {{ $inquiry->price_unit === 'kg' ? 'кг' : 'упак.' }}</strong></td></tr>
-            <tr><th>Предлагаемая сумма</th><td>{{ number_format($inquiry->proposed_price * $inquiry->quantity * ($inquiry->package_weight ?? 1), 2, ',', ' ') }} {{ $inquiry->currency_code }}</td></tr>
+            <tr style="background:#f0f6e7"><th>Предложенная цена</th><td><strong>{{ number_format($inquiry->proposed_price, 2, ',', ' ') }} {{ $inquiry->currency_code }} / {{ $priceUnit }}</strong></td></tr>
+            <tr><th>Предлагаемая сумма</th><td>{{ number_format($inquiry->proposed_price * $priceQuantity, 2, ',', ' ') }} {{ $inquiry->currency_code }}</td></tr>
             <tr><th>Сценарий</th><td>{{ $inquiry->scenarioLabel() }}</td></tr>
         @endif
         @if($inquiry->order)

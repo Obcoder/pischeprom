@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
                     <div v-if="editor.success" class="order-details__notice" role="status"><v-icon icon="mdi-check-circle-outline" size="16" />{{ editor.success }}</div>
                     <div class="order-details__totals">
                         <div><span>Сумма заказа</span><strong>{{ formatMoney(editor.editing ? editor.total : order.total_amount, editor.editing ? editor.form.currency_code : order.currency_code) }}</strong></div>
-                        <div><span>Общий вес</span><strong>{{ formatNumber(editor.editing ? editor.weight : order.total_weight, 3) }} <small>кг</small></strong></div>
+                        <div><span>Общий вес</span><strong>{{ formatNumber(editor.editing ? editor.weight : order.total_weight, 6) }} <small>кг</small></strong></div>
                         <div><span>Позиций</span><strong>{{ editor.editing ? editor.form.items.length : (order.items_count ?? order.items?.length ?? 0) }}</strong></div>
                     </div>
                     <slot name="actions" :order="order" :disabled="busy || editor.editing || editor.editingDate || editor.stale" :editing="editor.editing || editor.editingDate" />
@@ -241,9 +241,9 @@ onBeforeUnmount(() => {
                             <tbody>
                                 <tr v-for="item in (order.items || [])" :key="item.id">
                                     <td><strong>{{ item.good_name || item.good?.name || 'Товар' }}</strong><small v-if="item.country_name">{{ item.country_name }}</small></td>
-                                    <td>{{ formatNumber(item.quantity, 3) }}</td>
-                                    <td>{{ formatNumber(item.line_weight, 3) }}</td>
-                                    <td>{{ formatMoney(item.unit_price ?? item.price_gross, item.currency_code) }}</td>
+                                    <td>{{ formatNumber(item.quantity, 3) }} {{ item.measurement?.unit_label || item.measure_name || 'единица не задана' }}</td>
+                                    <td>{{ formatNumber(item.line_weight, 6) }}</td>
+                                    <td>{{ formatMoney(item.unit_price ?? item.price_gross, item.currency_code) }} / {{ item.measurement?.unit_label || item.measure_name || '?' }}</td>
                                     <td>{{ formatMoney(item.total_amount ?? item.line_total, item.currency_code) }}</td>
                                 </tr>
                                 <tr v-if="!order.items?.length"><td colspan="5" class="order-details__empty">Товаров в заказе нет</td></tr>

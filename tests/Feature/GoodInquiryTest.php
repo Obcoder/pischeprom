@@ -50,7 +50,7 @@ class GoodInquiryTest extends TestCase
         $this->assertSame($good->name, $inquiry->good_name);
         $this->assertSame('buyer@example.com', $inquiry->customer_email);
         $this->assertNotNull($inquiry->consent_at);
-        $this->assertSame(2, $inquiry->quantity);
+        $this->assertSame(2.0, $inquiry->quantity);
         $this->assertDatabaseCount('orders', 0);
         Queue::assertPushed(NotifyGoodInquiry::class, fn ($job) => $job->inquiryId === $inquiry->id);
         app(GoodInquiryNotificationService::class)->deliver($inquiry->id);
@@ -81,7 +81,7 @@ class GoodInquiryTest extends TestCase
         $this->assertSame('repeat', $inquiry->bargain_scenario);
     }
 
-    public function test_order_creates_crm_order_using_server_price_and_correct_package_weight(): void
+    public function test_order_creates_crm_order_using_server_price_per_configured_unit(): void
     {
         $good = $this->good();
         $this->price($good, 240);
@@ -100,9 +100,9 @@ class GoodInquiryTest extends TestCase
         $this->assertSame($order->id, $inquiry->order_id);
         $this->assertSame(240.0, $inquiry->listed_price);
         $this->assertNull($inquiry->proposed_price);
-        $this->assertSame(2400.0, $order->total_amount);
-        $this->assertSame(10.0, $order->total_weight);
-        $this->assertSame(1200.0, $order->items->sole()->price_gross);
+        $this->assertSame(480.0, $order->total_amount);
+        $this->assertSame(2.0, $order->total_weight);
+        $this->assertSame(240.0, $order->items->sole()->price_gross);
         $this->assertNotSame($known->id, $order->entity_id);
         $this->assertSame('Existing company', $known->fresh()->name);
         $this->assertSame('Москва, Складская, 1', $order->buildings->sole()->address);
@@ -139,7 +139,7 @@ class GoodInquiryTest extends TestCase
     public function test_invalid_contacts_quantity_consent_and_honeypot_do_not_create_records(): void
     {
         $this->postJson($this->url($this->good()), $this->payload([
-            'quantity' => 1.2, 'customer_email' => 'invalid', 'customer_name' => '',
+            'quantity' => 0.0001, 'customer_email' => 'invalid', 'customer_name' => '',
             'consent' => false, 'website' => 'spam', 'preferred_contact' => 'max',
         ]))->assertUnprocessable()->assertJsonValidationErrors([
             'quantity', 'customer_email', 'customer_name', 'consent', 'website', 'max_contact',
@@ -172,7 +172,7 @@ class GoodInquiryTest extends TestCase
         $this->assertSame(1200.0, $offer['package_price']);
         $this->assertSame('kg', $offer['price_unit']);
         $good->update(['denominator' => null]);
-        $this->assertSame('package', app(PublicGoodOffer::class)->for($good)['price_unit']);
+        $this->assertSame('kg', app(PublicGoodOffer::class)->for($good)['price_unit']);
     }
 
     public function test_failed_mail_is_retried_and_successful_max_is_not_duplicated(): void

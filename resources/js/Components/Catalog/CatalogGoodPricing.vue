@@ -13,7 +13,7 @@ const date = value => value ? String(value).slice(0, 10).split('-').reverse().jo
 const purchaseTitle = computed(() => purchase.value
     ? `Последняя закупка № ${purchase.value.purchase_id} от ${date(purchase.value.date)}: ${number(purchase.value.price)} ${currency(purchase.value.currency_label)} / ${purchase.value.unit_label || 'единица не указана'}`
     : 'Закупок пока нет')
-const markupTitle = row => row.markup_unavailable_reason || 'Наценка к последней закупке за кг: (цена продажи / цена закупки − 1) × 100%. НДС закупки отдельно не указан.'
+const markupTitle = row => row.markup_unavailable_reason || 'Наценка к последней закупке за одну единицу товара: (цена продажи / цена закупки − 1) × 100%. НДС закупки отдельно не указан.'
 </script>
 
 <template>
@@ -26,11 +26,11 @@ const markupTitle = row => row.markup_unavailable_reason || 'Наценка к �
         <small v-else>Нет закупок</small>
     </div>
     <table v-else-if="sales.length" class="catalog-sales-prices" aria-label="Текущие цены продажи и торговая наценка">
-        <thead><tr><th>Тип</th><th>Цена / кг</th><th title="Торговая наценка к последней закупке">ТН</th></tr></thead>
+        <thead><tr><th>Тип</th><th>Цена / {{ pricing.unit_label || sales[0]?.unit_label || 'ед.' }}</th><th title="Торговая наценка к последней закупке">ТН</th></tr></thead>
         <tbody>
             <tr v-for="row in sales" :key="row.id">
                 <th :title="row.name">{{ row.name }}</th>
-                <td :title="`${row.includes_vat ? 'С НДС' : 'Без НДС'} · ${currency(row.currency_label)} / кг`">{{ number(row.price) }} <span>{{ currency(row.currency_label) }}</span></td>
+                <td :title="`${row.includes_vat ? 'С НДС' : 'Без НДС'} · ${currency(row.currency_label)} / ${row.unit_label || pricing.unit_label || 'единица не задана'}`">{{ number(row.price) }} <span>{{ currency(row.currency_label) }}</span></td>
                 <td :title="markupTitle(row)" :class="{ 'is-negative': row.markup_percent !== null && row.markup_percent < 0 }">{{ number(row.markup_percent) }}<template v-if="row.markup_percent !== null && row.markup_percent !== undefined">%</template></td>
             </tr>
         </tbody>

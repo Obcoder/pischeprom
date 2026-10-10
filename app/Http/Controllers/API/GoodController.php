@@ -11,9 +11,11 @@ use App\Models\EntityClassification;
 use App\Models\Field;
 use App\Models\Good;
 use App\Models\Industry;
+use App\Models\Measure;
 use App\Models\Product;
 use App\Models\VatRate;
 use App\Services\Goods\GoodAvatarImages;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -142,6 +144,7 @@ class GoodController extends Controller
             'incoming_code' => $validated['incoming_code'] ?? null,
             'slug' => $validated['slug'] ?? null,
             'denominator' => $validated['denominator'] ?? null,
+            ...array_intersect_key($validated, array_flip(['measure_id', 'unit_weight_kg'])),
             'description' => $validated['description'] ?? null,
             'vat_rate_id' => $validated['vat_rate_id'] ?? null,
             'country_id' => $validated['country_id'] ?? null,
@@ -260,7 +263,7 @@ class GoodController extends Controller
             ])
             ->toArray();
 
-        $good->update($dataToUpdate);
+        app(GoodMeasurement::class)->update($good, $dataToUpdate);
 
         if (array_key_exists('products', $validated)) {
             $good->products()->sync($validated['products'] ?? []);
@@ -367,6 +370,7 @@ class GoodController extends Controller
             'industries' => Industry::query()->orderBy('title')->get(['id', 'code', 'title']),
             'entity_classifications' => EntityClassification::query()->orderBy('name')->get(['id', 'name']),
             'vat_rates' => VatRate::query()->orderBy('rate')->get(['id', 'title', 'rate']),
+            'measures' => Measure::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 

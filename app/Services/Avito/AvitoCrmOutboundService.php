@@ -44,6 +44,7 @@ class AvitoCrmOutboundService
     {
         return [
             'country:id,name,flag',
+            'measure:id,name',
             'seo',
             'stockAvailability',
             'priceTypeValues' => fn ($query) => $query
@@ -71,6 +72,7 @@ class AvitoCrmOutboundService
             'slug' => $good->slug,
             'description' => $this->plainText($good->description),
             'denominator' => $good->denominator,
+            'measurement' => $good->measurement(),
             'is_published' => (bool) $good->is_published,
             'country' => $good->country ? [
                 'id' => $good->country->id,
@@ -231,16 +233,18 @@ class AvitoCrmOutboundService
         }
 
         $quantity = filled($data['quantity'] ?? null) ? (float) $data['quantity'] : null;
+        $unitLabel = $good->measurement()['unit_label'] ?: 'единица не задана';
         if (($data['include_price'] ?? true) && $price) {
             $amount = $price->price_gross ?? $price->price_net;
             $currency = strtoupper((string) ($price->currency?->code ?: $price->priceType?->currency?->code ?: 'RUB'));
             if (is_numeric($amount)) {
                 $lines[] = sprintf(
-                    'Цена%s: %s %s%s',
+                    'Цена%s: %s %s / %s%s',
                     $price->priceType?->name ? ' · '.$price->priceType->name : '',
                     $this->number((float) $amount),
                     $currency,
-                    $quantity ? ' × '.$this->number($quantity).' = '.$this->number((float) $amount * $quantity).' '.$currency : '',
+                    $unitLabel,
+                    $quantity ? ' × '.$this->number($quantity).' '.$unitLabel.' = '.$this->number((float) $amount * $quantity).' '.$currency : '',
                 );
             }
         }
@@ -273,13 +277,14 @@ class AvitoCrmOutboundService
             $lines[] = '──────────────';
             $lines[] = ($index + 1).' │ '.$this->plainText($item->good_name);
             $currency = $this->plainText($item->currency_code ?: $order->currency_code);
+            $unitLabel = $this->plainText($item->measurement()['unit_label'] ?: 'единица не задана');
             $lines[] = implode(' │ ', [
-                $this->orderNumber((float) $item->quantity, 3),
-                $item->price_gross !== null ? $this->orderNumber((float) $item->price_gross, 4).' '.$currency : 'Уточняется',
+                $this->orderNumber((float) $item->quantity, 3).' '.$unitLabel,
+                $item->price_gross !== null ? $this->orderNumber((float) $item->price_gross, 4).' '.$currency.' / '.$unitLabel : 'Уточняется',
                 $item->line_total !== null ? $this->orderNumber((float) $item->line_total, 2).' '.$currency : 'Уточняется',
             ]);
-            if ($item->denominator !== null) {
-                $lines[] = 'Фасовка: '.$this->orderNumber((float) $item->denominator, 4).' кг';
+            if ($item->measurement()['kilograms_per_unit'] !== null) {
+                $lines[] = 'Масса 1 '.$unitLabel.': '.$this->orderNumber((float) $item->measurement()['kilograms_per_unit'], 6).' кг';
             }
         }
 
@@ -291,7 +296,7 @@ class AvitoCrmOutboundService
             $lines[] = $label.$this->orderNumber((float) $order->total_amount, 2).' '.$this->plainText($order->currency_code);
         }
         if ($order->total_weight !== null) {
-            $lines[] = 'Общий вес: '.$this->orderNumber((float) $order->total_weight, 4).' кг';
+            $lines[] = 'Общий вес: '.$this->orderNumber((float) $order->total_weight, 6).' кг';
         }
         if ($order->buildings->isNotEmpty()) {
             $building = $order->buildings->first();
@@ -398,8 +403,6 @@ class AvitoCrmOutboundService
 
     private function number(float $value): string
     {
-        $precision = abs($value - round($value)) < 0.000001 ? 0 : 2;
-
-        return number_format($value, $precision, ',', ' ');
+        return rtrim(rtrim(number_format($value, 3, ',', ' '), '0'), ',');
     }
 }

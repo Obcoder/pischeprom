@@ -35,7 +35,7 @@ class SaleGoodAttachmentTest extends TestCase
             'name' => 'Какао-порошок',
             'denominator' => 25,
         ]);
-        $measure = Measure::query()->create(['name' => 'кг']);
+        $measure = Measure::query()->firstOrCreate(['name' => 'кг']);
         GoodStockMovement::query()->create([
             'warehouse_id' => Warehouse::query()->where('code', Warehouse::GOODS_CODE)->value('id'),
             'good_id' => $good->id,
@@ -91,7 +91,7 @@ class SaleGoodAttachmentTest extends TestCase
     {
         $entity = Entity::query()->create(['name' => 'Покупатель']);
         $good = Good::query()->create(['name' => 'Сахар']);
-        $measure = Measure::query()->create(['name' => 'кг']);
+        $measure = Measure::query()->firstOrCreate(['name' => 'кг']);
         $sale = Sale::query()->create([
             'date' => '2026-08-24',
             'entity_id' => $entity->id,

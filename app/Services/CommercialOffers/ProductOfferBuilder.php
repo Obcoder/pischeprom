@@ -138,6 +138,8 @@ class ProductOfferBuilder
             'name' => $product->name,
             'thumbnail_url' => $this->safeImageUrl($media?->thumb_url ?: $media?->url ?: $product->ava_thumb ?: $product->ava_image),
             'price' => $price?->price_gross ?? $price?->price_net,
+            'measurement' => $product->measurement(),
+            'price_unit_label' => $product->measurement()['unit_label'],
             'currency' => $price?->currency?->code ?: $price?->priceType?->currency?->code ?: 'RUB',
             'canonical_url' => $this->goodUrl($product),
             'category_id' => $category?->id,

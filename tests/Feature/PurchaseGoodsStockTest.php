@@ -364,6 +364,8 @@ class PurchaseGoodsStockTest extends TestCase
         Schema::create('goods', function (Blueprint $table): void {
             $table->id();
             $table->string('name');
+            $table->unsignedBigInteger('measure_id')->nullable();
+            $table->decimal('unit_weight_kg', 14, 6)->nullable();
             $table->string('slug')->nullable()->unique();
             $table->string('ava_image')->nullable();
             $table->string('ava_thumb')->nullable();
@@ -530,8 +532,11 @@ class PurchaseGoodsStockTest extends TestCase
 
     private function createGood(string $name): int
     {
+        $measureId = DB::table('measures')->value('id') ?: $this->createMeasure('шт.');
+
         return DB::table('goods')->insertGetId([
             'name' => $name,
+            'measure_id' => $measureId,
             'slug' => str($name)->slug(),
             'created_at' => now(),
             'updated_at' => now(),

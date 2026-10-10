@@ -7,6 +7,7 @@ use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Services\Catalog\CatalogService;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -223,6 +224,7 @@ class CatalogTreeController extends Controller
             'avatar_thumb_source_url' => ['sometimes', 'nullable', 'string', 'max:2048', 'regex:~^(https?://|/storage/)~i'],
             'remove_ava' => ['sometimes', 'boolean'],
             ...GoodTradeCodes::rules(),
+            ...GoodMeasurement::rules(),
         ];
         $nested = ['good' => ['sometimes', 'array:'.implode(',', array_filter(array_keys($goodRules), fn (string $key): bool => ! str_contains($key, '.')))]];
         foreach ($goodRules as $key => $rules) {

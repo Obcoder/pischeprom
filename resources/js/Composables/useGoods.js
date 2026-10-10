@@ -15,6 +15,7 @@ export function useGoods() {
     const countries = ref([])
     const fields = ref([])
     const vatRates = ref([])
+    const measures = ref([])
     const totalItems = ref(0)
 
     const publishLoading = ref({})
@@ -64,6 +65,7 @@ export function useGoods() {
         countries.value = data.countries || []
         fields.value = data.fields || []
         vatRates.value = data.vat_rates || []
+        measures.value = data.measures || []
     }
 
     async function saveGood(form) {
@@ -79,6 +81,8 @@ export function useGoods() {
                 fd.append('name', form.name ?? '')
                 fd.append('incoming_code', form.incoming_code ?? '')
                 fd.append('denominator', form.denominator ?? '')
+                fd.append('measure_id', form.measure_id ?? '')
+                fd.append('unit_weight_kg', form.unit_weight_kg ?? '')
                 fd.append('description', form.description ?? '')
                 fd.append('vat_rate_id', form.vat_rate_id ?? '')
                 fd.append('country_id', form.country_id ?? '')
@@ -118,6 +122,8 @@ export function useGoods() {
                     name: form.name,
                     incoming_code: form.incoming_code ?? null,
                     denominator: form.denominator,
+                    measure_id: form.measure_id ?? null,
+                    unit_weight_kg: form.unit_weight_kg ?? null,
                     description: form.description,
                     vat_rate_id: form.vat_rate_id,
                     country_id: form.country_id,
@@ -176,6 +182,7 @@ export function useGoods() {
         countries,
         fields,
         vatRates,
+        measures,
         totalItems,
         publishLoading,
         indexGoods,

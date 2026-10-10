@@ -359,7 +359,12 @@ class AvitoCrmController extends Controller
             'send_confirmation' => ['nullable', 'boolean'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.good_id' => ['required', 'integer', 'distinct', 'exists:goods,id'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999'],
+            'items.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
+            'items.*.measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
+            'items.*.measurement.measure_id' => ['nullable', 'integer'],
+            'items.*.measurement.unit_label' => ['nullable', 'string', 'max:255'],
+            'items.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:999999999', 'decimal:0,3'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
         ]);
         $order = $crm->createOrder($chat, $validated, $request->user());

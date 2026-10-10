@@ -5,6 +5,7 @@ import { usePriceTypes } from '@/Composables/usePriceTypes'
 import { useGoodPriceTypeValues } from '@/Composables/useGoodPriceTypeValues'
 
 const props = defineProps({
+    measurement: { type: Object, default: () => ({}) },
     goodId: {
         type: Number,
         required: true,
@@ -43,6 +44,10 @@ const {
 
 const dialogApply = ref(false)
 const applySource = ref(null)
+const applyMeasurement = ref(null)
+const priceUnit = computed(() => (dialogApply.value ? applyMeasurement.value : props.measurement)?.unit_label || 'единица не задана')
+const unitWeight = computed(() => Number(props.measurement?.kilograms_per_unit) || null)
+const applyError = ref('')
 
 const applyForm = reactive({
     price_type_id: null,
@@ -136,11 +141,17 @@ watch(
 )
 
 function openApply(item) {
+    applyError.value = ''
+    if (!props.measurement?.measure_id || !unitWeight.value) {
+        applyError.value = 'Для применения расчёта за кг задайте единицу учёта и массу одной единицы в карточке товара.'
+        return
+    }
     applySource.value = item
+    applyMeasurement.value = { ...props.measurement }
 
     applyForm.price_type_id = null
-    applyForm.price_net = item.sale_net_per_kg ?? null
-    applyForm.price_gross = item.sale_gross_per_kg ?? null
+    applyForm.price_net = item.sale_net_per_kg == null ? null : Number((item.sale_net_per_kg * unitWeight.value).toFixed(6))
+    applyForm.price_gross = item.sale_gross_per_kg == null ? null : Number((item.sale_gross_per_kg * unitWeight.value).toFixed(6))
     applyForm.vat_rate = item.result?.input?.vatRate ?? item.input?.vatRate ?? 20
     applyForm.is_manual = false
     applyForm.is_published = false
@@ -153,6 +164,7 @@ async function applyToPriceType() {
     if (!applySource.value?.id || !applyForm.price_type_id) return
 
     await storeValue({
+        measurement: applyMeasurement.value,
         calculation_id: applySource.value.id,
         price_type_id: applyForm.price_type_id,
         price_net: applyForm.price_net,
@@ -175,6 +187,7 @@ onMounted(() => {
 
 <template>
     <v-card>
+        <v-alert v-if="applyError" type="warning" variant="tonal" density="compact">{{ applyError }}</v-alert>
         <v-card-title class="d-flex align-center justify-space-between">
             <span>Сохранённые расчёты продажной цены</span>
 
@@ -363,7 +376,7 @@ onMounted(() => {
                                 <v-col cols="12" md="4">
                                     <v-text-field
                                         v-model="applyForm.price_gross"
-                                        label="Цена с НДС / кг"
+                                        :label="`Цена с НДС / ${priceUnit}`"
                                         type="number"
                                         step="0.01"
                                         variant="outlined"
@@ -374,7 +387,7 @@ onMounted(() => {
                                 <v-col cols="12" md="4">
                                     <v-text-field
                                         v-model="applyForm.price_net"
-                                        label="Цена без НДС / кг"
+                                        :label="`Цена без НДС / ${priceUnit}`"
                                         type="number"
                                         step="0.01"
                                         variant="outlined"

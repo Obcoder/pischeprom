@@ -100,6 +100,8 @@ class CustomerDashboardController extends Controller
                         'good_name' => $item->good_name,
                         'image_url' => $item->image_url,
                         'quantity' => $item->quantity,
+                        'measure_id' => $item->measure_id,
+                        'measurement' => $item->measurement(),
                         'denominator' => $item->denominator,
                         'line_weight' => $item->line_weight,
                         'price_gross' => $item->price_gross,

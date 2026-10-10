@@ -10,6 +10,7 @@ use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Order;
 use App\Models\Sale;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodSaleStockSynchronizer;
 use App\Services\Goods\GoodStockMutationService;
 use App\Services\Goods\SaleStockRequestService;
@@ -38,7 +39,7 @@ class SaleController extends Controller
                 'entity.cities:id,name',
                 'goods.vatRate:id,title,rate',
                 'goods' => function ($goodsQuery): void {
-                    $goodsQuery->select('goods.id', 'goods.name', 'goods.slug', 'goods.denominator', 'goods.vat_rate_id');
+                    $goodsQuery->select('goods.id', 'goods.name', 'goods.slug', 'goods.denominator', 'goods.measure_id', 'goods.unit_weight_kg', 'goods.vat_rate_id');
                 },
             ]);
 
@@ -72,7 +73,7 @@ class SaleController extends Controller
             'total' => ['nullable', 'numeric', 'min:0'],
             'goods' => ['nullable', 'array'],
             'goods.*.good_id' => ['required_with:goods', 'integer', 'exists:goods,id'],
-            'goods.*.measure_id' => ['required_with:goods', 'integer', 'exists:measures,id'],
+            'goods.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
             'goods.*.quantity' => ['nullable', 'numeric', 'min:0.000001'],
             'goods.*.price' => ['nullable', 'numeric', 'min:0'],
             'goods.*.total' => ['nullable', 'numeric', 'min:0'],
@@ -102,6 +103,7 @@ class SaleController extends Controller
         ];
 
         $sale = $requests->run($validated['request_id'] ?? null, 'sale.store', $payload, function () use ($payload, $lines, $stock) {
+            $this->assertCurrentUnits($lines->all());
             $sale = Sale::create([
                 'date' => $payload['date'],
                 'entity_id' => $payload['entity_id'],
@@ -163,7 +165,7 @@ class SaleController extends Controller
         $validated = $request->validate([
             'request_id' => ['nullable', 'uuid'],
             'good_id' => ['required', 'integer', 'exists:goods,id'],
-            'measure_id' => ['required', 'integer', 'exists:measures,id'],
+            'measure_id' => ['nullable', 'integer', 'exists:measures,id'],
             'quantity' => ['nullable', 'numeric', 'min:0.000001'],
             'price' => ['nullable', 'numeric', 'min:0'],
             'total' => ['nullable', 'numeric', 'min:0'],
@@ -184,6 +186,8 @@ class SaleController extends Controller
             abort_if(Order::query()->where('shipped_sale_id', $lockedSale->id)
                 ->lockForUpdate()->first(['id']) !== null, 409,
                 'Продажа создана отгрузкой заказа. Добавлять позиции в неё нельзя.');
+
+            $this->assertCurrentUnits([$line]);
 
             $lockedSale->goods()->attach($line['good_id'], [
                 'quantity' => $line['quantity'],
@@ -337,6 +341,8 @@ class SaleController extends Controller
 
     private function normalizeSaleLine(array $line): array
     {
+        $good = Good::query()->findOrFail($line['good_id']);
+        $measureId = app(GoodMeasurement::class)->assertMeasure($good, isset($line['measure_id']) ? (int) $line['measure_id'] : null, 'goods');
         $quantity = $this->nullableFloat($line['quantity'] ?? null);
         $price = $this->nullableFloat($line['price'] ?? null);
         $total = $this->nullableFloat($line['total'] ?? null);
@@ -388,11 +394,20 @@ class SaleController extends Controller
 
         return [
             'good_id' => (int) $line['good_id'],
-            'measure_id' => (int) $line['measure_id'],
+            'measure_id' => $measureId,
             'quantity' => $quantity,
             'price' => $price,
             'total' => $canonicalTotal,
         ];
+    }
+
+    private function assertCurrentUnits(array $lines): void
+    {
+        $goods = Good::query()->whereIn('id', array_column($lines, 'good_id'))
+            ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+        foreach ($lines as $line) {
+            app(GoodMeasurement::class)->assertMeasure($goods->get($line['good_id']), $line['measure_id'], 'goods');
+        }
     }
 
     private function nullableFloat($value): ?float
@@ -566,6 +581,9 @@ class SaleController extends Controller
                     'id' => $good->id,
                     'name' => $good->name,
                     'denominator' => $good->denominator,
+                    'measure_id' => $good->measure_id,
+                    'unit_weight_kg' => $good->unit_weight_kg,
+                    'measurement' => $good->measurement(),
                     'vat_rate' => $good->vatRate ? [
                         'id' => $good->vatRate->id,
                         'title' => $good->vatRate->title,

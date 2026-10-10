@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -36,6 +37,7 @@ class StoreGoodRequest extends FormRequest
             'entity_classification_ids' => ['nullable', 'array'],
             'entity_classification_ids.*' => ['integer', 'exists:entity_classifications,id'],
             ...GoodTradeCodes::rules(),
+            ...GoodMeasurement::rules(),
         ];
     }
 

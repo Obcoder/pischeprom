@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\User;
 use App\Services\Entities\UserEntityResolver;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Orders\CustomerOrderNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,12 @@ class CustomerOrderController extends Controller
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1', 'max:60'],
             'items.*.good_id' => ['required', 'integer', 'exists:goods,id'],
-            'items.*.quantity' => ['nullable', 'numeric', 'min:1', 'max:999'],
+            'items.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:999', 'decimal:0,3'],
+            'items.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
+            'items.*.measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
+            'items.*.measurement.measure_id' => ['nullable', 'integer'],
+            'items.*.measurement.unit_label' => ['nullable', 'string', 'max:255'],
+            'items.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
             'delivery_address' => ['required', 'string', 'max:3000'],
             'delivery_apartment_number' => ['nullable', 'string', 'max:50'],
             'delivery_apartment_type' => ['nullable', Rule::in(['apartment', 'office', 'premise'])],
@@ -45,22 +51,6 @@ class CustomerOrderController extends Controller
         abort_unless($user instanceof User, 401);
 
         $rawItems = collect($validated['items']);
-        $goods = $this->publishedGoods($rawItems->pluck('good_id')->unique()->values());
-
-        if ($goods->count() !== $rawItems->pluck('good_id')->unique()->count()) {
-            throw ValidationException::withMessages([
-                'items' => 'Один из товаров уже недоступен для заказа.',
-            ]);
-        }
-
-        $lines = $rawItems
-            ->map(fn (array $item) => $this->makeOrderLine(
-                $goods[(int) $item['good_id']],
-                (float) ($item['quantity'] ?? 1),
-                true,
-            ))
-            ->values();
-
         $entity = $user->entities()
             ->wherePivot('is_primary', true)
             ->first()
@@ -78,11 +68,29 @@ class CustomerOrderController extends Controller
             $user,
             $entity,
             $contactTelephone,
-            $lines,
+            $rawItems,
             $validated,
             $statusId,
             $canManageEntity
         ): Order {
+            $goods = $this->publishedGoods($rawItems->pluck('good_id')->unique()->values());
+
+            if ($goods->count() !== $rawItems->pluck('good_id')->unique()->count()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Один из товаров уже недоступен для заказа.',
+                ]);
+            }
+
+            $lines = $rawItems
+                ->map(fn (array $item) => $this->makeOrderLine(
+                    $goods[(int) $item['good_id']],
+                    (float) ($item['quantity'] ?? 1),
+                    true,
+                    isset($item['measure_id']) ? (int) $item['measure_id'] : null,
+                    $item['measurement'] ?? null,
+                ))
+                ->values();
+
             $address = trim($validated['delivery_address']);
             $building = Building::query()->firstOrCreate([
                 'city_id' => $user->city_id,
@@ -106,7 +114,8 @@ class CustomerOrderController extends Controller
                 'contact_telephone_id' => $contactTelephone?->id,
                 'preferred_delivery_time' => $validated['preferred_delivery_time'],
                 'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),
-                'total_weight' => $lines->sum(fn (array $line) => (float) ($line['line_weight'] ?? 0)) ?: null,
+                'total_weight' => $lines->contains(fn (array $line) => $line['line_weight'] === null)
+                    ? null : $lines->sum('line_weight'),
                 'currency_code' => $lines->first()['currency_code'] ?? 'RUB',
                 'submitted_at' => now(),
             ]);
@@ -150,6 +159,8 @@ class CustomerOrderController extends Controller
             ->map(fn ($item) => [
                 'good_id' => data_get($item, 'good_id', data_get($item, 'id')),
                 'quantity' => data_get($item, 'quantity', 1),
+                'measure_id' => data_get($item, 'measure_id'),
+                'measurement' => data_get($item, 'measurement'),
             ])
             ->all();
 
@@ -163,6 +174,7 @@ class CustomerOrderController extends Controller
         return Good::query()
             ->whereIn('id', $goodIds)
             ->where('is_published', true)
+            ->sharedLock()
             ->with([
                 'country:id,name,flag',
                 'priceTypeValues' => function ($query): void {
@@ -189,17 +201,20 @@ class CustomerOrderController extends Controller
                 'ava_image',
                 'ava_thumb',
                 'denominator',
+                'measure_id',
+                'unit_weight_kg',
                 'description',
             ])
             ->keyBy('id');
     }
 
-    private function makeOrderLine(Good $good, float $quantity, bool $canSeePartnerPrices): array
+    private function makeOrderLine(Good $good, float $quantity, bool $canSeePartnerPrices, ?int $measureId = null, ?array $snapshot = null): array
     {
-        $quantity = max(1, $quantity);
-        $denominator = is_numeric($good->denominator) && (float) $good->denominator > 0
-            ? (float) $good->denominator
-            : null;
+        $measurement = app(GoodMeasurement::class)->assertConfigured($good);
+        app(GoodMeasurement::class)->assertMeasure($good, $measureId);
+        app(GoodMeasurement::class)->assertSnapshot($good, $snapshot);
+        $quantity = round($quantity, 3);
+        $denominator = $measurement['kilograms_per_unit'];
         $price = $this->selectedPrice($good, $canSeePartnerPrices);
         $priceGross = $this->priceValue($price);
         $currencyCode = $this->currencyCode($price);
@@ -207,7 +222,7 @@ class CustomerOrderController extends Controller
             ? round($priceGross * $quantity, 4)
             : null;
         $lineWeight = $denominator !== null
-            ? round($denominator * $quantity, 4)
+            ? round($denominator * $quantity, 6)
             : null;
 
         return [
@@ -216,6 +231,7 @@ class CustomerOrderController extends Controller
             'good_slug' => $good->slug,
             'image_url' => $this->primaryImage($good),
             'quantity' => $quantity,
+            'measure_id' => $measurement['measure_id'],
             'denominator' => $denominator,
             'line_weight' => $lineWeight,
             'price_gross' => $priceGross,
@@ -223,6 +239,7 @@ class CustomerOrderController extends Controller
             'line_total' => $lineTotal,
             'country_name' => $good->country?->name,
             'snapshot' => [
+                'measurement' => $measurement,
                 'description' => $good->description,
                 'price_type' => $price?->priceType
                     ? [

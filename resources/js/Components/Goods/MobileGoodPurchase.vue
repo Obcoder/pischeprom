@@ -1,17 +1,20 @@
 <script setup>
 import { computed } from 'vue'
+import { quantityWeight, unitLabel } from '@/utils/goodMeasurement'
 
 const props = defineProps({
     quantity: { type: [Number, String], default: 1 },
     purchase: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['update:quantity', 'inquiry', 'max'])
-const count = computed(() => Math.min(9999, Math.max(1, Math.floor(Number(props.quantity) || 1))))
-const total = computed(() => props.purchase.package_price > 0 ? props.purchase.package_price * count.value : null)
-const weight = computed(() => Number(props.purchase.package_weight) || null)
-const number = value => Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 3 })
+const count = computed(() => Math.min(9999, Math.max(0.001, Math.round((Number(props.quantity) || 1) * 1000) / 1000)))
+const canOrder = computed(() => Boolean(props.purchase.measurement?.measure_id))
+const unit = computed(() => unitLabel(props.purchase.measurement))
+const total = computed(() => canOrder.value && props.purchase.price > 0 ? props.purchase.price * count.value : null)
+const totalWeight = computed(() => quantityWeight(count.value, props.purchase.measurement))
+const number = value => Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 6 })
 const money = value => `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${props.purchase.currency_code === 'RUB' ? '₽' : props.purchase.currency_code || '₽'}`
-function update(value) { emit('update:quantity', Math.min(9999, Math.max(1, Math.floor(Number(value) || 1)))) }
+function update(value) { emit('update:quantity', Math.min(9999, Math.max(0.001, Math.round((Number(value) || 0.001) * 1000) / 1000))) }
 </script>
 
 <template>
@@ -19,23 +22,24 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(1, Math
         <div class="mobile-good-buy__price-row">
             <div>
                 <span class="mobile-good-buy__caption">{{ purchase.price ? 'Цена товара' : 'Условия под ваш объём' }}</span>
-                <div class="mobile-good-buy__price">{{ purchase.price ? money(purchase.price) : 'Цена по запросу' }}<small v-if="purchase.price"> / {{ purchase.price_unit_label }}</small></div>
-                <span v-if="purchase.price" class="mobile-good-buy__caption">{{ purchase.includes_vat ? 'С НДС' : 'НДС уточняется' }}<template v-if="purchase.package_price"> · {{ money(purchase.package_price) }} / уп.</template></span>
+                <div class="mobile-good-buy__price">{{ purchase.price ? money(purchase.price) : 'Цена по запросу' }}<small v-if="purchase.price"> / {{ unit }}</small></div>
+                <span v-if="purchase.price" class="mobile-good-buy__caption">{{ purchase.includes_vat ? 'С НДС' : 'НДС уточняется' }}</span>
             </div>
-            <button type="button" class="mobile-good-buy__bargain" @click="emit('inquiry', 'bargain')"><v-icon icon="mdi-handshake-outline" size="21" /><span>Торг<small>Своя цена</small></span></button>
+            <button type="button" class="mobile-good-buy__bargain" :disabled="!canOrder" @click="emit('inquiry', 'bargain')"><v-icon icon="mdi-handshake-outline" size="21" /><span>Торг<small>Своя цена</small></span></button>
         </div>
         <div class="mobile-good-buy__quantity-row">
-            <label for="mobile-product-quantity">Количество<small>{{ weight ? `${number(count * weight)} кг · ${number(weight)} кг в упаковке` : 'В упаковках' }}</small></label>
+            <label for="mobile-product-quantity">Количество, {{ unit }}<small>{{ totalWeight ? `${number(totalWeight)} кг` : 'Массу уточнит менеджер' }}</small></label>
             <div class="mobile-good-buy__stepper">
-                <button type="button" aria-label="Уменьшить количество упаковок" :disabled="count === 1" @click="update(count - 1)">−</button>
-                <input id="mobile-product-quantity" :value="quantity" type="number" inputmode="numeric" min="1" max="9999" step="1" @input="emit('update:quantity', $event.target.value)" @change="update($event.target.value)">
-                <button type="button" aria-label="Увеличить количество упаковок" :disabled="count === 9999" @click="update(count + 1)">+</button>
+                <button type="button" aria-label="Уменьшить количество" :disabled="!canOrder || count <= 0.001" @click="update(count - 1)">−</button>
+                <input id="mobile-product-quantity" :value="quantity" type="number" inputmode="decimal" min="0.001" max="9999" step="0.001" :disabled="!canOrder" @input="emit('update:quantity', $event.target.value)" @change="update($event.target.value)">
+                <button type="button" aria-label="Увеличить количество" :disabled="!canOrder || count >= 9999" @click="update(count + 1)">+</button>
             </div>
         </div>
-        <button type="button" class="mobile-good-buy__order" @click="emit('inquiry', 'order')"><span><v-icon icon="mdi-basket-outline" size="21" /> Заказать</span><strong>{{ total ? money(total) : 'Оставить заявку' }} <v-icon icon="mdi-arrow-right" size="18" /></strong></button>
+        <button type="button" class="mobile-good-buy__order" :disabled="!canOrder" @click="emit('inquiry', 'order')"><span><v-icon icon="mdi-basket-outline" size="21" /> Заказать</span><strong>{{ total ? money(total) : 'Оставить заявку' }} <v-icon icon="mdi-arrow-right" size="18" /></strong></button>
+        <p v-if="!canOrder" role="status">Единица измерения товара не задана. Для заказа её должен указать менеджер.</p>
         <p class="mobile-good-buy__note">Без регистрации · Доставку согласуем отдельно</p>
         <div class="mobile-good-buy__contacts">
-            <button type="button" @click="emit('inquiry', 'email')"><v-icon icon="mdi-email-outline" size="20" /> Написать на email</button>
+            <button type="button" :disabled="!canOrder" @click="emit('inquiry', 'email')"><v-icon icon="mdi-email-outline" size="20" /> Написать на email</button>
             <button type="button" class="mobile-good-buy__max" @click="emit('max')"><v-icon icon="mdi-message-text-outline" size="20" /> Написать в MAX</button>
         </div>
     </section>
@@ -58,7 +62,7 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(1, Math
     .mobile-good-buy__stepper { display: flex; flex-shrink: 0; height: 46px; border: 1px solid #e3d3cf; border-radius: 10px; overflow: hidden; }
     .mobile-good-buy__stepper button { width: 44px; color: #800000; font-size: 22px; }
     .mobile-good-buy__stepper button:disabled { opacity: .3; }
-    .mobile-good-buy__stepper input { width: 42px; padding: 0; border: 0; background: #fff; font-size: 16px; text-align: center; appearance: textfield; -moz-appearance: textfield; }
+    .mobile-good-buy__stepper input { width: 68px; padding: 0; border: 0; background: #fff; font-size: 16px; text-align: center; appearance: textfield; -moz-appearance: textfield; }
     .mobile-good-buy__stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
     .mobile-good-buy__order { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 15px; background: #800000; color: #fff; border-radius: 11px; font-size: 14px; }
     .mobile-good-buy__order span, .mobile-good-buy__order strong { display: inline-flex; align-items: center; gap: 9px; }

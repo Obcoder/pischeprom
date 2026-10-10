@@ -9,6 +9,7 @@ import GoodTableAvatar from '@/Components/Goods/GoodTableAvatar.vue'
 import GoodTradeCodeFields from '@/Components/Goods/GoodTradeCodeFields.vue'
 import GoodVatCheck from '@/Components/Goods/GoodVatCheck.vue'
 import { goodTradeCodeValues } from '@/utils/goodTradeCodes'
+import { massUnitFactor } from '@/utils/goodMeasurement.js'
 
 const {
     loading,
@@ -21,6 +22,7 @@ const {
     countries,
     fields,
     vatRates,
+    measures,
     totalItems,
     publishLoading,
     indexGoods: fetchGoods,
@@ -121,6 +123,8 @@ const form = useForm({
     name: '',
     incoming_code: null,
     denominator: '',
+    measure_id: null,
+    unit_weight_kg: null,
     description: '',
     vat_rate_id: null,
     country_id: null,
@@ -144,6 +148,7 @@ const headers = [
     { key: 'created_at', title: 'Создан', sortable: true, width: '132px' },
     { key: 'actions', title: '', sortable: false, width: '80px' },
 ]
+const selectedMeasure = computed(() => (measures.value || []).find(measure => String(measure.id) === String(form.measure_id)))
 
 // ---------- helpers ----------
 function categoryTitleFromGood(g) {
@@ -231,6 +236,8 @@ function openCreate() {
     form.name = ''
     form.incoming_code = null
     form.denominator = ''
+    form.measure_id = (measures.value || []).find(measure => ['кг', 'kg'].includes(String(measure.name).trim().toLowerCase()))?.id ?? null
+    form.unit_weight_kg = null
     form.description = ''
     form.vat_rate_id = null
     form.country_id = null
@@ -250,6 +257,8 @@ function openEdit(g) {
     form.name = g.name ?? ''
     form.incoming_code = g.incoming_code ?? null
     form.denominator = g.denominator ?? ''
+    form.measure_id = g.measure_id ?? g.measurement?.measure_id ?? null
+    form.unit_weight_kg = g.unit_weight_kg ?? null
     form.description = g.description ?? ''
     form.vat_rate_id = g.vat_rate_id ?? null
     form.country_id = g.country_id ?? g.country?.id ?? null
@@ -613,12 +622,19 @@ onBeforeUnmount(() => {
                         <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="form.denominator"
-                                label="Denominator"
+                                label="Масса упаковки, кг (справочно)"
                                 variant="outlined"
                                 density="compact"
                                 :error-messages="form.errors.denominator"
                                 hide-details="auto"
                             />
+                        </v-col>
+
+                        <v-col cols="12" md="6">
+                            <v-select v-model="form.measure_id" :items="measures || []" item-title="name" item-value="id" label="Единица учёта товара" hint="Количество и цена во всём приложении задаются за эту единицу." persistent-hint variant="outlined" density="compact" :error-messages="form.errors.measure_id" @update:model-value="form.unit_weight_kg = null" />
+                        </v-col>
+                        <v-col v-if="selectedMeasure && massUnitFactor(selectedMeasure.name) === null" cols="12" md="6">
+                            <v-text-field v-model="form.unit_weight_kg" label="Масса одной единицы, кг" hint="Для коробок, штук и других немассовых единиц. Для кг, г и т определяется автоматически." persistent-hint type="number" min="0.000001" step="0.000001" variant="outlined" density="compact" :error-messages="form.errors.unit_weight_kg" />
                         </v-col>
 
                         <v-col cols="12">

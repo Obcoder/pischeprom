@@ -10,7 +10,9 @@ class GoodInquiry extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'quantity' => 'integer',
+        'quantity' => 'float',
+        'measure_id' => 'integer',
+        'unit_weight_kg' => 'float',
         'package_weight' => 'float',
         'listed_price' => 'float',
         'proposed_price' => 'float',
@@ -23,6 +25,15 @@ class GoodInquiry extends Model
     public function good(): BelongsTo
     {
         return $this->belongsTo(Good::class);
+    }
+
+    public function measurement(): array
+    {
+        return [
+            'measure_id' => $this->measure_id,
+            'unit_label' => $this->unit_label ?? 'упак.',
+            'kilograms_per_unit' => $this->unit_label !== null ? $this->unit_weight_kg : $this->package_weight,
+        ];
     }
 
     public function order(): BelongsTo

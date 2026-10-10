@@ -9,6 +9,7 @@ use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Measure;
 use App\Models\Warehouse;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodStockMutationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -122,7 +123,11 @@ class GoodStockMovementController extends Controller
 
         $movement = $this->stockMutations->run(
             [$data['good_id']],
-            fn () => GoodStockMovement::create($data)
+            function () use ($data): GoodStockMovement {
+                app(GoodMeasurement::class)->assertMeasure(Good::query()->findOrFail($data['good_id']), $data['measure_id'], 'measure_id');
+
+                return GoodStockMovement::create($data);
+            }
         );
 
         return response()->json(
@@ -139,7 +144,7 @@ class GoodStockMovementController extends Controller
     ): GoodStockMovementResource {
         $this->ensureManualMovement($goodStockMovement);
 
-        $data = $this->validated($request);
+        $data = $this->validated($request, $goodStockMovement);
         $data['quantity_delta'] = $this->quantityDelta($data['type'], $data['quantity']);
         $data['unit_price'] ??= 0;
         unset($data['quantity']);
@@ -149,6 +154,10 @@ class GoodStockMovementController extends Controller
             $goodIds,
             function () use ($goodStockMovement, $goodIds, $data): GoodStockMovement {
                 $movement = $this->lockManualMovement($goodStockMovement, $goodIds);
+                if ((int) $movement->good_id !== (int) $data['good_id']
+                    || (int) $movement->measure_id !== (int) ($data['measure_id'] ?? 0)) {
+                    app(GoodMeasurement::class)->assertMeasure(Good::query()->findOrFail($data['good_id']), $data['measure_id'] ?? null, 'measure_id');
+                }
                 $movement->update($data);
 
                 return $movement;
@@ -177,7 +186,7 @@ class GoodStockMovementController extends Controller
         return response()->json(null, 204);
     }
 
-    private function validated(Request $request): array
+    private function validated(Request $request, ?GoodStockMovement $previous = null): array
     {
         $data = $request->validate([
             'warehouse_id' => ['required', 'exists:warehouses,id'],
@@ -205,6 +214,19 @@ class GoodStockMovementController extends Controller
             throw ValidationException::withMessages([
                 'unit_price' => 'Цена или стоимость движения выходит за допустимые пределы.',
             ]);
+        }
+
+        $measureId = ! empty($data['measure_id']) ? (int) $data['measure_id'] : null;
+        if ($previous && (int) $previous->good_id === (int) $data['good_id'] && ! array_key_exists('measure_id', $data)) {
+            $measureId = $previous->measure_id !== null ? (int) $previous->measure_id : null;
+            $data['measure_id'] = $measureId;
+        }
+        $sameUnit = $previous && (int) $previous->good_id === (int) $data['good_id']
+            && (int) $previous->measure_id === (int) $measureId;
+        if (! $sameUnit) {
+            $data['measure_id'] = app(GoodMeasurement::class)->assertMeasure(
+                Good::query()->findOrFail($data['good_id']), $measureId, 'measure_id',
+            );
         }
 
         return $data;

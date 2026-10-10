@@ -43,11 +43,12 @@ test('the full prototype article, diagrams, FAQs and image attribution are prese
     assert.ok(!html.includes('data-good-id='), 'Empty published goods never leave product links')
 })
 
-test('catalog cards use live images, facts, price units, package totals and availability', async () => {
+test('catalog cards use live images, facts, price units, package metadata and availability', async () => {
     const liveGood = good()
     const html = await render(page({ goods: [liveGood], inlineGoods: { 75: liveGood } }))
-    for (const value of ['Актуальное название партии', '/storage/current-good.jpg', 'Текущая партия', 'Россия', '120 ₽', '1 800 ₽', '15 кг', 'В наличии', 'С НДС']) assert.ok(html.includes(value), value)
+    for (const value of ['Актуальное название партии', '/storage/current-good.jpg', 'Текущая партия', 'Россия', '120 ₽', 'Фасовка: 15 кг / упаковка', '15 кг', 'В наличии', 'С НДС']) assert.ok(html.includes(value), value)
     assert.match(html, /data-class-goods/)
+    assert.ok(!html.includes('1 800 ₽'), 'A price per accounting unit is not a package price')
     assert.match(html, /<article[^>]*data-good-id="75"/)
     assert.match(html, /href="\/g\/current-live-url"[^>]*data-good-id="75"/)
     assert.ok(!html.includes('scomber-scombrus-600-round-foroyar'), 'Prototype URLs are never catalog data')

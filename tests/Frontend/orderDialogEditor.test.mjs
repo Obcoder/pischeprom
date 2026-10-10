@@ -17,8 +17,44 @@ const sourceOrder = (changes = {}) => ({
         { id: 2, apartment: { id: 21, number: '12Б', type: 'office' } },
         { id: 3, apartment_id: 32 },
     ],
-    items: [{ id: 91, good_id: 4, quantity: '3.000', unit_price: null, price_gross: '120.00', denominator: '2.5' }],
+    items: [{ id: 91, good_id: 4, quantity: '3.000', unit_price: null, price_gross: '120.00', denominator: '2.5', measure_id: 2, measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 2.5 } }],
     ...changes,
+})
+
+test('quantity uses the explicit unit and preserved order snapshot rather than package size', async t => {
+    const kg = { measure_id: 1, unit_label: 'кг', kilograms_per_unit: 1 }
+    const box = { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 10 }
+    const h = harness(sourceOrder({ items: [{ id: 91, good_id: 4, quantity: 10, unit_price: 120, denominator: 10, measure_id: 1, measurement: kg }] }))
+    t.after(() => h.dispose())
+    await h.edit({ goods: [{ id: 4, denominator: 10, measurement: box }, { id: 5, denominator: 20, measurement: box }] })
+    assert.equal(h.api.weight.value, 10)
+    assert.equal(h.api.itemUnit(h.api.form.items[0]), 'кг')
+    assert.equal(h.api.dirty.value, false)
+    h.api.form.items[0].good_id = 5
+    h.api.selectItemGood(h.api.form.items[0])
+    assert.equal(h.api.form.items[0].unit_price, null)
+    assert.equal(h.api.weight.value, 100)
+    assert.equal(h.api.itemUnit(h.api.form.items[0]), 'коробка')
+    const save = h.api.saveOrder()
+    assert.deepEqual(h.requests.at(-1).data.items[0].measurement, box)
+    assert.equal(h.requests.at(-1).data.items[0].measure_id, 2)
+    assert.equal(h.requests.at(-1).data.items[0].id, null)
+    h.requests.at(-1).resolve({ data: sourceOrder() })
+    await save
+})
+
+test('unconfigured goods and unknown unit mass never infer weight from package size', async t => {
+    const h = harness(sourceOrder({ items: [] }))
+    t.after(() => h.dispose())
+    await h.edit({ goods: [{ id: 4, denominator: 10 }, { id: 5, denominator: 20, measurement: { measure_id: 2, unit_label: 'шт.', kilograms_per_unit: null } }] })
+    h.api.addItem()
+    h.api.form.items[0].good_id = 4
+    h.api.form.items[0].quantity = 10.5
+    assert.equal(h.api.weight.value, null)
+    assert.equal(h.api.itemUnit(h.api.form.items[0]), 'единица не задана')
+    h.api.form.items[0].good_id = 5
+    assert.equal(h.api.weight.value, null)
+    assert.equal(h.api.itemUnit(h.api.form.items[0]), 'шт.')
 })
 
 function harness(initial = sourceOrder(), initialProps = {}) {
@@ -81,7 +117,7 @@ test('editing preserves selected premises, explicit null prices and stable item 
     assert.equal(write.url, '/api/orders/7')
     assert.deepEqual(write.data.building_ids, [2])
     assert.deepEqual(write.data.building_apartments, { 2: 21 })
-    assert.deepEqual(write.data.items, [{ good_id: 4, quantity: '3.000', unit_price: null }])
+    assert.deepEqual(write.data.items, [{ id: 91, good_id: 4, measure_id: 2, measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 2.5 }, quantity: '3.000', unit_price: null }])
     assert.equal(Object.hasOwn(write.data, 'contact_telephone_id'), false)
     assert.equal(write.data.delivery_version, 'v1')
     assert.equal(h.api.cancelEdit(), false)

@@ -86,9 +86,10 @@ class MobileOrderPresenter
                     'price' => $item->price_gross,
                     'total' => $item->line_total,
                     'measure_id' => $item->measure_id,
-                    'measure_name' => $item->measure?->name,
+                    'measure_name' => $item->measurement()['unit_label'],
+                    'measurement' => $item->measurement(),
                     'available_quantity' => $item->measure_id ? ($balances[$item->good_id.':'.$item->measure_id] ?? 0.0) : null,
-                    'measure_options' => $measures->map(fn (Measure $measure) => [
+                    'measure_options' => $measures->filter(fn (Measure $measure) => ! $item->measure_id || (int) $measure->id === (int) $item->measure_id)->map(fn (Measure $measure) => [
                         'id' => $measure->id,
                         'name' => $measure->name,
                         'available_quantity' => $balances[$item->good_id.':'.$measure->id] ?? 0.0,

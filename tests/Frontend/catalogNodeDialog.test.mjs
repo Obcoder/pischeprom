@@ -21,6 +21,7 @@ const sourceNode = (changes = {}) => ({
 
 const goodMetadata = { products: [{ id: 12, rus: 'Мука пшеничная', category_id: 1 }], categories: [{ id: 1, name: 'Мука' }], fields: [{ id: 3, title: 'Бакалея' }], countries: [{ id: 1, name: 'Россия' }], vat_rates: [{ id: 2, title: 'Льготная', rate: 10 }] }
 const sourceOverview = (changes = {}) => ({ id: 42, denominator: 25, country_id: 1, vat_rate_id: 2, products: [{ id: 12 }], fields: [{ id: 3 }], ...goodTradeCodeValues(), hs_code: '110100', counts: { prices: 3, sales: 5, purchases: 2, media: 8 }, ...changes })
+goodMetadata.measures = [{ id: 1, name: 'кг' }, { id: 2, name: 'коробка' }]
 function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', config = {}) {
     const filename = `resources/js/Components/Catalog/${componentName}.vue`
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename })
@@ -569,6 +570,7 @@ test('goods load their complete overview lazily and cannot save unresolved defau
     assert.equal(h.api.form.description, 'Описание изменено во время загрузки')
     assert.equal(h.api.goodForm.denominator, 25)
     assert.deepEqual(h.api.goodForm.products, [12])
+    assert.equal(h.api.goodForm.measure_id, null)
     h.api.goodForm.denominator = 10
     h.api.goodForm.country_id = null
     h.api.goodForm.hs_code = null
@@ -648,6 +650,7 @@ test('new goods load only options, infer their optional parent product and save 
     await h.ready()
     assert.deepEqual(h.reads.map(request => request.url), ['/api/goods'])
     assert.deepEqual(h.api.goodForm.products, [12])
+    assert.equal(h.api.goodForm.measure_id, 1)
     assert.equal(h.api.dirty.value, false)
     h.api.form.name = 'Новая мука'
     h.api.goodForm.denominator = 25
@@ -655,9 +658,23 @@ test('new goods load only options, infer their optional parent product and save 
     const save = h.api.save()
     assert.equal(h.requests[0].method, 'post')
     assert.equal(h.requests[0].data.good.denominator, 25)
+    assert.equal(h.requests[0].data.good.measure_id, 1)
     assert.deepEqual(h.requests[0].data.good.products, [12])
     assert.deepEqual(h.requests[0].data.good.fields, [3])
     h.requests[0].resolve(sourceNode({ id: 19, parent_id: 11 }))
+    await save
+})
+
+test('existing goods retain unset units until explicitly configured and save unit weight with the record', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    assert.equal(h.api.goodForm.measure_id, null)
+    assert.equal(h.api.dirty.value, false)
+    h.api.goodForm.measure_id = 2
+    h.api.goodForm.unit_weight_kg = 10
+    const save = h.api.save()
+    assert.deepEqual(h.requests[0].data.good, { measure_id: 2, unit_weight_kg: 10, existing_price_basis: 'selected_unit' })
+    h.requests[0].resolve(sourceNode())
     await save
 })
 

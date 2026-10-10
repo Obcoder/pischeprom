@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,6 +21,8 @@ class Good extends Model
     protected $fillable = [
         'name',
         'denominator',
+        'measure_id',
+        'unit_weight_kg',
         'ava_image',
         'ava_thumb',
         'description',
@@ -34,12 +37,33 @@ class Good extends Model
     protected $casts = [
         'is_published' => 'boolean',
         'denominator' => 'float',
+        'measure_id' => 'integer',
+        'unit_weight_kg' => 'float',
         'country_id' => 'integer',
     ];
 
+    protected $with = ['measure'];
+
+    protected $appends = ['measurement'];
+
     protected static function booted()
     {
+        static::creating(function (Good $good): void {
+            // Older imports omit the new field; new goods default to the price
+            // editor's historical base unit. Explicit null remains unconfigured.
+            if (! array_key_exists('measure_id', $good->getAttributes()) && Schema::hasColumn('goods', 'measure_id')) {
+                $good->measure_id = Measure::firstOrCreate(['name' => 'кг'])->id;
+            }
+        });
+
         static::saving(function (Good $good) {
+            if ($good->isDirty('measure_id')) {
+                $good->unsetRelation('measure');
+            }
+            if (($good->isDirty('measure_id') || $good->isDirty('unit_weight_kg'))
+                && $good->measure_id && app(GoodMeasurement::class)->kilograms($good->measure?->name) !== null) {
+                $good->unit_weight_kg = null;
+            }
             $good->forceFill(GoodTradeCodes::normalize($good->getAttributes()));
 
             // A saved address belongs to the product, independently of its name.
@@ -145,6 +169,21 @@ class Good extends Model
     public function products(): BelongsToMany
     {
         return $this->belongsToMany(Product::class);
+    }
+
+    public function measure(): BelongsTo
+    {
+        return $this->belongsTo(Measure::class);
+    }
+
+    public function measurement(): array
+    {
+        return app(GoodMeasurement::class)->for($this);
+    }
+
+    public function getMeasurementAttribute(): array
+    {
+        return $this->measurement();
     }
 
     public function entityClassifications(): BelongsToMany

@@ -1445,7 +1445,7 @@ onMounted(refreshAll)
                                 <tr v-for="item in products" :key="item.id">
                                     <td class="sticky-col">{{ item.id }}</td>
                                     <td>{{ item.title || item.name }}</td>
-                                    <td :class="{ 'is-warn': productPriceTypeId && !item.price_available }">{{ item.price_formatted || item.price || '-' }}</td>
+                                    <td :class="{ 'is-warn': productPriceTypeId && !item.price_available }">{{ item.price_formatted || item.price || '-' }}<span v-if="item.price !== null && item.price !== undefined"> / {{ item.price_unit_label || item.measurement?.unit_label || 'единица не задана' }}</span></td>
                                     <td :class="{ 'is-warn': productPriceTypeId && !item.price_available }">{{ item.price_type_name || (productPriceTypeId ? 'no selected price' : 'auto') }}</td>
                                     <td>{{ item.category || item.canonical_url }}</td>
                                     <td>{{ item.thumbnail_url ? 'img' : '-' }}</td>
@@ -1486,7 +1486,7 @@ onMounted(refreshAll)
                                     <td class="sticky-col">{{ item.id }}</td>
                                     <td>{{ item.item_type }}</td>
                                     <td>{{ item.title }}</td>
-                                    <td>{{ item.offer_price || item.original_price || '-' }} {{ item.currency || '' }}</td>
+                                    <td>{{ item.offer_price || item.original_price || '-' }} {{ item.currency || '' }}<span v-if="item.item_type === 'product'"> / {{ item.snapshot?.price_unit_label || item.snapshot?.measurement?.unit_label || 'единица не задана' }}</span></td>
                                     <td><button v-if="props.permissions.edit" type="button" class="danger" @click="deleteOfferItem(item)">delete</button></td>
                                 </tr>
                             </tbody>

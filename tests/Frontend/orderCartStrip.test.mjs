@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { measurementForGood, quantityWeight } from '../../resources/js/utils/goodMeasurement.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 const projectRoot = new URL('../../', import.meta.url)
-const cartKey = 'pps-order-cart-v1'
+const cartKey = 'pps-order-cart-v2'
 const initialItems = [
-    { good_id: 1, name: 'Мука', quantity: 2, price_gross: 120, denominator: 5 },
-    { good_id: 2, name: 'Сахар', quantity: 1, price_gross: 90, denominator: 1 },
+    { good_id: 1, name: 'Мука', quantity: 2, price_gross: 120, denominator: 5, measurement: { measure_id: 1, unit_label: 'кг', kilograms_per_unit: 1 } },
+    { good_id: 2, name: 'Сахар', quantity: 1, price_gross: 90, denominator: 1, measurement: { measure_id: 2, unit_label: 'кор.', kilograms_per_unit: 10 } },
 ]
 
 const stripImports = source => source.replace(/^import .+? from ['"].*['"];?$/gm, '')
@@ -27,7 +28,7 @@ function cartHarness(user = null, storage = new Map([[cartKey, JSON.stringify(in
     const mountedCallbacks = []
     const storageReads = []
     const environment = {
-        ...Vue,
+        ...Vue, measurementForGood, quantityWeight,
         onMounted: callback => mountedCallbacks.push(callback),
         logo: '/logo.png',
         window: {
@@ -106,7 +107,7 @@ test('the first render stays empty for hydration and shared consumers restore st
     assert.deepEqual(harness.storageReads, [cartKey])
     assert.equal(harness.api.items.value, shared.items.value)
     assert.equal(harness.api.items.value.length, 2)
-    assert.equal(shared.itemsCount.value, 3)
+    assert.equal(shared.itemsCount.value, 2)
     assert.ok(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip__rail')))
     assert.equal(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip__placeholder')), null)
     assert.equal(findVNode(harness.render(), node => hasClass(node, 'order-cart-strip--empty')), null)
@@ -121,7 +122,7 @@ test('the first render stays empty for hydration and shared consumers restore st
 test('cart persistence survives unmounting the first consumer and changing layouts', async t => {
     const storage = new Map([[cartKey, JSON.stringify(initialItems)]])
     const useOrderCart = cartModule({
-        ...Vue,
+        ...Vue, measurementForGood, quantityWeight,
         logo: '/logo.png',
         window: {
             localStorage: {
@@ -175,9 +176,9 @@ for (const [actor, user] of [['guest', null], ['customer', { id: 7 }]]) {
     test(`${actor} can clear every product and the cart remains empty after reloading`, async t => {
         const harness = cartHarness(user)
         t.after(harness.dispose)
-        assert.equal(harness.api.itemsCount.value, 3)
+        assert.equal(harness.api.itemsCount.value, 2)
         assert.equal(harness.api.totalAmount.value, 330)
-        assert.equal(harness.api.totalWeight.value, 11)
+        assert.equal(harness.api.totalWeight.value, 12)
 
         const clear = clearButton(harness)
         assert.ok(clear)
@@ -227,7 +228,7 @@ test('the clear action cannot change products while an order is being submitted'
     harness.api.form.preferred_delivery_time = 'Завтра с 10 до 14'
     harness.api.submitOrder()
     assert.equal(harness.requests.length, 1)
-    assert.deepEqual(harness.requests[0].body.items, [{ good_id: 1, quantity: 2 }, { good_id: 2, quantity: 1 }])
+    assert.deepEqual(harness.requests[0].body.items, [{ good_id: 1, quantity: 2, measure_id: 1, measurement: initialItems[0].measurement }, { good_id: 2, quantity: 1, measure_id: 2, measurement: initialItems[1].measurement }])
     assert.equal(harness.api.submitting.value, true)
 
     const clear = clearButton(harness)
@@ -246,4 +247,61 @@ test('the clear action cannot change products while an order is being submitted'
     await Vue.nextTick()
     assert.equal(harness.storage.get(cartKey), '[]')
     assert.equal(harness.api.errorMessage.value, '')
+})
+
+
+test('old package carts are not silently interpreted as explicit units', t => {
+    const harness = cartHarness(null, new Map([['pps-order-cart-v1', JSON.stringify(initialItems)]]))
+    t.after(harness.dispose)
+    assert.deepEqual(harness.api.items.value, [])
+})
+
+test('cart preserves decimal kg quantities and never multiplies them by packaging', t => {
+    const harness = cartHarness()
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    cart.removeItem(2)
+    cart.setQuantity(1, 10.125)
+    assert.equal(cart.items.value[0].quantity, 10.125)
+    assert.equal(cart.totalWeight.value, 10.125)
+    assert.equal(cart.totalAmount.value, 1215)
+    assert.equal(harness.api.weight(0.000001), '0,000001 кг')
+    const input = findVNode(harness.render(), node => node.props?.['aria-label'] === 'Количество, кг')
+    assert.equal(input.props.step, '0.001')
+})
+
+test('cart requires an explicit measure and retains its snapshot when the product unit changes', t => {
+    const harness = cartHarness()
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    assert.equal(cart.addGood({ id: 3, name: 'Без единицы', denominator: 10 }), false)
+    assert.match(cart.cartError.value, /не задана/)
+    assert.equal(cart.addGood({ id: 1, name: 'Мука', measurement: { measure_id: 2, unit_label: 'кор.', kilograms_per_unit: 10 } }), false)
+    assert.match(cart.cartError.value, /изменилась/)
+    assert.equal(cart.items.value[0].measurement.unit_label, 'кг')
+    assert.equal(cart.items.value[0].quantity, 2)
+})
+
+test('cart shows unknown total mass if any configured unit has no kg conversion', t => {
+    const harness = cartHarness()
+    t.after(harness.dispose)
+    const cart = harness.sharedCart()
+    cart.addGood({ id: 3, name: 'Штука', measurement: { measure_id: 3, unit_label: 'шт.', kilograms_per_unit: null }, denominator: 10 })
+    assert.equal(cart.totalWeight.value, null)
+})
+
+test('checkout displays a stale measurement error without changing quantities or snapshots', async t => {
+    const harness = cartHarness({ id: 7, phone: '+70000000000', delivery_address: 'Москва' })
+    t.after(harness.dispose)
+    harness.api.openCheckout()
+    harness.api.form.preferred_delivery_time = 'Завтра'
+    harness.api.submitOrder()
+    harness.requests[0].reject({ response: { data: {
+        message: 'The given data was invalid.',
+        errors: { 'items.0.measurement': ['Единица товара изменилась. Обновите корзину.'] },
+    } } })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(harness.api.errorMessage.value, 'Единица товара изменилась. Обновите корзину.')
+    assert.deepEqual(harness.api.items.value[0].measurement, initialItems[0].measurement)
+    assert.equal(harness.api.items.value[0].quantity, 2)
 })

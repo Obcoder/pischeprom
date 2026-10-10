@@ -41,6 +41,8 @@ class ProductController extends Controller
                 'goods.ava_image',
                 'goods.ava_thumb',
                 'goods.description',
+                'goods.measure_id',
+                'goods.unit_weight_kg',
             ])
             ->where('goods.is_published', true)
             ->with([

@@ -47,7 +47,7 @@ class MobileOrderFulfillmentTest extends TestCase
         $this->withToken($this->employee->createToken('mobile:test', ['mobile:orders'], now()->addHours(8))->plainTextToken);
         $this->buyer = Entity::query()->create(['name' => 'Покупатель для мобильных заказов']);
         $this->good = Good::query()->create(['name' => 'Сахар']);
-        $this->measure = Measure::query()->create(['name' => 'кг']);
+        $this->measure = Measure::query()->firstOrCreate(['name' => 'кг']);
         $this->warehouse = Warehouse::query()->where('code', Warehouse::GOODS_CODE)->sole();
         $this->receipt($this->good, 10, 20);
     }
@@ -62,8 +62,8 @@ class MobileOrderFulfillmentTest extends TestCase
             ->assertJsonPath('data.responsible', null)
             ->assertJsonPath('data.can_prepare', true)
             ->assertJsonPath('data.can_ship', false)
-            ->assertJsonPath('data.items.0.measure_id', null)
-            ->assertJsonPath('data.warnings.0.code', 'missing_measure')
+            ->assertJsonPath('data.items.0.measure_id', $this->measure->id)
+            ->assertJsonPath('data.items.0.measure_name', 'кг')
             ->json('data');
         $option = collect($data['items'][0]['measure_options'])->firstWhere('id', $this->measure->id);
         $this->assertEquals(10, $option['available_quantity']);
@@ -363,7 +363,7 @@ class MobileOrderFulfillmentTest extends TestCase
             $this->patchJson($this->url($order).'/prepare', ['version' => $data['version'], 'items' => $items])->assertUnprocessable();
         }
         $this->assertNull($order->fresh()->prepared_at);
-        $this->assertNull($order->items()->sole()->measure_id);
+        $this->assertSame($this->measure->id, $order->items()->sole()->measure_id);
         $this->assertDatabaseCount('sales', 0);
     }
 

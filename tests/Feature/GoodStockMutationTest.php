@@ -39,6 +39,8 @@ class GoodStockMutationTest extends TestCase
         Schema::create('goods', function (Blueprint $table): void {
             $table->id();
             $table->string('name');
+            $table->unsignedBigInteger('measure_id')->nullable();
+            $table->decimal('unit_weight_kg', 14, 6)->nullable();
             $table->string('slug')->nullable();
             $table->string('ava_image')->nullable();
             $table->string('ava_thumb')->nullable();
@@ -79,8 +81,8 @@ class GoodStockMutationTest extends TestCase
         });
 
         DB::table('goods')->insert([
-            ['id' => 1, 'name' => 'Первый товар'],
-            ['id' => 2, 'name' => 'Второй товар'],
+            ['id' => 1, 'name' => 'Первый товар', 'measure_id' => 1],
+            ['id' => 2, 'name' => 'Второй товар', 'measure_id' => 1],
         ]);
         DB::table('warehouses')->insert([
             ['id' => 1, 'name' => 'Склад goods', 'code' => Warehouse::GOODS_CODE],

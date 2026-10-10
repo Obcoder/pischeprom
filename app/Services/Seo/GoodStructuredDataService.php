@@ -13,7 +13,7 @@ class GoodStructuredDataService
     public function make(Good $good, bool $forceGenerate = false): array
     {
         if (
-            !$forceGenerate
+            ! $forceGenerate
             && is_array($good->seo?->structured_data)
             && count($good->seo->structured_data)
         ) {
@@ -60,6 +60,14 @@ class GoodStructuredDataService
         }
 
         $data['additionalProperty'] = [];
+
+        if ($good->measurement()['unit_label']) {
+            $data['additionalProperty'][] = [
+                '@type' => 'PropertyValue',
+                'name' => 'Единица учёта и цены',
+                'value' => $good->measurement()['unit_label'],
+            ];
+        }
 
         if ($good->denominator) {
             $data['additionalProperty'][] = [

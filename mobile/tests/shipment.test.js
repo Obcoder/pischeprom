@@ -125,3 +125,10 @@ test('partial, excessive, negative and non-finite quantities cannot be confirmed
     assert.ok(validatePreparation(preparation, []))
     assert.ok(validatePreparation({ items: [] }, []))
 })
+
+
+test('a configured order unit cannot be changed during preparation even if stock permits it', () => {
+    const order = { ...preparation, allow_negative_stock: true, items: [{ ...preparation.items[0], measure_id: 1 }] }
+    assert.equal(validatePreparation(order, [row]), null)
+    assert.match(validatePreparation(order, [{ ...row, measure_id: 2 }]), /Единица измерения должна совпадать/)
+})

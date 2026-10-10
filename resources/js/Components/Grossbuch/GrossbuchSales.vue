@@ -648,9 +648,7 @@ function removeLine(index) {
 
 function handleGoodSelected(line) {
     const good = lineGood(line)
-    if (!line.measure_id && measures.value.length) {
-        line.measure_id = measures.value[0].id
-    }
+    line.measure_id = good?.measurement?.measure_id ?? good?.measure_id ?? null
     return good
 }
 
@@ -1140,6 +1138,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 
                                 <v-select
                                     v-model="detailsLine.measure_id"
+                                    readonly
                                     :items="measures"
                                     item-title="name"
                                     item-value="id"
@@ -1395,6 +1394,7 @@ onBeforeUnmount(() => { salesRequestId++; stockRequestId++ })
 
                             <v-select
                                 v-model="line.measure_id"
+                                readonly
                                 :items="measures"
                                 item-title="name"
                                 item-value="id"

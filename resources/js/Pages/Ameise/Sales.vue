@@ -162,6 +162,11 @@ function indexGoods(){
     })
 }
 const good = reactive({})
+function selectGoodUnit(id) {
+    const selected = (Array.isArray(goods.value) ? goods.value : goods.value?.data || []).find(item => String(item.id) === String(id))
+    formAttachGood.measure_id = selected?.measurement?.measure_id ?? selected?.measure_id ?? null
+    showGood(id)
+}
 function showGood(id){
     axios.get(route('goods.show', id)).then(function (response){
         good.value = response.data
@@ -450,7 +455,7 @@ onBeforeUnmount(() => {
                                                                                             v-model="formAttachGood.good_id"
                                                                                             label="Good"
                                                                                             variant="outlined"
-                                                                                            @change="showGood(formAttachGood.good_id)"
+                                                                                            @update:model-value="selectGoodUnit"
                                                                             ></v-autocomplete>
                                                                         </v-col>
                                                                     </v-row>
@@ -468,7 +473,8 @@ onBeforeUnmount(() => {
                                                                                       :item-value="'id'"
                                                                                       :item-title="'name'"
                                                                                       v-model="formAttachGood.measure_id"
-                                                                                      label="Measures"
+                                                                                      readonly
+                                                                                      label="Единица учёта товара"
                                                                                       variant="outlined"
                                                                                       density="compact"
                                                                             ></v-select>

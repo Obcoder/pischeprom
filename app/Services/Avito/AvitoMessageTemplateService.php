@@ -43,6 +43,7 @@ class AvitoMessageTemplateService
             ['key' => 'good_description', 'label' => 'Описание товара', 'group' => 'Товар'],
             ['key' => 'good_price', 'label' => 'Цена товара', 'group' => 'Товар'],
             ['key' => 'good_currency', 'label' => 'Валюта цены', 'group' => 'Товар'],
+            ['key' => 'good_unit', 'label' => 'Единица количества и цены', 'group' => 'Товар'],
             ['key' => 'good_stock', 'label' => 'Наличие товара', 'group' => 'Товар'],
             ['key' => 'good_url', 'label' => 'Ссылка на товар', 'group' => 'Товар'],
             ['key' => 'context_title', 'label' => 'Название объявления Avito', 'group' => 'Чат'],
@@ -115,6 +116,7 @@ class AvitoMessageTemplateService
             'good_description' => $goodPayload['description'] ?? null,
             'good_price' => isset($price['amount']) ? $this->number((float) $price['amount']) : null,
             'good_currency' => $price['currency_code'] ?? null,
+            'good_unit' => $goodPayload ? ($goodPayload['measurement']['unit_label'] ?: 'единица не задана') : null,
             'good_stock' => $this->availabilityLabel($goodPayload['availability']['status'] ?? null),
             'good_url' => $goodPayload['public_url'] ?? null,
             'context_title' => $chat->title,
@@ -302,9 +304,10 @@ class AvitoMessageTemplateService
         }
 
         return $order->items->map(function ($item): string {
-            $line = '• '.$item->good_name.' — '.$this->number((float) $item->quantity);
+            $unitLabel = $item->measurement()['unit_label'] ?: 'единица не задана';
+            $line = '• '.$item->good_name.' — '.$this->number((float) $item->quantity).' '.$unitLabel;
             if ($item->price_gross !== null) {
-                $line .= ' × '.$this->number((float) $item->price_gross).' '.$item->currency_code;
+                $line .= ' × '.$this->number((float) $item->price_gross).' '.$item->currency_code.' / '.$unitLabel;
             }
 
             return $line;
@@ -326,8 +329,6 @@ class AvitoMessageTemplateService
 
     private function number(float $value): string
     {
-        $precision = abs($value - round($value)) < 0.000001 ? 0 : 2;
-
-        return number_format($value, $precision, ',', ' ');
+        return rtrim(rtrim(number_format($value, 3, ',', ' '), '0'), ',');
     }
 }

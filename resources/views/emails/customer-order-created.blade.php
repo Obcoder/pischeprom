@@ -35,7 +35,7 @@
     Общий вес:
     <strong>
         @if($order->total_weight > 0)
-            {{ number_format($order->total_weight, 3, ',', ' ') }} кг
+            {{ rtrim(rtrim(number_format($order->total_weight, 6, ',', ' '), '0'), ',') }} кг
         @else
             уточняется
         @endif
@@ -54,6 +54,7 @@
     </thead>
     <tbody>
     @foreach($order->items as $item)
+        @php($unitLabel = $item->measurement()['unit_label'] ?: 'единица не задана')
         <tr>
             <td>
                 {{ $item->good_name }}
@@ -61,10 +62,10 @@
                     <br><small>{{ $item->country_name }}</small>
                 @endif
             </td>
-            <td align="right">{{ number_format($item->quantity, 0, ',', ' ') }}</td>
+            <td align="right">{{ rtrim(rtrim(number_format($item->quantity, 3, ',', ' '), '0'), ',') }} {{ $unitLabel }}</td>
             <td align="right">
                 @if($item->price_gross > 0)
-                    {{ number_format($item->price_gross, 2, ',', ' ') }} {{ $item->currency_code === 'RUB' ? '₽' : $item->currency_code }}
+                    {{ number_format($item->price_gross, 2, ',', ' ') }} {{ $item->currency_code === 'RUB' ? '₽' : $item->currency_code }} / {{ $unitLabel }}
                 @else
                     по запросу
                 @endif
@@ -78,7 +79,7 @@
             </td>
             <td align="right">
                 @if($item->line_weight > 0)
-                    {{ number_format($item->line_weight, 3, ',', ' ') }} кг
+                    {{ rtrim(rtrim(number_format($item->line_weight, 6, ',', ' '), '0'), ',') }} кг
                 @else
                     -
                 @endif

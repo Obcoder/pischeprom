@@ -31,8 +31,8 @@ class AvitoOrderConfirmationTest extends TestCase
             $this->assertStringContainsString('Статус: Новый', $text);
             $this->assertStringContainsString('Кол-во │ Цена │ Сумма', $text);
             $this->assertStringContainsString('1 │ Сахар', $text);
-            $this->assertStringContainsString('2,125 │ 150,1234 RUB │ 319,01 RUB', $text);
-            $this->assertStringContainsString('Фасовка: 25 кг', $text);
+            $this->assertStringContainsString('2,125 кор. │ 150,1234 RUB / кор. │ 319,01 RUB', $text);
+            $this->assertStringContainsString('Масса 1 кор.: 25 кг', $text);
             $this->assertStringContainsString('Итого: 319,01 RUB', $text);
             $this->assertStringContainsString('Дата доставки: 06.10.2026', $text);
             $this->assertStringContainsString('Желаемое время: После 18:00', $text);
@@ -162,6 +162,7 @@ class AvitoOrderConfirmationTest extends TestCase
         $order->setRelation('items', new Collection([new OrderItem([
             'good_name' => 'Сахар',
             'quantity' => 2.125,
+            'snapshot' => ['measurement' => ['measure_id' => 2, 'unit_label' => 'кор.', 'kilograms_per_unit' => 25]],
             'denominator' => 25,
             'price_gross' => 150.1234,
             'line_total' => 319.01,

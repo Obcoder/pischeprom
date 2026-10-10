@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { measurementForGood, unitLabel } from '../../resources/js/utils/goodMeasurement.js'
 import { selectedApartment, selectedBuildingApartments } from '../../resources/js/utils/buildingApartments.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
@@ -21,7 +22,7 @@ function panelHarness() {
         requests.push({ method, url, options, resolve: data => resolve({ data }), reject })
     })
     const env = {
-        ...Vue, selectedApartment, selectedBuildingApartments,
+        ...Vue, measurementForGood, unitLabel, selectedApartment, selectedBuildingApartments,
         AvitoAutoReplies: {}, AvitoMessageTemplates: {}, ApartmentSelector: {}, CompactBuildingFields: {}, OrderDetailsDialog: {},
         onBeforeUnmount: callback => disposal.push(callback),
         setTimeout: callback => { timers.set(++timerId, callback); return timerId },

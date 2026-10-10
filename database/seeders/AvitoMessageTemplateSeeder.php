@@ -46,7 +46,7 @@ class AvitoMessageTemplateSeeder extends Seeder
                 'system_key' => 'product-card',
                 'name' => 'Карточка товара',
                 'category' => 'product',
-                'body' => "{{good_name}}\n{{good_description}}\nЦена: {{good_price}} {{good_currency}}\nНаличие: {{good_stock}}\n{{good_url}}",
+                'body' => "{{good_name}}\n{{good_description}}\nЦена: {{good_price}} {{good_currency}} / {{good_unit}}\nНаличие: {{good_stock}}\n{{good_url}}",
                 'is_active' => true,
                 'is_favorite' => false,
                 'sort_order' => 30,

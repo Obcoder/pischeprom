@@ -34,7 +34,7 @@ function imageFailed(id) { brokenImages.value = new Set([...brokenImages.value, 
                         <template v-if="hasPrice(good)">
                             <strong>{{ money(good.offer.price, good.offer.currency_code) }}<small> / {{ good.offer.price_unit_label }}</small></strong>
                             <span>{{ good.offer.includes_vat ? 'С НДС' : 'НДС уточняется при подтверждении' }}</span>
-                            <span v-if="good.offer.package_price && good.offer.package_weight">{{ money(good.offer.package_price, good.offer.currency_code) }} / упаковка {{ number(good.offer.package_weight) }} кг</span>
+                            <span v-if="good.offer.package_weight">Фасовка: {{ number(good.offer.package_weight) }} кг / упаковка</span>
                         </template>
                         <span v-else>Цена по запросу</span>
                     </div>

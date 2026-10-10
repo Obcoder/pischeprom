@@ -1,4 +1,5 @@
 <script setup>
+import { measurementForGood, unitLabel } from '@/utils/goodMeasurement'
 import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
@@ -186,7 +187,7 @@ function priceText(good) {
     const value = price.price_gross ?? price.price_net ?? price.price
     const currency = price.currency?.code || price.price_type?.currency?.code || price.priceType?.currency?.code || 'RUB'
 
-    return `${formatMoney(value)} ${currency}`
+    return `${formatMoney(value)} ${currency} / ${unitLabel(measurementForGood(good))}`
 }
 
 function shortDescription(good) {

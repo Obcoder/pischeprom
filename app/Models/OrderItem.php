@@ -48,6 +48,16 @@ class OrderItem extends Model
         return $this->belongsTo(Measure::class);
     }
 
+    /** Historical order units belong to the line, not today's product card. */
+    public function measurement(): array
+    {
+        return $this->snapshot['measurement'] ?? [
+            'measure_id' => $this->measure_id ? (int) $this->measure_id : null,
+            'unit_label' => $this->measure?->name,
+            'kilograms_per_unit' => $this->denominator,
+        ];
+    }
+
     public function getUnitPriceAttribute(): ?float
     {
         return $this->price_gross;

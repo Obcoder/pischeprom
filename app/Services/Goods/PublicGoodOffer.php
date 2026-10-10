@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class PublicGoodOffer
 {
-    /** Prices in the public catalog are per kilogram when a package weight is known. */
+    /** Prices and quantities use the accounting unit configured on the product. */
     public function for(Good $good): array
     {
         return $this->offer($good, $this->pricesFor($good)->first());
@@ -36,14 +36,22 @@ class PublicGoodOffer
     {
         $value = $price ? (float) ($price->price_gross ?? $price->price_net) : null;
         $weight = $good->denominator > 0 ? (float) $good->denominator : null;
+        $measurement = $good->measurement();
 
         return [
             'price' => $value,
             'price_id' => $price?->id,
             'includes_vat' => $price?->price_gross !== null,
-            'price_unit' => $weight ? 'kg' : 'package',
-            'price_unit_label' => $weight ? 'кг' : 'упаковка',
-            'package_price' => $value !== null ? round($value * ($weight ?? 1), 4) : null,
+            'price_unit' => $measurement['unit_label'] === 'кг' ? 'kg' : 'unit',
+            'price_unit_label' => $measurement['unit_label'] ?? 'единица не задана',
+            'measure_id' => $measurement['measure_id'],
+            'measurement' => $measurement,
+            'unit_weight_kg' => $measurement['kilograms_per_unit'],
+            'can_order' => $measurement['measure_id'] !== null,
+            'unit_price' => $value,
+            // A physical pack quote is informational; ordering uses the accounting unit price.
+            'package_price' => $value !== null && $weight !== null && $measurement['kilograms_per_unit'] !== null
+                ? round($value * $weight / $measurement['kilograms_per_unit'], 4) : null,
             'currency_code' => $price?->currency?->code ?: $price?->priceType?->currency?->code ?: 'RUB',
             'package_weight' => $weight,
         ];

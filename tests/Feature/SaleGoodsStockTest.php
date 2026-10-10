@@ -47,7 +47,7 @@ class SaleGoodsStockTest extends TestCase
         $this->warehouse = Warehouse::query()->where('code', Warehouse::GOODS_CODE)->firstOrFail();
         $this->entity = Entity::query()->create(['name' => 'Покупатель']);
         $this->good = Good::query()->create(['name' => 'Какао-порошок']);
-        $this->measure = Measure::query()->create(['name' => 'кг']);
+        $this->measure = Measure::query()->firstOrCreate(['name' => 'кг']);
     }
 
     public function test_sale_deducts_goods_stock_at_weighted_cost_and_updates_warehouse_balance(): void

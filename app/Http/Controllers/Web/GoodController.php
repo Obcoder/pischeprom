@@ -39,6 +39,8 @@ class GoodController extends Controller
                 'goods.ava_image',
                 'goods.ava_thumb',
                 'goods.denominator',
+                'goods.measure_id',
+                'goods.unit_weight_kg',
                 'goods.description',
                 'goods.created_at',
             ])

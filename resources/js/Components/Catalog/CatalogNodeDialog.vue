@@ -137,6 +137,9 @@ function nearestProductId() {
 function defaultGood(source = {}) {
     return {
         incoming_code: source.incoming_code ?? null,
+        measure_id: source.measure_id ?? source.measurement?.measure_id ?? null,
+        unit_weight_kg: source.unit_weight_kg ?? null,
+        existing_price_basis: 'selected_unit',
         denominator: source.denominator ?? null, country_id: source.country_id ?? source.country?.id ?? null,
         vat_rate_id: source.vat_rate_id ?? source.vat_rate?.id ?? null,
         products: (source.products || []).map(product => typeof product === 'object' ? product.id : product),
@@ -178,6 +181,7 @@ async function loadGoodOverview() {
         goodOptions.value = options
         Object.assign(goodForm, defaultGood(source || {}))
         if (!nodeId) {
+            goodForm.measure_id = (options.measures || []).find(measure => ['кг', 'kg'].includes(String(measure.name).trim().toLowerCase()))?.id ?? null
             inferredProductId = nearestProductId()
             goodForm.products = inferredProductId ? [inferredProductId] : []
         }
@@ -193,8 +197,11 @@ async function loadGoodOverview() {
 function goodPayload() {
     const previous = JSON.parse(goodBaseline.value)
     const payload = {}
-    for (const key of ['incoming_code', 'denominator', 'country_id', 'vat_rate_id', ...goodTradeCodeFields.map(field => field.key)]) {
+    for (const key of ['incoming_code', 'measure_id', 'unit_weight_kg', 'denominator', 'country_id', 'vat_rate_id', ...goodTradeCodeFields.map(field => field.key)]) {
         if (!record.value || !same(goodForm[key], previous[key])) payload[key] = goodForm[key] === '' ? null : goodForm[key]
+    }
+    if (record.value && payload.measure_id && !goodOverview.value?.measure_id && !goodOverview.value?.measurement?.measure_id && goodOverview.value?.counts?.prices > 0) {
+        payload.existing_price_basis = goodForm.existing_price_basis || 'selected_unit'
     }
     for (const key of ['products', 'fields']) {
         const values = [...new Set(goodForm[key] || [])]

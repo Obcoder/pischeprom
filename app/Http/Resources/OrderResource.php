@@ -97,6 +97,8 @@ class OrderResource extends JsonResource
                 'good_slug' => $item->good_slug,
                 'image_url' => $item->image_url,
                 'quantity' => $item->quantity,
+                'measure_id' => $item->measure_id,
+                'measurement' => $item->measurement(),
                 'denominator' => $item->denominator,
                 'line_weight' => $item->line_weight,
                 'unit_price' => $item->price_gross,

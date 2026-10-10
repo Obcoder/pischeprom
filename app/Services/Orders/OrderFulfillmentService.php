@@ -2,12 +2,14 @@
 
 namespace App\Services\Orders;
 
+use App\Models\Measure;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatus;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodSaleStockSynchronizer;
 use App\Services\Goods\SaleStockRequestService;
 use Illuminate\Support\Facades\DB;
@@ -66,10 +68,13 @@ class OrderFulfillmentService
                     'apartment' => $building->apartment?->only(['id', 'number', 'type']),
                 ] : []),
             ])->values()->all(),
-            'items' => $order->items->map(fn (OrderItem $item) => $item->only([
-                'id', 'good_id', 'good_name', 'quantity', 'denominator', 'line_weight',
-                'price_gross', 'currency_code', 'line_total', 'measure_id',
-            ]))->values()->all(),
+            'items' => $order->items->map(fn (OrderItem $item) => [
+                ...$item->only([
+                    'id', 'good_id', 'good_name', 'quantity', 'denominator', 'line_weight',
+                    'price_gross', 'currency_code', 'line_total', 'measure_id',
+                ]),
+                ...(isset($item->snapshot['measurement']) ? ['measurement' => $item->snapshot['measurement']] : []),
+            ])->values()->all(),
         ], JSON_THROW_ON_ERROR | JSON_PRESERVE_ZERO_FRACTION));
     }
 
@@ -122,6 +127,10 @@ class OrderFulfillmentService
             if ($requireMeasures && ! $item->measure) {
                 $problems[] = ['code' => 'missing_measure', 'message' => "Выберите единицу измерения: {$item->good_name}."];
             }
+            $snapshotMeasureId = $item->snapshot['measurement']['measure_id'] ?? null;
+            if ($snapshotMeasureId && (int) $snapshotMeasureId !== (int) $item->measure_id) {
+                $problems[] = ['code' => 'measurement_mismatch', 'message' => "Единица измерения не совпадает с заказом: {$item->good_name}."];
+            }
             $quantity = (float) $item->quantity;
             $price = (float) $item->price_gross;
             $lineTotal = round($quantity * $price, 4);
@@ -164,9 +173,34 @@ class OrderFulfillmentService
                 if (! is_finite((float) $line['quantity']) || abs((float) $line['quantity'] - (float) $item->quantity) > 0.000000001) {
                     throw ValidationException::withMessages(['items' => 'Количество должно совпадать с заказом. Измените заказ в основном приложении перед сборкой.']);
                 }
-                $item->update(['measure_id' => (int) $line['measure_id']]);
+                $measureId = (int) $line['measure_id'];
+                $lockedMeasureId = $item->snapshot['measurement']['measure_id'] ?? $item->measure_id;
+                if ($lockedMeasureId && (int) $lockedMeasureId !== $measureId) {
+                    throw ValidationException::withMessages(['items' => 'Единицу измерения позиции заказа нельзя менять при сборке. Исправьте заказ в основном приложении.']);
+                }
+                $measurement = $item->measurement();
+                $measurement['measure_id'] = $measureId;
+                $measurement['unit_label'] ??= Measure::query()->findOrFail($measureId)->name;
+                $weights = [];
+                if (! $lockedMeasureId) {
+                    // The employee explicitly resolves a legacy line's previously unknown unit.
+                    $measurement['kilograms_per_unit'] = app(GoodMeasurement::class)->kilograms($measurement['unit_label'])
+                        ?? $measurement['kilograms_per_unit'];
+                    $weights = [
+                        'denominator' => $measurement['kilograms_per_unit'],
+                        'line_weight' => $measurement['kilograms_per_unit'] !== null
+                            ? round($item->quantity * $measurement['kilograms_per_unit'], 6) : null,
+                    ];
+                }
+                $item->update([
+                    'measure_id' => $measureId,
+                    'snapshot' => [...($item->snapshot ?? []), 'measurement' => $measurement],
+                    ...$weights,
+                ]);
             }
             $order->forceFill([
+                'total_weight' => $order->items->contains(fn (OrderItem $item) => $item->line_weight === null)
+                    ? null : $order->items->sum('line_weight'),
                 'fulfillment_warehouse_id' => $warehouse->id,
                 'prepared_by_user_id' => $actor->id,
                 'prepared_at' => now(),

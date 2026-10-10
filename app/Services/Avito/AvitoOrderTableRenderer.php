@@ -132,15 +132,17 @@ class AvitoOrderTableRenderer
         $rows = [];
         foreach ($order->items as $index => $item) {
             $currency = $item->currency_code ?: $order->currency_code ?: 'RUB';
+            $measurement = $item->measurement();
+            $unitLabel = $measurement['unit_label'] ?: 'единица не задана';
             $cells = [
                 [(string) ($index + 1)],
                 $this->wrap($item->good_name ?: 'Товар', self::COLUMN_WIDTHS[1] - 36, 22),
-                $this->wrap($this->number((float) $item->quantity), self::COLUMN_WIDTHS[2] - 32, 22),
-                $this->wrap($this->money($item->price_gross, $currency, 4), self::COLUMN_WIDTHS[3] - 32, 22),
+                $this->wrap($this->number((float) $item->quantity).' '.$unitLabel, self::COLUMN_WIDTHS[2] - 32, 22),
+                $this->wrap($this->money($item->price_gross, $currency, 4).($item->price_gross !== null ? ' / '.$unitLabel : ''), self::COLUMN_WIDTHS[3] - 32, 22),
                 $this->wrap($this->money($item->line_total, $currency), self::COLUMN_WIDTHS[4] - 32, 22),
             ];
-            $packing = $item->denominator !== null && $item->denominator > 0
-                ? $this->wrap('Фасовка: '.$this->number((float) $item->denominator, 4).' кг', self::COLUMN_WIDTHS[1] - 36, 18)
+            $packing = $measurement['kilograms_per_unit'] !== null && $measurement['kilograms_per_unit'] > 0
+                ? $this->wrap('Масса единицы: '.$this->number((float) $measurement['kilograms_per_unit'], 6).' кг', self::COLUMN_WIDTHS[1] - 36, 18)
                 : [];
             $lineCount = max(count($cells[1]) + count($packing), ...array_map('count', $cells));
             $rows[] = ['cells' => $cells, 'packing' => $packing, 'height' => max(88, 28 + $lineCount * self::LINE_HEIGHT)];
@@ -221,7 +223,7 @@ class AvitoOrderTableRenderer
             $amountSize--;
         }
         $this->drawText($image, $amount, 96, $y + 48, $amountSize, '#ffffff', true);
-        $weight = $order->total_weight !== null ? $this->number((float) $order->total_weight, 4).' кг' : 'Уточняется';
+        $weight = $order->total_weight !== null ? $this->number((float) $order->total_weight, 6).' кг' : 'Уточняется';
         $this->drawText($image, 'Общий вес: '.$weight, self::WIDTH - 96, $y + 48, 21, '#ffffff', false, 'right');
         $y += 120;
         foreach ($lines as $line) {

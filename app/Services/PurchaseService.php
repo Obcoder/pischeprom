@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Good;
 use App\Models\Purchase;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodPurchaseStockSynchronizer;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +55,7 @@ class PurchaseService
                 'amount' => $amount,
             ]);
 
-            $purchase->goods()->sync($this->prepareSyncData($items));
+            $purchase->goods()->sync($this->prepareSyncData($items, $purchase));
             $this->stockSynchronizer->sync($purchase);
 
             return $purchase->load(['entity', 'goods']);
@@ -110,16 +112,27 @@ class PurchaseService
         return $amount;
     }
 
-    protected function prepareSyncData(array $items): array
+    protected function prepareSyncData(array $items, ?Purchase $purchase = null): array
     {
         $syncData = [];
+        $previous = $purchase ? DB::table('good_purchase')->where('purchase_id', $purchase->id)->lockForUpdate()->get()->keyBy('good_id') : collect();
+        $goods = Good::query()->whereIn('id', array_column($items, 'good_id'))->lockForUpdate()->get()->keyBy('id');
 
         foreach ($items as $item) {
             $goodId = (int) $item['good_id'];
+            $measureId = ! empty($item['measure_id']) ? (int) $item['measure_id'] : null;
+            $old = $previous->get($goodId);
+            if ($old && ! array_key_exists('measure_id', $item)) {
+                $measureId = $old->measure_id !== null ? (int) $old->measure_id : null;
+            }
+            $sameUnit = $old && (int) $old->measure_id === (int) $measureId;
+            if (! $sameUnit) {
+                $measureId = app(GoodMeasurement::class)->assertMeasure($goods->get($goodId), $measureId, 'items');
+            }
 
             $syncData[$goodId] = [
                 'quantity' => (float) ($item['quantity'] ?? 0),
-                'measure_id' => ! empty($item['measure_id']) ? (int) $item['measure_id'] : null,
+                'measure_id' => $measureId,
                 'price' => (float) ($item['price'] ?? 0),
                 'currency_id' => ! empty($item['currency_id']) ? (int) $item['currency_id'] : null,
             ];

@@ -222,7 +222,7 @@ function formatMoney(value, currency = 'RUB') {
 }
 function formatWeight(value) {
     if (value == null || !Number.isFinite(Number(value))) return ''
-    return `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 3 })} кг`
+    return `${Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 6 })} кг`
 }
 function formatDeliveryDate(value) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''))
@@ -351,8 +351,8 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                             <td><strong class="orders-ledger__entity" :title="order.entity?.name">{{ order.entity?.name || 'Без контрагента' }}</strong><small v-if="order.entity?.INN">ИНН {{ order.entity.INN }}</small></td>
                             <td><div class="orders-ledger__goods">
                                 <template v-for="item in (order.items || [])" :key="item.id">
-                                    <Link v-if="item.good?.id" :href="goodUrl(item.good)" :title="`${item.good_name} × ${item.quantity}`" @click.stop>{{ item.good_name }} <span>× {{ item.quantity }}</span></Link>
-                                    <span v-else>{{ item.good_name }} × {{ item.quantity }}</span>
+                                    <Link v-if="item.good?.id" :href="goodUrl(item.good)" :title="`${item.good_name} × ${item.quantity} ${item.measurement?.unit_label || ''}`" @click.stop>{{ item.good_name }} <span>× {{ item.quantity }} {{ item.measurement?.unit_label || item.measure_name || '?' }}</span></Link>
+                                    <span v-else>{{ item.good_name }} × {{ item.quantity }} {{ item.measurement?.unit_label || item.measure_name || '?' }}</span>
                                 </template>
                             </div></td>
                             <td class="orders-ledger__money"><strong>{{ formatMoney(order.total_amount, order.currency_code) }}</strong><small>{{ formatWeight(order.total_weight) }}</small></td>

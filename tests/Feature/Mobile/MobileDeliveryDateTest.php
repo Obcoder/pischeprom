@@ -40,6 +40,7 @@ class MobileDeliveryDateTest extends TestCase
         $this->buyer = Entity::query()->create(['name' => 'Покупатель с доставкой']);
         $this->good = Good::query()->create(['name' => 'Товар для доставки']);
         $this->measure = Measure::query()->create(['name' => 'шт']);
+        $this->good->update(['measure_id' => $this->measure->id]);
     }
 
     public function test_admin_can_create_read_clear_and_preserve_calendar_dates_without_timezone_conversion(): void

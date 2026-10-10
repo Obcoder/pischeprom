@@ -49,6 +49,9 @@ export function validatePreparation(order, rows) {
         if (!Number.isFinite(quantity) || quantity <= 0 || Math.abs(quantity - Number(item.quantity)) > 0.0000001) {
             return 'Для полной отгрузки количество должно совпадать с заказом.'
         }
+        if (item.measure_id != null && String(row.measure_id) !== String(item.measure_id)) {
+            return `Единица измерения должна совпадать с заказом: ${item.name}.`
+        }
         const measure = item.measure_options?.find(option => String(option.id) === String(row.measure_id))
         if (!measure) return 'Выберите единицу измерения для каждой позиции.'
         if (order.allow_negative_stock !== true && Number(measure.available_quantity) + 0.0000001 < quantity) return `Недостаточный остаток: ${item.name}.`

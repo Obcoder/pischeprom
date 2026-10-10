@@ -137,7 +137,7 @@ class OrderController extends Controller
             'goods' => Good::query()
                 ->when($goodSearch !== '', fn (Builder $query) => $query->search($goodSearch))
                 ->orderBy('name')
-                ->get(['id', 'name', 'slug', 'denominator']),
+                ->get(['id', 'name', 'slug', 'denominator', 'measure_id', 'unit_weight_kg']),
             'currency_codes' => Currency::query()
                 ->whereNotNull('code')
                 ->orderBy('code')
@@ -238,7 +238,13 @@ class OrderController extends Controller
             'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.good_id' => ['required', 'integer', 'distinct', 'exists:goods,id'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999'],
+            'items.*.id' => ['nullable', 'integer', 'distinct'],
+            'items.*.measure_id' => ['nullable', 'integer', 'exists:measures,id'],
+            'items.*.measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
+            'items.*.measurement.measure_id' => ['nullable', 'integer'],
+            'items.*.measurement.unit_label' => ['nullable', 'string', 'max:255'],
+            'items.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:999999999', 'decimal:0,3'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
         ]);
     }

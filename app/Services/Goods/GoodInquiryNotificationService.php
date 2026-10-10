@@ -92,14 +92,21 @@ class GoodInquiryNotificationService
 
     private function managerMessage(GoodInquiry $inquiry): string
     {
-        $unit = $inquiry->price_unit === 'kg' ? 'кг' : 'упак.';
+        $measurement = $inquiry->measurement();
+        $quantityUnit = $measurement['unit_label'] ?: 'единица не задана';
+        $priceUnit = $inquiry->measure_id === null
+            ? ($inquiry->price_unit === 'kg' ? 'кг' : 'упак.')
+            : $quantityUnit;
+        $weight = $measurement['kilograms_per_unit'] !== null
+            ? rtrim(rtrim(number_format($inquiry->quantity * $measurement['kilograms_per_unit'], 6, ',', ' '), '0'), ',')
+            : null;
 
         return implode("\n", array_filter([
             $inquiry->kindLabel().' '.$inquiry->number,
             $inquiry->good_name,
-            'Количество: '.$inquiry->quantity.' упак.'.($inquiry->package_weight ? ' / '.($inquiry->quantity * $inquiry->package_weight).' кг' : ''),
-            'Цена на сайте: '.($inquiry->listed_price !== null ? $inquiry->listed_price.' '.$inquiry->currency_code.' / '.$unit : 'уточняется'),
-            $inquiry->proposed_price !== null ? 'Предложение: '.$inquiry->proposed_price.' '.$inquiry->currency_code.' / '.$unit : null,
+            'Количество: '.$inquiry->quantity.' '.$quantityUnit.($weight !== null ? ' / '.$weight.' кг' : ''),
+            'Цена на сайте: '.($inquiry->listed_price !== null ? $inquiry->listed_price.' '.$inquiry->currency_code.' / '.$priceUnit : 'уточняется'),
+            $inquiry->proposed_price !== null ? 'Предложение: '.$inquiry->proposed_price.' '.$inquiry->currency_code.' / '.$priceUnit : null,
             $inquiry->kind === 'bargain' ? 'Условия: '.$inquiry->scenarioLabel() : null,
             'Клиент: '.$inquiry->customer_name,
             'Email: '.$inquiry->customer_email,

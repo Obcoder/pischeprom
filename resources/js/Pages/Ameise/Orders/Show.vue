@@ -8,6 +8,7 @@ import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
 import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
+import { lineMeasurement, quantityWeight, unitLabel } from '@/utils/goodMeasurement.js'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -86,16 +87,18 @@ const calculatedTotal = computed(() => form.items.reduce((total, item) => {
     )
 }, 0))
 const calculatedWeight = computed(() => form.items.reduce((total, item) => {
-    const quantity = Number(item.quantity)
-    const good = goodById(item.good_id)
-    const denominator = Number(good?.denominator)
-
-    return total + (
-        Number.isFinite(quantity) && Number.isFinite(denominator)
-            ? quantity * denominator
-            : 0
-    )
+    if (!item.good_id) return total
+    const value = itemWeight(item)
+    return total === null || value === null ? null : total + value
 }, 0))
+
+const itemMeasurement = item => lineMeasurement(item, goodById(item.good_id))
+const itemUnit = item => unitLabel(itemMeasurement(item))
+const itemWeight = item => quantityWeight(item.quantity, itemMeasurement(item))
+function selectItemGood(item) {
+    if (String(item.good_id) !== String(item._selected_good_id)) item.unit_price = null
+    item._selected_good_id = item.good_id
+}
 
 useHead(() => ({
     title: `Ameise — ${pageTitle.value}`,
@@ -141,6 +144,7 @@ function fillForm(source) {
         preferred_delivery_time: source.preferred_delivery_time || '',
         internal_comment: source.internal_comment || '',
         items: (source.items || []).map((item) => makeLine({
+            ...item,
             id: item.id,
             good_id: item.good_id,
             quantity: item.quantity,
@@ -158,6 +162,10 @@ function makeLine(source = {}) {
         _key: `${Date.now()}-${lineKey}`,
         id: source.id || null,
         good_id: source.good_id || null,
+        _original_good_id: source.good_id || null,
+        _selected_good_id: source.good_id || null,
+        measure_id: source.measure_id ?? source.measurement?.measure_id ?? null,
+        measurement: source.measurement ?? null,
         quantity: source.quantity ?? 1,
         unit_price: source.unit_price ?? null,
     }
@@ -190,6 +198,7 @@ function itemTotal(item) {
 }
 
 function formatNumber(value, digits = 2) {
+    if (value == null || value === '') return '—'
     const number = Number(value)
 
     return Number.isFinite(number)
@@ -240,7 +249,10 @@ function contentPayload() {
         preferred_delivery_time: form.preferred_delivery_time || null,
         internal_comment: form.internal_comment || null,
         items: form.items.map((item) => ({
+            id: String(item.good_id) === String(item._original_good_id) ? item.id : null,
             good_id: item.good_id,
+            measure_id: itemMeasurement(item).measure_id,
+            measurement: itemMeasurement(item),
             quantity: item.quantity,
             unit_price: item.unit_price === '' ? null : item.unit_price,
         })),
@@ -634,6 +646,7 @@ onMounted(async () => {
                         <div class="order-item-row__good">
                             <v-autocomplete
                                 v-model="item.good_id"
+                                @update:model-value="selectItemGood(item)"
                                 :disabled="contentDisabled"
                                 :items="options.goods"
                                 item-title="name"
@@ -652,6 +665,7 @@ onMounted(async () => {
                                 Карточка товара
                                 <v-icon icon="mdi-open-in-new" size="11" />
                             </Link>
+                            <small v-if="item.good_id && !itemMeasurement(item).measure_id">Задайте единицу учёта в карточке товара.</small>
                         </div>
 
                         <v-text-field
@@ -660,7 +674,7 @@ onMounted(async () => {
                             type="number"
                             min="0.001"
                             step="0.001"
-                            label="Количество"
+                            :label="`Количество, ${itemUnit(item)}`"
                             variant="outlined"
                             density="compact"
                             hide-details="auto"
@@ -673,7 +687,7 @@ onMounted(async () => {
                             type="number"
                             min="0"
                             step="0.01"
-                            label="Цена"
+                            :label="`Цена / ${itemUnit(item)}`"
                             variant="outlined"
                             density="compact"
                             hide-details="auto"
@@ -682,8 +696,8 @@ onMounted(async () => {
 
                         <div class="order-item-row__total">
                             <strong>{{ formatMoney(itemTotal(item)) }}</strong>
-                            <small v-if="goodById(item.good_id)?.denominator">
-                                {{ formatNumber(Number(item.quantity) * Number(goodById(item.good_id).denominator), 3) }} кг
+                            <small v-if="itemWeight(item) !== null">
+                                {{ formatNumber(itemWeight(item), 6) }} кг
                             </small>
                         </div>
 
@@ -710,7 +724,7 @@ onMounted(async () => {
                     </div>
                     <div>
                         <span>Общий вес</span>
-                        <strong>{{ formatNumber(calculatedWeight, 3) }} кг</strong>
+                        <strong>{{ formatNumber(calculatedWeight, 6) }} кг</strong>
                     </div>
                     <div class="order-total__money">
                         <span>Итого</span>

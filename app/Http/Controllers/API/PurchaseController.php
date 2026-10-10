@@ -113,6 +113,8 @@ class PurchaseController extends Controller
             'slug',
             'ava_image',
             'ava_thumb',
+            'measure_id',
+            'unit_weight_kg',
         ]);
         $unitColumns = $this->existingColumns('units', [
             'id',

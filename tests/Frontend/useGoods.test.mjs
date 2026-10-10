@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { compileScript, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { goodTradeCodeValues } from '../../resources/js/utils/goodTradeCodes.js'
+import { massUnitFactor } from '../../resources/js/utils/goodMeasurement.js'
 
 const root = new URL('../../', import.meta.url)
 const stripImports = source => source.replace(/^import\s+[\s\S]*?\s+from\s+['"].*?['"];?$/gm, '')
@@ -14,6 +15,7 @@ function goodsHarness() {
     const environment = {
         ...Vue,
         goodTradeCodeValues,
+        massUnitFactor,
         route: name => name,
         console: { error: error => errors.push(error) },
         axios: {
@@ -219,15 +221,19 @@ test('CRUD transmits nullable trade codes and CDN URLs without converting identi
     environment.axios.put = async (url, body) => writes.push({ url, body })
     await state.saveGood({ name: 'Печень трески', incoming_code: '001-АБ / 09', tn_ved_code: '0305200000', hs_code: '030520',
         avatar_source_url: 'https://cdn.example.com/good.jpg', avatar_thumb_source_url: 'https://cdn.example.com/good-small.jpg',
-        is_published: true, products: [], fields: [] })
+        is_published: true, products: [], fields: [], measure_id: 2, unit_weight_kg: 10 })
     assert.equal(writes[0].body.tn_ved_code, '0305200000')
     assert.equal(writes[0].body.incoming_code, '001-АБ / 09')
+    assert.equal(writes[0].body.measure_id, 2)
+    assert.equal(writes[0].body.unit_weight_kg, 10)
     assert.equal(writes[0].body.gtin, null)
     assert.equal(writes[0].body.avatar_source_url, 'https://cdn.example.com/good.jpg')
     await state.saveGood({ id: 1, name: 'Updated', ava_image: new File(['avatar'], 'avatar.jpg', { type: 'image/jpeg' }),
-        incoming_code: '0000002', gtin: '00012345600012', products: [], fields: [] })
+        incoming_code: '0000002', gtin: '00012345600012', products: [], fields: [], measure_id: 1, unit_weight_kg: null })
     assert.equal(writes[1].body.get('gtin'), '00012345600012')
     assert.equal(writes[1].body.get('incoming_code'), '0000002')
+    assert.equal(writes[1].body.get('measure_id'), '1')
+    assert.equal(writes[1].body.get('unit_weight_kg'), '')
     assert.equal(writes[1].body.get('hs_code'), '')
     assert.equal(writes[1].body.get('products'), '')
     assert.equal(writes[1].body.get('fields'), '')

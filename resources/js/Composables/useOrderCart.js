@@ -1,10 +1,13 @@
 import { computed, effectScope, onMounted, ref, watch } from 'vue'
 
 import { logo } from '@/Pages/Helpers/consts.js'
+import { measurementForGood, quantityWeight } from '@/utils/goodMeasurement'
 
-const CART_KEY = 'pps-order-cart-v1'
+// Old carts counted packages implicitly; they cannot be reinterpreted as product units.
+const CART_KEY = 'pps-order-cart-v2'
 
 const items = ref([])
+const cartError = ref('')
 // Persistence belongs to the shared cart, independent of the active layout.
 const storageScope = effectScope(true)
 let initialized = false
@@ -64,7 +67,7 @@ function normalizeQuantity(value) {
     const quantity = Number(value)
 
     return Number.isFinite(quantity) && quantity > 0
-        ? Math.max(1, Math.round(quantity))
+        ? Math.min(9999, Math.max(0.001, Math.round(quantity * 1000) / 1000))
         : 1
 }
 
@@ -78,8 +81,9 @@ function normalizeNumber(value) {
 
 function normalizeCartItem(item) {
     const goodId = Number(item?.good_id || item?.id)
+    const measurement = measurementForGood(item)
 
-    if (!Number.isFinite(goodId) || goodId <= 0) {
+    if (!Number.isFinite(goodId) || goodId <= 0 || !measurement.measure_id || !measurement.unit_label) {
         return null
     }
 
@@ -89,6 +93,11 @@ function normalizeCartItem(item) {
         slug: item.slug || item.good_slug || null,
         image_url: item.image_url || item.image || logo,
         quantity: normalizeQuantity(item.quantity),
+        measurement: {
+            measure_id: Number(measurement.measure_id),
+            unit_label: String(measurement.unit_label),
+            kilograms_per_unit: normalizeNumber(measurement.kilograms_per_unit),
+        },
         denominator: normalizeNumber(item.denominator),
         country_name: item.country_name || item.country?.name || null,
         price_gross: normalizeNumber(item.price_gross),
@@ -193,6 +202,7 @@ function cartItemFromGood(good) {
         slug: good?.slug,
         image_url: primaryImage(good),
         denominator: good?.denominator,
+        measurement: measurementForGood(good),
         country_name: good?.country?.name,
         price_gross: priceValue(price),
         currency_code: currencyCode(price),
@@ -208,44 +218,59 @@ export function useOrderCart() {
         return sum + (Number(item.price_gross || 0) * normalizeQuantity(item.quantity))
     }, 0))
 
-    const totalWeight = computed(() => items.value.reduce((sum, item) => {
-        return sum + (Number(item.denominator || 0) * normalizeQuantity(item.quantity))
-    }, 0))
+    const totalWeight = computed(() => {
+        const weights = items.value.map(item => quantityWeight(normalizeQuantity(item.quantity), item.measurement))
+        return weights.some(weight => weight === null) ? null : weights.reduce((sum, weight) => sum + weight, 0)
+    })
 
-    const itemsCount = computed(() => items.value.reduce((sum, item) => sum + normalizeQuantity(item.quantity), 0))
+    const itemsCount = computed(() => items.value.length)
 
     const currencyCodeValue = computed(() => items.value.find((item) => item.currency_code)?.currency_code || 'RUB')
 
     function addGood(good) {
+        cartError.value = ''
         const cartItem = cartItemFromGood(good)
 
         if (!cartItem) {
-            return
+            cartError.value = 'Единица измерения товара не задана. Для заказа её должен указать менеджер.'
+            return false
         }
 
         const existing = items.value.find((item) => Number(item.good_id) === Number(cartItem.good_id))
 
         if (existing) {
-            existing.quantity = normalizeQuantity(existing.quantity) + 1
+            if (existing.measurement.measure_id !== cartItem.measurement.measure_id
+                || existing.measurement.kilograms_per_unit !== cartItem.measurement.kilograms_per_unit) {
+                cartError.value = 'Единица измерения товара изменилась. Удалите его из корзины и добавьте заново.'
+                return false
+            }
+            existing.quantity = normalizeQuantity(existing.quantity + 1)
             existing.price_gross = cartItem.price_gross
             existing.currency_code = cartItem.currency_code
             existing.denominator = cartItem.denominator
             existing.image_url = cartItem.image_url
-            return
+            return true
         }
 
         items.value = [...items.value, cartItem]
+        return true
     }
 
     function removeItem(goodId) {
+        cartError.value = ''
         items.value = items.value.filter((item) => Number(item.good_id) !== Number(goodId))
+    }
+
+    function setQuantity(goodId, quantity) {
+        const item = items.value.find(candidate => Number(candidate.good_id) === Number(goodId))
+        if (item) item.quantity = normalizeQuantity(quantity)
     }
 
     function increment(goodId) {
         const item = items.value.find((candidate) => Number(candidate.good_id) === Number(goodId))
 
         if (item) {
-            item.quantity = normalizeQuantity(item.quantity) + 1
+            item.quantity = normalizeQuantity(item.quantity + 1)
         }
     }
 
@@ -263,11 +288,12 @@ export function useOrderCart() {
             return
         }
 
-        item.quantity = nextQuantity
+        item.quantity = normalizeQuantity(nextQuantity)
     }
 
     function clearCart() {
         items.value = []
+        cartError.value = ''
     }
 
     return {
@@ -275,11 +301,13 @@ export function useOrderCart() {
         totalAmount,
         totalWeight,
         itemsCount,
+        cartError,
         currencyCode: currencyCodeValue,
         addGood,
         removeItem,
         increment,
         decrement,
+        setQuantity,
         clearCart,
     }
 }

@@ -108,7 +108,7 @@ useHead({
                 <div class="text-caption text-medium-emphasis mb-1">Good / товар</div>
                 <h1 class="text-h5 font-weight-bold mb-1">{{ goodData.name }}</h1>
                 <div class="text-caption text-medium-emphasis">slug: {{ goodData.slug || '—' }}</div>
-                <div class="good-page__summary"><span>Количество в упаковке: <strong>{{ goodData.denominator || '—' }}</strong></span><span>Предложения: <strong>{{ (goodData.quotations || []).length }}</strong></span></div>
+                <div class="good-page__summary"><span>Единица учёта: <strong>{{ goodData.measurement?.unit_label || 'не задана' }}</strong></span><span>Масса упаковки: <strong>{{ goodData.denominator || '—' }} кг</strong></span><span>Предложения: <strong>{{ (goodData.quotations || []).length }}</strong></span></div>
             </v-card-text>
         </v-card>
         <v-card class="mb-4"><v-tabs v-model="activeTab" density="compact" color="deep-purple-darken-1" show-arrows><v-tab v-for="tab in tabs" :key="tab.key" :value="tab.key">{{ tab.label }}</v-tab></v-tabs></v-card>

@@ -426,6 +426,9 @@ class AvitoListingGoodService
 
         if ($includeFacts) {
             $facts = [];
+            if (filled(Arr::get($good, 'measurement.unit_label'))) {
+                $facts[] = 'Единица количества и цены: '.Arr::get($good, 'measurement.unit_label');
+            }
             if (is_numeric($good['denominator'] ?? null)) {
                 $facts[] = 'Фасовка: '.$this->number((float) $good['denominator']).' кг';
             }

@@ -3,6 +3,7 @@ import axios from 'axios'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { usePage } from '@inertiajs/vue3'
 import DeliveryApartmentFields from '@/Components/Orders/DeliveryApartmentFields.vue'
+import { measurementForGood, quantityWeight, unitLabel } from '@/utils/goodMeasurement'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -86,29 +87,28 @@ const packageWeight = computed(() => {
     const value = Number(activePurchase.value.package_weight ?? activeGood.value.denominator)
     return Number.isFinite(value) && value > 0 ? value : null
 })
-const priceUnit = computed(() => activePurchase.value.price_unit_label || activePurchase.value.unit || (packageWeight.value ? 'кг' : 'упаковка'))
-const pricedByWeight = computed(() => activePurchase.value.price_unit === 'kg' || priceUnit.value === 'кг')
+const measurement = computed(() => activePurchase.value.measurement || measurementForGood(activeGood.value))
+const canOrder = computed(() => Boolean(measurement.value.measure_id))
+const priceUnit = computed(() => unitLabel(measurement.value))
 const currency = computed(() => activePurchase.value.currency_code || activePurchase.value.currency || 'RUB')
 const currencySymbol = computed(() => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: currency.value }).formatToParts(0).find((part) => part.type === 'currency')?.value || currency.value)
 const validQuantity = computed(() => {
     const quantity = Number(form.quantity)
-    return Number.isInteger(quantity) && quantity > 0 && quantity <= 9999 ? quantity : 0
+    return Number.isFinite(quantity) && quantity >= 0.001 && quantity <= 9999 ? quantity : 0
 })
-const totalWeight = computed(() => packageWeight.value && validQuantity.value ? packageWeight.value * validQuantity.value : null)
+const totalWeight = computed(() => validQuantity.value ? quantityWeight(validQuantity.value, measurement.value) : null)
 const publishedPrice = computed(() => {
     const value = Number(activePurchase.value.price)
     return Number.isFinite(value) && value > 0 ? value : null
 })
 const total = computed(() => {
-    if (!validQuantity.value) return null
+    if (!canOrder.value || !validQuantity.value) return null
     if (isBargain.value) {
         const price = Number(form.proposed_price)
         if (!Number.isFinite(price) || price <= 0) return null
-        if (pricedByWeight.value && !packageWeight.value) return null
-        return price * validQuantity.value * (pricedByWeight.value ? packageWeight.value : 1)
+        return price * validQuantity.value
     }
-    const packagePrice = Number(activePurchase.value.package_price)
-    return Number.isFinite(packagePrice) && packagePrice > 0 ? packagePrice * validQuantity.value : null
+    return publishedPrice.value ? publishedPrice.value * validQuantity.value : null
 })
 const scenarioAdvice = computed(() => scenarios.find((scenario) => scenario.value === form.bargain_scenario)?.advice)
 const maxUrl = computed(() => {
@@ -122,7 +122,7 @@ const maxUrl = computed(() => {
 const money = (value) => new Intl.NumberFormat('ru-RU', {
     style: 'currency', currency: currency.value, maximumFractionDigits: 2,
 }).format(value)
-const number = (value) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value)
+const number = (value) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 }).format(value)
 const fieldError = (field) => {
     const value = errors.value[field]
     return Array.isArray(value) ? value[0] : value
@@ -145,7 +145,7 @@ watch(() => [props.modelValue, props.kind, props.good.id], ([open, kind]) => {
     errorMessage.value = ''
     pendingRequest.value = null
     requestToken.value = newToken()
-    form.quantity = Math.max(1, Math.min(9999, Math.floor(Number(props.quantity) || 1)))
+    form.quantity = Math.max(0.001, Math.min(9999, Math.round((Number(props.quantity) || 1) * 1000) / 1000))
     form.consent = false
     if (!initialized.value) {
         form.customer_name = page.props.auth?.user?.name || ''
@@ -170,6 +170,11 @@ async function focusError() {
 
 async function submit() {
     if (saving.value || result.value) return
+    if (!canOrder.value) {
+        errorMessage.value = 'Единица измерения товара не задана. Для заказа её должен указать менеджер.'
+        await focusError()
+        return
+    }
     saving.value = true
     errorMessage.value = ''
     errors.value = {}
@@ -179,6 +184,8 @@ async function submit() {
         pendingRequest.value = {
             kind: activeKind.value,
             quantity: Number(form.quantity),
+            measure_id: measurement.value.measure_id,
+            measurement: { ...measurement.value },
             customer_name: form.customer_name.trim(),
             customer_email: form.customer_email.trim(),
             customer_phone: form.customer_phone.trim(),
@@ -288,7 +295,7 @@ async function submit() {
                     <details :key="`${activeGood.id}-${activeKind}`" class="inquiry-mobile-summary">
                         <summary>
                             <img v-if="activeGood.ava_thumb || activeGood.ava_image" :src="activeGood.ava_thumb || activeGood.ava_image" alt="" />
-                            <span class="mobile-summary-product"><strong>{{ activeGood.name }}</strong><small>Товар и расчёт <span aria-hidden="true">·</span> {{ validQuantity ? `${number(validQuantity)} уп.` : 'Укажите количество' }}</small></span>
+                            <span class="mobile-summary-product"><strong>{{ activeGood.name }}</strong><small>Товар и расчёт <span aria-hidden="true">·</span> {{ validQuantity ? `${number(validQuantity)} ${priceUnit}` : 'Укажите количество' }}</small></span>
                             <v-icon class="mobile-summary-chevron" icon="mdi-chevron-down" size="22" />
                         </summary>
                         <div class="mobile-summary-content">
@@ -315,7 +322,7 @@ async function submit() {
                         </div>
                         <dl class="summary-details">
                             <div v-if="publishedPrice"><dt>Цена на сайте</dt><dd>{{ money(publishedPrice) }} / {{ priceUnit }}</dd></div>
-                            <div><dt>Количество</dt><dd>{{ validQuantity ? `${number(validQuantity)} уп.` : 'Укажите' }}</dd></div>
+                            <div><dt>Количество</dt><dd>{{ validQuantity ? `${number(validQuantity)} ${priceUnit}` : 'Укажите' }}</dd></div>
                             <div v-if="totalWeight"><dt>Общий вес</dt><dd>{{ number(totalWeight) }} кг</dd></div>
                         </dl>
                         <div class="summary-total" aria-live="polite" aria-atomic="true">
@@ -340,7 +347,7 @@ async function submit() {
                             </div>
                         </div>
 
-                        <fieldset :disabled="saving || uncertain" class="inquiry-fields">
+                        <fieldset :disabled="saving || uncertain || !canOrder" class="inquiry-fields">
                             <legend class="sr-only">Данные заявки</legend>
                             <div class="form-section-title"><span>01</span><h3>{{ isBargain ? 'Предложите условия' : 'Детали закупки' }}</h3></div>
 
@@ -355,17 +362,17 @@ async function submit() {
 
                             <div class="field-grid">
                                 <div class="inquiry-field">
-                                    <label for="inquiry-quantity">Количество упаковок <span>*</span></label>
+                                    <label for="inquiry-quantity">Количество, {{ priceUnit }} <span>*</span></label>
                                     <div class="quantity-input">
-                                        <button type="button" aria-label="Уменьшить количество" :disabled="Number(form.quantity) <= 1" @click="form.quantity = Math.max(1, Math.floor(Number(form.quantity) || 1) - 1)">−</button>
-                                        <input id="inquiry-quantity" v-model="form.quantity" name="quantity" type="number" min="1" max="9999" step="1" required inputmode="numeric" :aria-invalid="Boolean(fieldError('quantity'))" aria-describedby="inquiry-quantity-hint inquiry-quantity-error" />
-                                        <button type="button" aria-label="Увеличить количество" :disabled="Number(form.quantity) >= 9999" @click="form.quantity = Math.min(9999, Math.floor(Number(form.quantity) || 0) + 1)">+</button>
+                                        <button type="button" aria-label="Уменьшить количество" :disabled="Number(form.quantity) <= 0.001" @click="form.quantity = Math.max(0.001, Math.round((Number(form.quantity) - 1) * 1000) / 1000)">−</button>
+                                        <input id="inquiry-quantity" v-model="form.quantity" name="quantity" type="number" min="0.001" max="9999" step="0.001" required inputmode="decimal" :aria-invalid="Boolean(fieldError('quantity'))" aria-describedby="inquiry-quantity-hint inquiry-quantity-error" />
+                                        <button type="button" aria-label="Увеличить количество" :disabled="Number(form.quantity) >= 9999" @click="form.quantity = Math.min(9999, Math.round((Number(form.quantity) + 1) * 1000) / 1000)">+</button>
                                     </div>
-                                    <small id="inquiry-quantity-hint" class="field-hint">{{ packageWeight ? `1 упаковка = ${number(packageWeight)} кг` : 'От 1 до 9 999 упаковок' }}</small>
+                                    <small id="inquiry-quantity-hint" class="field-hint">{{ measurement.kilograms_per_unit ? `1 ${priceUnit} = ${number(measurement.kilograms_per_unit)} кг` : `Количество в единицах «${priceUnit}»` }}</small>
                                     <small v-if="fieldError('quantity')" id="inquiry-quantity-error" class="field-error">{{ fieldError('quantity') }}</small>
                                 </div>
                                 <div v-if="isBargain" class="inquiry-field">
-                                    <label for="inquiry-price">Ваша цена за {{ pricedByWeight ? 'кг' : 'упаковку' }} <span>*</span></label>
+                                    <label for="inquiry-price">Ваша цена за {{ priceUnit }} <span>*</span></label>
                                     <div class="price-input"><input id="inquiry-price" v-model="form.proposed_price" name="proposed_price" type="number" inputmode="decimal" min="0.01" max="99999999.99" step="0.01" placeholder="Укажите цену" required :aria-invalid="Boolean(fieldError('proposed_price'))" aria-describedby="inquiry-price-error" /><span>{{ currencySymbol }}</span></div>
                                     <small v-if="fieldError('proposed_price')" id="inquiry-price-error" class="field-error">{{ fieldError('proposed_price') }}</small>
                                 </div>
@@ -388,7 +395,7 @@ async function submit() {
                                 v-model:number="form.delivery_apartment_number"
                                 v-model:type="form.delivery_apartment_type"
                                 :errors="errors"
-                                :disabled="saving"
+                                :disabled="saving || !canOrder"
                             />
 
                             <div class="inquiry-field">
@@ -441,11 +448,12 @@ async function submit() {
                         </fieldset>
 
                         <div class="inquiry-submit-area">
+                            <p v-if="!canOrder" role="status">Единица измерения товара не задана. Для заказа её должен указать менеджер.</p>
                             <div class="mobile-submit-total" aria-live="polite" aria-atomic="true">
-                                <span>{{ isBargain ? 'Ваше предложение' : 'Предварительная сумма' }}<small>{{ validQuantity ? `${number(validQuantity)} уп.` : 'Укажите количество' }}{{ totalWeight ? ` · ${number(totalWeight)} кг` : '' }}</small></span>
+                                <span>{{ isBargain ? 'Ваше предложение' : 'Предварительная сумма' }}<small>{{ validQuantity ? `${number(validQuantity)} ${priceUnit}` : 'Укажите количество' }}{{ totalWeight ? ` · ${number(totalWeight)} кг` : '' }}</small></span>
                                 <strong>{{ total !== null ? money(total) : 'Уточним' }}</strong>
                             </div>
-                            <button type="submit" class="inquiry-button inquiry-button--primary inquiry-submit" :disabled="saving">
+                            <button type="submit" class="inquiry-button inquiry-button--primary inquiry-submit" :disabled="saving || !canOrder">
                                 <v-progress-circular v-if="saving" indeterminate size="20" width="2" />
                                 {{ saving ? 'Отправляем…' : uncertain ? 'Проверить и повторить' : variant.action }}
                                 <v-icon v-if="!saving" icon="mdi-arrow-right" size="20" />

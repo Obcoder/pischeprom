@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { computed, reactive, ref, watch } from 'vue'
 import { selectedApartment, selectedBuildingApartments } from '../utils/buildingApartments.js'
+import { lineMeasurement, quantityWeight, unitLabel } from '../utils/goodMeasurement.js'
 
 export function useOrderDialogEditor({ order, orderId, visible, editable, onSaved = () => {}, client = axios }) {
     const editing = ref(false)
@@ -38,9 +39,9 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
         || (canEditDelivery.value && dateDirty.value))) || (editingDate.value && dateDirty.value))
     const total = computed(() => form.items.reduce((sum, item) => sum + itemTotal(item), 0))
     const weight = computed(() => form.items.reduce((sum, item) => {
-        const quantity = Number(item.quantity)
-        const denominator = Number(goodById(item.good_id)?.denominator)
-        return sum + (Number.isFinite(quantity) && Number.isFinite(denominator) ? quantity * denominator : 0)
+        if (!item.good_id) return sum
+        const value = quantityWeight(item.quantity, itemMeasurement(item))
+        return sum === null || value === null ? null : sum + value
     }, 0))
 
     function emptyForm() {
@@ -92,6 +93,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
             _key: ++lineKey,
             id: source.id ?? null,
             good_id: source.good_id ?? source.good?.id ?? null,
+            _original_good_id: source.good_id ?? source.good?.id ?? null,
+            _selected_good_id: source.good_id ?? source.good?.id ?? null,
+            measure_id: source.measure_id ?? source.measurement?.measure_id ?? null,
+            measurement: source.measurement ?? null,
             quantity: source.quantity ?? 1,
             unit_price: Object.hasOwn(source, 'unit_price') ? source.unit_price : source.price_gross ?? null,
         }
@@ -140,7 +145,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
             preferred_delivery_time: form.preferred_delivery_time || null,
             internal_comment: form.internal_comment || null,
             items: form.items.map(item => ({
+                id: String(item.good_id) === String(item._original_good_id) ? item.id : null,
                 good_id: item.good_id,
+                measure_id: itemMeasurement(item).measure_id,
+                measurement: itemMeasurement(item),
                 quantity: item.quantity,
                 unit_price: item.unit_price === '' ? null : item.unit_price,
             })),
@@ -314,6 +322,19 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
         return Number.isFinite(quantity) && Number.isFinite(price) ? quantity * price : 0
     }
 
+    function itemMeasurement(item) {
+        return lineMeasurement(item, goodById(item.good_id))
+    }
+
+    function itemUnit(item) {
+        return unitLabel(itemMeasurement(item))
+    }
+
+    function selectItemGood(item) {
+        if (String(item.good_id) !== String(item._selected_good_id)) item.unit_price = null
+        item._selected_good_id = item.good_id
+    }
+
     const stopWatching = watch(() => [visible(), orderId()], reset, { flush: 'sync' })
 
     function dispose() {
@@ -326,6 +347,6 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
         editing, editingDate, form, options, optionsReady, loadingOptions, saving, savingDate, errors, error, success,
         stale, dirty, dateDirty, canEdit, canEditDelivery, dateDraft, beginEdit, cancelEdit, saveOrder,
         beginDateEdit, cancelDateEdit, saveDate, reset, dispose, addItem, removeItem, total, weight,
-        itemTotal, goodById,
+        itemTotal, goodById, itemMeasurement, itemUnit, selectItemGood,
     }
 }

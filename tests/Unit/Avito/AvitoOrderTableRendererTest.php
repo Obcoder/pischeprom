@@ -40,7 +40,7 @@ class AvitoOrderTableRendererTest extends TestCase
         $this->assertCount(1, $this->paths);
         $this->assertJpeg($this->paths[0]);
         $text = implode(' ', $renderer->texts);
-        foreach (['Заказ № PP-123', 'Статус: В обработке', 'Создан: 04.10.2026 11:20', 'Брокколи замороженная', 'Фасовка: 10 кг', '2', '145,50 ₽', '291,00 ₽', 'Общий вес: 20 кг', 'Дата доставки: 06.10.2026', 'Желаемое время: 10:00–12:00', 'Санкт-Петербург, Примерная, 12, кв. 7', '+7 999 111-22-33'] as $detail) {
+        foreach (['Заказ № PP-123', 'Статус: В обработке', 'Создан: 04.10.2026 11:20', 'Брокколи замороженная', 'Масса единицы: 10 кг', '2', '145,50 ₽', '291,00 ₽', 'Общий вес: 20 кг', 'Дата доставки: 06.10.2026', 'Желаемое время: 10:00–12:00', 'Санкт-Петербург, Примерная, 12, кв. 7', '+7 999 111-22-33'] as $detail) {
             $this->assertStringContainsString($detail, $text);
         }
         foreach (['private-comment-secret', 'private-entity-secret', 'private-snapshot-secret'] as $privateValue) {
@@ -74,7 +74,7 @@ class AvitoOrderTableRendererTest extends TestCase
         foreach ($items as $item) {
             $this->assertStringContainsString($item->good_name, $textWithoutWraps);
         }
-        $this->assertSame(100, substr_count(implode(' ', $renderer->texts), 'Фасовка: 0,125 кг'));
+        $this->assertSame(100, substr_count(implode(' ', $renderer->texts), 'Масса единицы: 0,125 кг'));
         $this->assertStringContainsString(count($this->paths).' / '.count($this->paths), implode(' ', $renderer->texts));
     }
 
@@ -114,7 +114,7 @@ class AvitoOrderTableRendererTest extends TestCase
         $this->assertStringContainsString('0,1234 ₽', $text);
         $this->assertStringContainsString('0,12 ₽', $text);
         $this->assertStringContainsString('1,125', $text);
-        $this->assertStringContainsString('Фасовка: 0,0001 кг', $text);
+        $this->assertStringContainsString('Масса единицы: 0,0001 кг', $text);
         $this->assertStringContainsString('Общий вес: 0,0001 кг', $text);
     }
 
@@ -162,6 +162,27 @@ class AvitoOrderTableRendererTest extends TestCase
         foreach ($renderer->createdPaths as $path) {
             $this->assertFileDoesNotExist($path);
         }
+    }
+
+    public function test_order_measurement_snapshot_is_used_instead_of_packaging(): void
+    {
+        $order = $this->order();
+        $order->setRelation('items', new Collection([new OrderItem([
+            'good_name' => 'Сахар',
+            'quantity' => 10.125,
+            'denominator' => 10,
+            'price_gross' => 100,
+            'line_total' => 1012.5,
+            'snapshot' => ['measurement' => ['measure_id' => 1, 'unit_label' => 'кг', 'kilograms_per_unit' => 1]],
+        ])]));
+        $renderer = $this->recordingRenderer();
+        $this->paths = $renderer->render($order);
+
+        $text = implode(' ', $renderer->texts);
+        $this->assertStringContainsString('10,125 кг', $text);
+        $this->assertStringContainsString('100,00 ₽ / кг', $text);
+        $this->assertStringContainsString('Масса единицы: 1 кг', $text);
+        $this->assertStringNotContainsString('Масса единицы: 10 кг', $text);
     }
 
     private function assertJpeg(string $path): void

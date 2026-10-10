@@ -14,7 +14,7 @@ class YandexDirectFeedService
 
     public function xml(): string
     {
-        $xml = new XMLWriter();
+        $xml = new XMLWriter;
 
         $xml->openMemory();
         $xml->startDocument('1.0', 'UTF-8');
@@ -53,13 +53,13 @@ class YandexDirectFeedService
         Good::query()
             ->where('is_published', true)
             ->with([
-                       'seo',
-                       'products.category',
-                       'publishedMedia',
-                       'priceTypeValues.priceType.currency',
-                       'priceTypeValues.currency',
-                       'vatRate',
-                   ])
+                'seo',
+                'products.category',
+                'publishedMedia',
+                'priceTypeValues.priceType.currency',
+                'priceTypeValues.currency',
+                'vatRate',
+            ])
             ->whereHas('seo', function ($query) {
                 $query
                     ->where('is_active', true)
@@ -70,7 +70,7 @@ class YandexDirectFeedService
                 foreach ($goods as $good) {
                     $price = $this->seo->price($good);
 
-                    if (!$price || !$good->slug) {
+                    if (! $price || ! $good->slug) {
                         continue;
                     }
 
@@ -136,6 +136,10 @@ class YandexDirectFeedService
 
         $xml->writeElement('name', $good->seo?->yandex_direct_title_1 ?: $good->name);
         $xml->writeElement('description', $this->clean($this->seo->description($good)));
+
+        if ($good->measurement()['unit_label']) {
+            $this->writeParam($xml, 'Единица измерения цены', $good->measurement()['unit_label']);
+        }
 
         if ($good->denominator) {
             $this->writeParam($xml, 'Фасовка', "{$good->denominator} кг");

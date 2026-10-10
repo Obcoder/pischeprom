@@ -97,6 +97,10 @@ const filters = reactive({
 })
 
 const goodsById = computed(() => new Map(goodsOptions.value.map((good) => [Number(good.id), good])))
+function selectGoodUnit(item) {
+    const good = goodsById.value.get(Number(item.good_id))
+    item.measure_id = good?.measurement?.measure_id ?? good?.measure_id ?? null
+}
 const measuresById = computed(() => new Map(measures.value.map((measure) => [Number(measure.id), measure])))
 const currenciesById = computed(() => new Map(currencies.value.map((currency) => [Number(currency.id), currency])))
 const totalItems = computed(() => pagination.value.total || 0)
@@ -1268,6 +1272,7 @@ onBeforeUnmount(() => {
 
                                     <v-autocomplete
                                         v-model="itemRow.good_id"
+                                        @update:model-value="selectGoodUnit(itemRow)"
                                         :items="goodsOptions"
                                         :item-title="goodTitle"
                                         item-value="id"
@@ -1299,6 +1304,8 @@ onBeforeUnmount(() => {
 
                                     <v-select
                                         v-model="itemRow.measure_id"
+                                        readonly
+                                        :hint="itemRow.good_id && !itemRow.measure_id ? 'Задайте единицу учёта в карточке товара.' : ''"
                                         :items="measures"
                                         item-title="name"
                                         item-value="id"

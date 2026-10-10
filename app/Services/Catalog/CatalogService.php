@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
 use App\Services\Goods\GoodAvatarImages;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use App\Services\Seo\GoodSeoService;
 use Illuminate\Database\Eloquent\Model;
@@ -96,6 +97,9 @@ class CatalogService
                 $data['slug'] = $source->slug;
                 $data['image'] = $source->ava_image ?: $source->ava_thumb;
                 $data['description'] = $source->description;
+                $data['measurement'] = $source->measurement();
+                $data['measure_id'] = $source->measure_id;
+                $data['unit_weight_kg'] = $source->unit_weight_kg;
                 $data['meta_title'] = $source->seo?->meta_title;
                 $data['meta_description'] = $source->seo?->meta_description;
             }
@@ -348,7 +352,7 @@ class CatalogService
             'products' => fn ($query) => $query->without(['category', 'manufacturers'])->select(['products.id', 'products.rus', 'products.category_id']),
             'fields:id,title',
         ])->withCount(['priceTypeValues', 'sales', 'purchases', 'media', 'quotations'])->findOrFail($node->entity_id);
-        $data = $good->only(['id', 'incoming_code', 'denominator', 'country_id', 'vat_rate_id', 'ava_image', 'ava_thumb', 'created_at', 'updated_at', ...GoodTradeCodes::FIELDS]);
+        $data = $good->only(['id', 'incoming_code', 'denominator', 'measure_id', 'unit_weight_kg', 'measurement', 'country_id', 'vat_rate_id', 'ava_image', 'ava_thumb', 'created_at', 'updated_at', ...GoodTradeCodes::FIELDS]);
         $data['country'] = $good->country;
         $data['vat_rate'] = $good->vatRate;
         $data['products'] = $good->products->map(fn (Product $product): array => $product->only(['id', 'rus', 'category_id']));
@@ -364,7 +368,7 @@ class CatalogService
     private function saveGoodOverview(CatalogNode $node, array $data, bool $parentChanged): CatalogNode
     {
         $good = Good::lockForUpdate()->findOrFail($node->entity_id);
-        $good->update(array_intersect_key($data, array_flip(['incoming_code', 'denominator', 'country_id', 'vat_rate_id', ...GoodTradeCodes::FIELDS])));
+        app(GoodMeasurement::class)->update($good, array_intersect_key($data, array_flip(['incoming_code', 'denominator', 'measure_id', 'unit_weight_kg', 'existing_price_basis', 'country_id', 'vat_rate_id', ...GoodTradeCodes::FIELDS])), 'good.');
         if (array_key_exists('fields', $data)) {
             $good->fields()->sync($data['fields']);
         }

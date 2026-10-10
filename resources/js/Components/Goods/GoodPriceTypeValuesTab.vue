@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useGoodPriceTypeValues } from "@/Composables/useGoodPriceTypeValues";
 
 const props = defineProps({
+    measurement: { type: Object, default: () => ({}) },
     goodId: {
         type: Number,
         required: true,
@@ -38,16 +39,17 @@ const {
 const dialogEdit = ref(false);
 const edited = ref(null);
 
-const headers = [
+const priceUnit = computed(() => (dialogEdit.value ? edited.value?.measurement : props.measurement)?.unit_label || 'единица не задана');
+const headers = computed(() => [
     { key: "price_type.name", title: "Вид цены", sortable: true },
-    { key: "price_gross", title: "Цена с НДС / кг", sortable: true, width: "170px" },
-    { key: "price_net", title: "Цена без НДС / кг", sortable: true, width: "180px" },
+    { key: "price_gross", title: `Цена с НДС / ${priceUnit.value}`, sortable: true, width: "170px" },
+    { key: "price_net", title: `Цена без НДС / ${priceUnit.value}`, sortable: true, width: "180px" },
     { key: "vat_rate", title: "НДС", sortable: true, width: "90px" },
     { key: "currency.code", title: "Валюта", sortable: true, width: "110px" },
     { key: "is_manual", title: "Manual", sortable: true, width: "110px" },
     { key: "is_published", title: "Public", sortable: true, width: "110px" },
     { key: "actions", title: "", sortable: false, width: "130px" },
-];
+]);
 
 function formatMoney(value) {
     if (value === null || value === undefined || value === "") return "—";
@@ -61,6 +63,7 @@ function formatMoney(value) {
 function openEdit(item) {
     edited.value = {
         id: item.id,
+        measurement: { ...props.measurement },
         currency_id: item.currency_id || null,
         price_net: item.price_net ?? null,
         price_gross: item.price_gross ?? null,
@@ -79,6 +82,7 @@ async function saveEdit() {
     if (!edited.value?.id) return;
 
     await updateValue(edited.value.id, {
+        measurement: edited.value.measurement,
         currency_id: edited.value.currency_id,
         price_net: edited.value.price_net,
         price_gross: edited.value.price_gross,
@@ -218,7 +222,7 @@ onMounted(() => {
                         <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="edited.price_gross"
-                                label="Цена с НДС / кг"
+                                :label="`Цена с НДС / ${priceUnit}`"
                                 type="number"
                                 step="0.01"
                                 variant="outlined"
@@ -229,7 +233,7 @@ onMounted(() => {
                         <v-col cols="12" md="4">
                             <v-text-field
                                 v-model="edited.price_net"
-                                label="Цена без НДС / кг"
+                                :label="`Цена без НДС / ${priceUnit}`"
                                 type="number"
                                 step="0.01"
                                 variant="outlined"

@@ -15,10 +15,12 @@ const {
     totalAmount,
     totalWeight,
     itemsCount,
+    cartError,
     currencyCode,
     removeItem,
     increment,
     decrement,
+    setQuantity,
     clearCart,
 } = useOrderCart()
 
@@ -90,7 +92,7 @@ function weight(value) {
     }
 
     return `${amount.toLocaleString('ru-RU', {
-        maximumFractionDigits: 3,
+        maximumFractionDigits: 6,
     })} кг`
 }
 
@@ -176,6 +178,8 @@ function submitOrder() {
             items: items.value.map((item) => ({
                 good_id: item.good_id,
                 quantity: item.quantity,
+                measure_id: item.measurement.measure_id,
+                measurement: item.measurement,
             })),
             delivery_address: form.delivery_address,
             delivery_apartment_number: form.delivery_apartment_number.trim(),
@@ -200,8 +204,9 @@ function submitOrder() {
         })
         .catch((error) => {
             fieldErrors.value = error.response?.data?.errors || {}
-            errorMessage.value = error.response?.data?.message
-                || fieldErrors.value?.items?.[0]
+            const itemError = Object.entries(fieldErrors.value).find(([field]) => field === 'items' || field.startsWith('items.'))?.[1]
+            errorMessage.value = (Array.isArray(itemError) ? itemError[0] : itemError)
+                || error.response?.data?.message
                 || 'Не удалось создать заказ.'
         })
         .finally(() => {
@@ -231,7 +236,18 @@ function submitOrder() {
 
                 <div class="order-cart-tile__body">
                     <strong>{{ item.name }}</strong>
-                    <span>{{ item.quantity }} × {{ money(item.price_gross, item.currency_code) }}</span>
+                    <span>{{ item.quantity }} {{ item.measurement.unit_label }} × {{ money(item.price_gross, item.currency_code) }} / {{ item.measurement.unit_label }}</span>
+                    <input
+                        :value="item.quantity"
+                        type="number"
+                        min="0.001"
+                        max="9999"
+                        step="0.001"
+                        inputmode="decimal"
+                        :aria-label="`Количество, ${item.measurement.unit_label}`"
+                        :disabled="submitting"
+                        @change="setQuantity(item.good_id, $event.target.value)"
+                    >
                 </div>
 
                 <div class="order-cart-tile__controls">
@@ -302,8 +318,8 @@ function submitOrder() {
             {{ successMessage }}
         </div>
 
-        <div v-if="errorMessage && !checkoutOpen" class="order-cart-strip__error">
-            {{ errorMessage }}
+        <div v-if="cartError || (errorMessage && !checkoutOpen)" class="order-cart-strip__error">
+            {{ cartError || errorMessage }}
         </div>
 
         <Teleport v-if="mounted" to="body">
@@ -500,6 +516,14 @@ function submitOrder() {
     font-size: 10px;
     font-weight: 900;
     white-space: nowrap;
+}
+
+.order-cart-tile__body input {
+    width: 82px;
+    padding: 1px 5px;
+    border: 1px solid #e3cfc8;
+    border-radius: 4px;
+    font-size: 12px;
 }
 
 .order-cart-tile__controls {

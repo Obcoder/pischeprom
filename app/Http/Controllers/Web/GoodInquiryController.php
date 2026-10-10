@@ -8,6 +8,7 @@ use App\Jobs\NotifyGoodInquiry;
 use App\Models\Good;
 use App\Models\GoodInquiry;
 use App\Services\Goods\GoodInquiryOrderWriter;
+use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\PublicGoodOffer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
@@ -27,11 +28,21 @@ class GoodInquiryController extends Controller
         abort_unless($good->is_published, 404);
 
         $data = $request->validated();
-        $attributes = Arr::except($data, ['request_token', 'consent', 'website']);
+        $attributes = Arr::except($data, ['request_token', 'consent', 'website', 'measurement']);
         ksort($attributes);
         $requestHash = hash('sha256', json_encode([$good->id, $attributes], JSON_THROW_ON_ERROR));
 
         $inquiry = DB::transaction(function () use ($data, $attributes, $requestHash, $good, $request, $offers, $orders): GoodInquiry {
+            $existing = GoodInquiry::query()->where('request_token', $data['request_token'])->first();
+            if ($existing) {
+                abort_unless(hash_equals($existing->request_hash, $requestHash), 409, 'Эта форма уже отправлена. Откройте новую заявку.');
+
+                return $existing;
+            }
+            $good = Good::query()->whereKey($good->id)->lockForUpdate()->firstOrFail();
+            $measurement = app(GoodMeasurement::class)->assertConfigured($good, 'quantity');
+            app(GoodMeasurement::class)->assertMeasure($good, isset($data['measure_id']) ? (int) $data['measure_id'] : null, 'measure_id');
+            app(GoodMeasurement::class)->assertSnapshot($good, $data['measurement'] ?? null);
             $offer = $offers->for($good);
             $good->loadMissing('seo');
             $slug = $good->seo?->is_active && filled($good->seo?->slug_override)
@@ -45,6 +56,9 @@ class GoodInquiryController extends Controller
                 'good_name' => $good->name,
                 'good_url' => route('public.goods.show', ['good' => $slug]),
                 'package_weight' => $offer['package_weight'],
+                'measure_id' => $measurement['measure_id'],
+                'unit_label' => $measurement['unit_label'],
+                'unit_weight_kg' => $measurement['kilograms_per_unit'],
                 'listed_price' => $offer['price'],
                 'price_unit' => $offer['price_unit'],
                 'currency_code' => $offer['currency_code'],

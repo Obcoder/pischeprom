@@ -167,7 +167,7 @@ class PublicClassPage
             ])
             ->withExists('stockMovements')
             ->orderBy('name')->orderBy('id')
-            ->get(['id', 'name', 'slug', 'denominator', 'country_id', 'ava_image', 'ava_thumb', 'is_published']);
+            ->get(['id', 'name', 'slug', 'denominator', 'measure_id', 'unit_weight_kg', 'country_id', 'ava_image', 'ava_thumb', 'is_published']);
         $offers = $this->offers->forMany($goods);
         $cards = $goods->map(function (Good $good) use ($offers): array {
             $image = $good->publishedMedia->first();

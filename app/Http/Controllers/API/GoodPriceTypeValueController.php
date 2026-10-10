@@ -7,8 +7,11 @@ use App\Models\Good;
 use App\Models\GoodPriceCalculation;
 use App\Models\GoodPriceTypeValue;
 use App\Models\PriceType;
+use App\Services\Goods\GoodMeasurement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class GoodPriceTypeValueController extends Controller
 {
@@ -16,16 +19,16 @@ class GoodPriceTypeValueController extends Controller
     {
         $values = $good->priceTypeValues()
             ->with([
-                       'priceType.currency',
-                       'currency',
-                       'calculation.currency',
-                       'calculation.priceType',
-                   ])
+                'priceType.currency',
+                'currency',
+                'calculation.currency',
+                'calculation.priceType',
+            ])
             ->get()
             ->sortBy([
-                         fn ($a, $b) => ($a->priceType?->sort_order ?? 100) <=> ($b->priceType?->sort_order ?? 100),
-                         fn ($a, $b) => strcmp((string) ($a->priceType?->name ?? ''), (string) ($b->priceType?->name ?? '')),
-                     ])
+                fn ($a, $b) => ($a->priceType?->sort_order ?? 100) <=> ($b->priceType?->sort_order ?? 100),
+                fn ($a, $b) => strcmp((string) ($a->priceType?->name ?? ''), (string) ($b->priceType?->name ?? '')),
+            ])
             ->values();
 
         return response()->json($values);
@@ -33,31 +36,45 @@ class GoodPriceTypeValueController extends Controller
 
     public function store(Request $request, Good $good): JsonResponse
     {
+        return DB::transaction(fn () => $this->storeValue($request, Good::query()->lockForUpdate()->findOrFail($good->id)));
+    }
+
+    private function storeValue(Request $request, Good $good): JsonResponse
+    {
+        $measurement = app(GoodMeasurement::class)->assertConfigured($good, 'measure_id');
         $validated = $request->validate([
-                                            'price_type_id' => ['required', 'integer', 'exists:price_types,id'],
-                                            'calculation_id' => ['nullable', 'integer', 'exists:good_price_calculations,id'],
-                                            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
+            ...$this->measurementRules(),
+            'price_type_id' => ['required', 'integer', 'exists:price_types,id'],
+            'calculation_id' => ['nullable', 'integer', 'exists:good_price_calculations,id'],
+            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
 
-                                            'price_net' => ['nullable', 'numeric', 'min:0'],
-                                            'price_gross' => ['nullable', 'numeric', 'min:0'],
-                                            'vat_rate' => ['nullable', 'numeric', 'min:0'],
+            'price_net' => ['nullable', 'numeric', 'min:0'],
+            'price_gross' => ['nullable', 'numeric', 'min:0'],
+            'vat_rate' => ['nullable', 'numeric', 'min:0'],
 
-                                            'is_manual' => ['nullable', 'boolean'],
-                                            'manual_comment' => ['nullable', 'string'],
-                                            'is_published' => ['nullable', 'boolean'],
+            'is_manual' => ['nullable', 'boolean'],
+            'manual_comment' => ['nullable', 'string'],
+            'is_published' => ['nullable', 'boolean'],
 
-                                            'valid_from' => ['nullable', 'date'],
-                                            'valid_to' => ['nullable', 'date'],
-                                        ]);
+            'valid_from' => ['nullable', 'date'],
+            'valid_to' => ['nullable', 'date'],
+        ]);
+
+        app(GoodMeasurement::class)->assertSnapshot($good, $validated['measurement'] ?? null);
 
         $priceType = PriceType::findOrFail($validated['price_type_id']);
 
         $calculation = null;
 
-        if (!empty($validated['calculation_id'])) {
+        if (! empty($validated['calculation_id'])) {
             $calculation = GoodPriceCalculation::query()
                 ->where('good_id', $good->id)
                 ->findOrFail($validated['calculation_id']);
+        }
+
+        $weight = $measurement['kilograms_per_unit'];
+        if ($calculation && $weight === null) {
+            throw ValidationException::withMessages(['calculation_id' => 'Укажите массу единицы товара для перевода расчётной цены за кг.']);
         }
 
         $vatRate = $validated['vat_rate']
@@ -65,10 +82,10 @@ class GoodPriceTypeValueController extends Controller
             ?? 20;
 
         $priceNet = $validated['price_net']
-            ?? $calculation?->sale_net_per_kg;
+            ?? ($calculation?->sale_net_per_kg !== null ? round($calculation->sale_net_per_kg * $weight, 4) : null);
 
         $priceGross = $validated['price_gross']
-            ?? $calculation?->sale_gross_per_kg;
+            ?? ($calculation?->sale_gross_per_kg !== null ? round($calculation->sale_gross_per_kg * $weight, 4) : null);
 
         if ($priceGross === null && $priceNet !== null) {
             $priceGross = $this->grossFromNet((float) $priceNet, (float) $vatRate);
@@ -109,33 +126,44 @@ class GoodPriceTypeValueController extends Controller
 
         return response()->json(
             $value->fresh([
-                              'priceType.currency',
-                              'currency',
-                              'calculation.currency',
-                              'calculation.priceType',
-                          ]),
+                'priceType.currency',
+                'currency',
+                'calculation.currency',
+                'calculation.priceType',
+            ]),
             201
         );
     }
 
     public function update(Request $request, Good $good, GoodPriceTypeValue $value): JsonResponse
     {
+        return DB::transaction(fn () => $this->updateValue($request, Good::query()->lockForUpdate()->findOrFail($good->id), $value));
+    }
+
+    private function updateValue(Request $request, Good $good, GoodPriceTypeValue $value): JsonResponse
+    {
         abort_unless($value->good_id === $good->id, 404);
+        app(GoodMeasurement::class)->assertConfigured($good, 'measure_id');
 
         $validated = $request->validate([
-                                            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
+            ...$this->measurementRules(),
+            'currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
 
-                                            'price_net' => ['nullable', 'numeric', 'min:0'],
-                                            'price_gross' => ['nullable', 'numeric', 'min:0'],
-                                            'vat_rate' => ['nullable', 'numeric', 'min:0'],
+            'price_net' => ['nullable', 'numeric', 'min:0'],
+            'price_gross' => ['nullable', 'numeric', 'min:0'],
+            'vat_rate' => ['nullable', 'numeric', 'min:0'],
 
-                                            'is_manual' => ['nullable', 'boolean'],
-                                            'manual_comment' => ['nullable', 'string'],
-                                            'is_published' => ['nullable', 'boolean'],
+            'is_manual' => ['nullable', 'boolean'],
+            'manual_comment' => ['nullable', 'string'],
+            'is_published' => ['nullable', 'boolean'],
 
-                                            'valid_from' => ['nullable', 'date'],
-                                            'valid_to' => ['nullable', 'date'],
-                                        ]);
+            'valid_from' => ['nullable', 'date'],
+            'valid_to' => ['nullable', 'date'],
+        ]);
+
+        app(GoodMeasurement::class)->assertSnapshot($good, $validated['measurement'] ?? null);
+        unset($validated['measurement']);
+        $value = GoodPriceTypeValue::query()->lockForUpdate()->findOrFail($value->id);
 
         $vatRate = $validated['vat_rate'] ?? $value->vat_rate ?? $good->vatRate?->rate ?? 20;
 
@@ -156,19 +184,19 @@ class GoodPriceTypeValueController extends Controller
         }
 
         $value->update([
-                           ...$validated,
-                           'price_net' => $priceNet,
-                           'price_gross' => $priceGross,
-                           'vat_rate' => $vatRate,
-                       ]);
+            ...$validated,
+            'price_net' => $priceNet,
+            'price_gross' => $priceGross,
+            'vat_rate' => $vatRate,
+        ]);
 
         return response()->json(
             $value->fresh([
-                              'priceType.currency',
-                              'currency',
-                              'calculation.currency',
-                              'calculation.priceType',
-                          ])
+                'priceType.currency',
+                'currency',
+                'calculation.currency',
+                'calculation.priceType',
+            ])
         );
     }
 
@@ -184,6 +212,16 @@ class GoodPriceTypeValueController extends Controller
     private function grossFromNet(float $net, float $vatRate): float
     {
         return round($net * (1 + ($vatRate / 100)), 4);
+    }
+
+    private function measurementRules(): array
+    {
+        return [
+            'measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
+            'measurement.measure_id' => ['required_with:measurement', 'integer'],
+            'measurement.unit_label' => ['nullable', 'string', 'max:255'],
+            'measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
+        ];
     }
 
     private function netFromGross(float $gross, float $vatRate): float

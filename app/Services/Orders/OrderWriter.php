@@ -4,10 +4,13 @@ namespace App\Services\Orders;
 
 use App\Models\Good;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\OrderStatus;
 use App\Services\Buildings\BuildingApartmentSelection;
+use App\Services\Goods\GoodMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OrderWriter
 {
@@ -35,8 +38,29 @@ class OrderWriter
             }
             $status = OrderStatus::query()->sharedLock()->findOrFail($data['order_status_id']);
             $goods = $this->goodsFor($data['items']);
+            $existing = $order->exists ? $order->items()->with('measure')->lockForUpdate()->get() : collect();
+            $usedIds = [];
             $lines = collect($data['items'])
-                ->map(fn (array $item) => $this->makeLine($goods[(int) $item['good_id']], $item, $data['currency_code']))
+                ->map(function (array $item, int $index) use ($goods, $existing, &$usedIds, $data): array {
+                    $previous = null;
+                    if (filled($item['id'] ?? null)) {
+                        $previous = $existing->firstWhere('id', (int) $item['id']);
+                        if (! $previous || (int) $previous->good_id !== (int) $item['good_id'] || in_array($previous->id, $usedIds, true)) {
+                            throw ValidationException::withMessages(["items.{$index}.id" => 'Позиция не принадлежит этому заказу или товару. Обновите заказ.']);
+                        }
+                    } elseif (! array_key_exists('id', $item)) {
+                        $matches = $existing->where('good_id', (int) $item['good_id'])->whereNotIn('id', $usedIds);
+                        if ($matches->count() > 1) {
+                            throw ValidationException::withMessages(["items.{$index}.id" => 'Укажите исходную позицию заказа, чтобы сохранить её единицу измерения.']);
+                        }
+                        $previous = $matches->first();
+                    }
+                    if ($previous) {
+                        $usedIds[] = $previous->id;
+                    }
+
+                    return $this->makeLine($goods[(int) $item['good_id']], $item, $data['currency_code'], $previous, "items.{$index}.measure_id");
+                })
                 ->values();
 
             $order->fill([
@@ -54,7 +78,8 @@ class OrderWriter
                 'internal_comment' => $data['internal_comment'] ?? null,
                 'currency_code' => strtoupper($data['currency_code']),
                 'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),
-                'total_weight' => $lines->sum(fn (array $line) => (float) ($line['line_weight'] ?? 0)) ?: null,
+                'total_weight' => $lines->contains(fn (array $line) => $line['line_weight'] === null)
+                    ? null : $lines->sum('line_weight'),
                 'submitted_at' => $data['submitted_at'] ?? $order->submitted_at ?? now(),
                 'closed_at' => $status->is_closed
                     ? ($order->closed_at ?? now())
@@ -112,6 +137,7 @@ class OrderWriter
             'buildings.buildingType',
             'buildings.apartments',
             'items.good:id,name,slug',
+            'items.measure:id,name',
         ];
     }
 
@@ -159,6 +185,8 @@ class OrderWriter
     {
         return Good::query()
             ->whereIn('id', collect($items)->pluck('good_id')->unique())
+            ->orderBy('id')
+            ->sharedLock()
             ->with([
                 'country:id,name',
                 'publishedMedia' => fn ($query) => $query
@@ -171,15 +199,27 @@ class OrderWriter
             ->keyBy('id');
     }
 
-    private function makeLine(Good $good, array $item, string $currencyCode): array
+    private function makeLine(Good $good, array $item, string $currencyCode, ?OrderItem $previous, string $key): array
     {
         $quantity = round((float) $item['quantity'], 3);
         $unitPrice = filled($item['unit_price'] ?? null)
             ? round((float) $item['unit_price'], 4)
             : null;
-        $denominator = is_numeric($good->denominator) && (float) $good->denominator > 0
-            ? (float) $good->denominator
-            : null;
+        $measurement = $previous?->measurement() ?? app(GoodMeasurement::class)->assertConfigured($good, $key);
+        if (! $previous) {
+            app(GoodMeasurement::class)->assertSnapshot($good, $item['measurement'] ?? null, $key);
+        } elseif (isset($item['measurement']) && (
+            (int) ($item['measurement']['measure_id'] ?? 0) !== (int) ($measurement['measure_id'] ?? 0)
+            || ($item['measurement']['kilograms_per_unit'] ?? null) !== null && $measurement['kilograms_per_unit'] === null
+            || ($item['measurement']['kilograms_per_unit'] ?? null) === null && $measurement['kilograms_per_unit'] !== null
+            || abs((float) ($item['measurement']['kilograms_per_unit'] ?? 0) - (float) ($measurement['kilograms_per_unit'] ?? 0)) > 0.000000001
+        )) {
+            throw ValidationException::withMessages([$key => 'Единица или масса позиции заказа изменилась. Обновите заказ.']);
+        }
+        if (filled($item['measure_id'] ?? null) && (int) $item['measure_id'] !== (int) $measurement['measure_id']) {
+            throw ValidationException::withMessages([$key => 'Единица измерения изменилась. Обновите товар или сохраните исходную единицу позиции заказа.']);
+        }
+        $denominator = $measurement['kilograms_per_unit'];
         $media = $good->publishedMedia->first();
 
         return [
@@ -191,9 +231,10 @@ class OrderWriter
                 ?: $good->ava_thumb
                 ?: $good->ava_image,
             'quantity' => $quantity,
+            'measure_id' => $measurement['measure_id'],
             'denominator' => $denominator,
             'line_weight' => $denominator !== null
-                ? round($denominator * $quantity, 4)
+                ? round($denominator * $quantity, 6)
                 : null,
             'price_gross' => $unitPrice,
             'currency_code' => strtoupper($currencyCode),
@@ -202,9 +243,11 @@ class OrderWriter
                 : null,
             'country_name' => $good->country?->name,
             'snapshot' => [
+                ...($previous?->snapshot ?? []),
                 'good_id' => $good->id,
                 'name' => $good->name,
                 'slug' => $good->slug,
+                'measurement' => $measurement,
             ],
         ];
     }

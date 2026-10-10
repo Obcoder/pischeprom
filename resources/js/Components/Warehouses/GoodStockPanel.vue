@@ -67,6 +67,11 @@ const form = reactive({
     note: '',
 })
 
+function selectGoodUnit() {
+    const good = goods.value.find(item => String(item.id) === String(form.good_id))
+    form.measure_id = good?.measurement?.measure_id ?? good?.measure_id ?? null
+}
+
 const stockFilters = reactive({
     search: '',
     warehouse_id: null,
@@ -653,6 +658,7 @@ onBeforeUnmount(() => {
 
                 <v-autocomplete
                     v-model="form.good_id"
+                    @update:model-value="selectGoodUnit"
                     :items="goods"
                     item-title="name"
                     item-value="id"
@@ -665,10 +671,11 @@ onBeforeUnmount(() => {
 
                 <v-select
                     v-model="form.measure_id"
+                    readonly
                     :items="measures"
                     item-title="name"
                     item-value="id"
-                    label="Ед."
+                    :label="form.good_id && !form.measure_id ? 'Задайте единицу в карточке товара' : 'Единица учёта товара'"
                     density="compact"
                     variant="outlined"
                     hide-details

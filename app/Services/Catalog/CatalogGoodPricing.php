@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Services\Goods\GoodMeasurement;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -33,6 +34,8 @@ class CatalogGoodPricing
 
         // Publication controls the public website, not whether an internal price is current.
         $prices = DB::table('good_price_type_values as value')
+            ->join('goods as good', 'good.id', '=', 'value.good_id')
+            ->leftJoin('measures as accounting_measure', 'accounting_measure.id', '=', 'good.measure_id')
             ->join('price_types as type', 'type.id', '=', 'value.price_type_id')
             ->leftJoin('currencies as currency', 'currency.id', '=', DB::raw('COALESCE(value.currency_id, type.currency_id)'))
             ->whereIn('value.good_id', $goodIds)
@@ -42,6 +45,7 @@ class CatalogGoodPricing
             ->orderBy('type.sort_order')->orderBy('type.name')->orderBy('value.id')
             ->get([
                 'value.id', 'value.good_id', 'value.price_gross', 'value.price_net', 'value.vat_rate',
+                'good.measure_id as accounting_measure_id', 'good.unit_weight_kg', 'accounting_measure.name as unit_label',
                 'type.name as name', 'type.code as code',
                 'currency.id as currency_id', 'currency.code as currency_code', 'currency.name as currency_name',
             ])->groupBy('good_id');
@@ -49,8 +53,6 @@ class CatalogGoodPricing
         return collect($goodIds)->mapWithKeys(function ($goodId) use ($purchases, $prices): array {
             $purchase = $purchases->get($goodId);
             $purchasePrice = $purchase && $purchase->price !== null ? (float) $purchase->price : null;
-            $kgFactor = $this->kilograms($purchase?->unit_label);
-            $purchasePerKg = $purchasePrice !== null && $kgFactor !== null ? $purchasePrice / $kgFactor : null;
 
             return [$goodId => [
                 'purchase' => $purchase ? [
@@ -60,7 +62,14 @@ class CatalogGoodPricing
                     'currency_label' => $purchase->currency_code ?: $purchase->currency_name,
                     'unit_label' => $purchase->unit_label,
                 ] : null,
-                'sales' => ($prices->get($goodId) ?? collect())->map(function ($price) use ($purchase, $purchasePerKg): array {
+                'sales' => ($prices->get($goodId) ?? collect())->map(function ($price) use ($purchase, $purchasePrice): array {
+                    $measurement = app(GoodMeasurement::class);
+                    $purchaseKg = $measurement->kilograms($purchase?->unit_label);
+                    $saleKg = $measurement->kilograms($price->unit_label) ?? ($price->unit_weight_kg > 0 ? (float) $price->unit_weight_kg : null);
+                    $sameUnit = $purchase?->measure_id && $price->accounting_measure_id
+                        && (int) $purchase->measure_id === (int) $price->accounting_measure_id;
+                    $purchasePerUnit = $purchasePrice === null ? null : ($sameUnit ? $purchasePrice
+                        : ($purchaseKg && $saleKg ? $purchasePrice / $purchaseKg * $saleKg : null));
                     $amount = $price->price_gross ?? $price->price_net;
                     $amount = $amount === null ? null : (float) $amount;
                     $includesVat = $price->price_gross !== null;
@@ -70,8 +79,9 @@ class CatalogGoodPricing
                     }
                     $reason = match (true) {
                         ! $purchase => 'Нет закупок',
-                        $purchasePerKg === null => 'Единица закупки не сопоставима с кг',
-                        $purchasePerKg <= 0 => 'Закупочная цена должна быть больше нуля',
+                        ! $price->accounting_measure_id => 'Единица учёта товара не задана',
+                        $purchasePerUnit === null => 'Единицы закупки и продажи не сопоставимы',
+                        $purchasePerUnit <= 0 => 'Закупочная цена должна быть больше нуля',
                         ! $purchase->currency_id || ! $price->currency_id => 'Не указана валюта',
                         (int) $purchase->currency_id !== (int) $price->currency_id => 'Разные валюты закупки и продажи',
                         $amount === null => 'Цена продажи не задана',
@@ -85,24 +95,13 @@ class CatalogGoodPricing
                         'code' => $price->code,
                         'price' => $amount,
                         'currency_label' => $price->currency_code ?: $price->currency_name,
-                        // The internal price editor and calculations store values per kilogram.
-                        'unit_label' => 'кг',
+                        'unit_label' => $price->unit_label,
                         'includes_vat' => $includesVat,
-                        'markup_percent' => $reason === null ? round(($amount / $purchasePerKg - 1) * 100, 2) : null,
+                        'markup_percent' => $reason === null ? round(($amount / $purchasePerUnit - 1) * 100, 2) : null,
                         'markup_unavailable_reason' => $reason,
                     ];
                 })->values()->all(),
             ]];
         });
-    }
-
-    private function kilograms(?string $unit): ?float
-    {
-        return match (mb_strtolower(trim((string) $unit))) {
-            'кг', 'килограмм', 'килограммы', 'kg', 'kilogram', 'kilograms' => 1,
-            'т', 'тн', 'тонна', 'тонны', 'тонн', 'ton', 'tons', 'tonne', 'tonnes' => 1000,
-            'г', 'гр', 'грамм', 'граммы', 'gram', 'grams', 'g' => 0.001,
-            default => null,
-        };
     }
 }

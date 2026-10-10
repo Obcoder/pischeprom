@@ -45,6 +45,8 @@ class FieldController extends Controller
                 'goods.ava_image',
                 'goods.ava_thumb',
                 'goods.denominator',
+                'goods.measure_id',
+                'goods.unit_weight_kg',
                 'goods.country_id',
                 'goods.description',
                 'goods.created_at',

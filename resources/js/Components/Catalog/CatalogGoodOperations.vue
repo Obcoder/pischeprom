@@ -588,6 +588,7 @@ defineExpose({ refresh, reset })
                     <v-row dense class="prices-workspace">
                         <v-col cols="12" xl="5">
                             <GoodPriceTypeValuesTab
+                                :measurement="goodData.measurement"
                                 :key="priceValuesRefreshKey"
                                 class="prices-workspace__card"
                                 :good-id="goodData.id"
@@ -616,6 +617,7 @@ defineExpose({ refresh, reset })
 
                         <v-col cols="12">
                             <GoodPriceCalculationsTab
+                                :measurement="goodData.measurement"
                                 :key="priceCalculationsRefreshKey"
                                 class="prices-workspace__card"
                                 :good-id="goodData.id"

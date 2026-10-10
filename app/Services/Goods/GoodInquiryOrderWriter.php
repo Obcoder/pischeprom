@@ -54,9 +54,8 @@ class GoodInquiryOrderWriter
             'items' => [[
                 'good_id' => $inquiry->good_id,
                 'quantity' => $inquiry->quantity,
-                'unit_price' => $inquiry->listed_price !== null
-                    ? round($inquiry->listed_price * ($inquiry->package_weight ?? 1), 4)
-                    : null,
+                'measure_id' => $inquiry->measure_id,
+                'unit_price' => $inquiry->listed_price,
             ]],
         ]);
     }

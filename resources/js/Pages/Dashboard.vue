@@ -45,7 +45,7 @@ function formatWeight(value) {
     }
 
     return `${amount.toLocaleString('ru-RU', {
-        maximumFractionDigits: 3,
+        maximumFractionDigits: 6,
     })} кг`
 }
 
@@ -246,7 +246,7 @@ function formatDate(value) {
 
                                             <div>
                                                 <strong>{{ item.good_name }}</strong>
-                                                <span>{{ item.quantity }} шт. · {{ formatMoney(item.line_total, item.currency_code) }}</span>
+                                                <span>{{ item.quantity }} {{ item.measurement?.unit_label || item.measure_name || 'единица не задана' }} · {{ formatMoney(item.line_total, item.currency_code) }}</span>
                                             </div>
                                         </div>
                                     </div>

@@ -7,6 +7,7 @@ import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelecto
 import CompactBuildingFields from '@/Components/Geography/Buildings/CompactBuildingFields.vue'
 import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
 import { selectedApartment, selectedBuildingApartments } from '@/utils/buildingApartments'
+import { measurementForGood, unitLabel } from '@/utils/goodMeasurement'
 
 const props = defineProps({
     chat: { type: Object, default: null },
@@ -119,8 +120,9 @@ const productPreview = computed(() => {
     if (selectedGood.value.country?.name) lines.push(`Страна: ${selectedGood.value.country.name}`)
     if (productForm.include_price && selectedPrice.value && selectedPrice.value.amount !== null) {
         const quantity = Number(productForm.quantity) || 0
-        const total = quantity > 0 ? ` × ${formatNumber(quantity)} = ${formatMoney(selectedPrice.value.amount * quantity, selectedPrice.value.currency_code)}` : ''
-        lines.push(`Цена · ${selectedPrice.value.name}: ${formatMoney(selectedPrice.value.amount, selectedPrice.value.currency_code)}${total}`)
+        const unit = unitLabel(measurementForGood(selectedGood.value))
+        const total = quantity > 0 ? ` × ${formatNumber(quantity)} ${unit} = ${formatMoney(selectedPrice.value.amount * quantity, selectedPrice.value.currency_code)}` : ''
+        lines.push(`Цена · ${selectedPrice.value.name}: ${formatMoney(selectedPrice.value.amount, selectedPrice.value.currency_code)} / ${unit}${total}`)
     }
     if (productForm.include_stock) lines.push(`Наличие: ${availabilityLabel(selectedGood.value)}`)
     if (productForm.include_link && selectedGood.value.public_url) lines.push(selectedGood.value.public_url)
@@ -464,8 +466,17 @@ async function rejectCandidate(candidate) {
 }
 
 function addToOrder(good) {
+    const measurement = measurementForGood(good)
+    if (!measurement.measure_id) {
+        emit('error', 'Укажите единицу измерения в карточке товара перед созданием заказа.')
+        return
+    }
     const existing = orderItems.value.find((item) => item.good_id === good.id)
     if (existing) {
+        if (existing.measurement.measure_id !== measurement.measure_id) {
+            emit('error', 'Единица товара изменилась. Удалите позицию и добавьте её заново.')
+            return
+        }
         existing.quantity = Number(existing.quantity || 0) + 1
     } else {
         const price = good.prices?.[0] || null
@@ -474,6 +485,7 @@ function addToOrder(good) {
             name: good.name,
             image: good.media?.[0]?.url || null,
             quantity: 1,
+            measurement: { ...measurement },
             unit_price: price?.amount ?? '',
         })
         if (price?.currency_code) orderForm.currency_code = price.currency_code
@@ -496,6 +508,8 @@ async function createOrder() {
             items: orderItems.value.map((item) => ({
                 good_id: item.good_id,
                 quantity: Number(item.quantity),
+                measure_id: item.measurement.measure_id,
+                measurement: item.measurement,
                 unit_price: item.unit_price === '' || item.unit_price === null ? null : Number(item.unit_price),
             })),
         })
@@ -620,7 +634,8 @@ function notify(message) {
 }
 
 function fail(exception, fallback) {
-    emit('error', exception?.response?.data?.message || fallback)
+    const itemError = Object.entries(exception?.response?.data?.errors || {}).find(([field]) => field.startsWith('items.'))?.[1]
+    emit('error', (Array.isArray(itemError) ? itemError[0] : itemError) || exception?.response?.data?.message || fallback)
 }
 
 defineExpose({
@@ -787,11 +802,11 @@ onBeforeUnmount(() => {
                                 <strong :title="item.name">{{ item.name }}</strong>
                                 <div class="order-line__fields">
                                     <label>
-                                        <span>Количество</span>
-                                        <input v-model="item.quantity" type="number" inputmode="decimal" min="0.001" step="0.001" aria-label="Количество товара">
+                                        <span>Количество, {{ unitLabel(item.measurement) }}</span>
+                                        <input v-model="item.quantity" type="number" inputmode="decimal" min="0.001" step="0.001" :aria-label="`Количество, ${unitLabel(item.measurement)}`">
                                     </label>
                                     <label>
-                                        <span>Цена за единицу</span>
+                                        <span>Цена / {{ unitLabel(item.measurement) }}</span>
                                         <input v-model="item.unit_price" type="number" inputmode="decimal" min="0" step="0.01" aria-label="Цена товара за единицу">
                                     </label>
                                 </div>
@@ -825,8 +840,8 @@ onBeforeUnmount(() => {
                 <div class="goods-list" :class="{ 'is-loading': goodsLoading }">
                     <article v-for="good in goods" :key="good.id">
                         <div class="good-image"><img v-if="good.media?.[0]?.url" :src="good.media[0].url" alt="" loading="lazy"><v-icon v-else icon="mdi-image-off-outline" /></div>
-                        <div class="good-copy"><strong>{{ good.name }}</strong><span :class="`stock-${good.availability?.status}`">{{ availabilityLabel(good) }}</span><small>{{ good.prices?.[0] ? `${good.prices[0].name}: ${formatMoney(good.prices[0].amount, good.prices[0].currency_code)}` : 'Опубликованной цены нет' }}</small><em v-if="!good.is_published">Не опубликован</em></div>
-                        <div class="good-actions"><v-btn icon="mdi-cart-plus" size="x-small" variant="text" title="Добавить в заказ" @click="addToOrder(good)" /><v-btn icon="mdi-send" color="deep-purple-lighten-1" size="x-small" variant="tonal" title="Отправить клиенту" @click="openProduct(good)" /></div>
+                        <div class="good-copy"><strong>{{ good.name }}</strong><span :class="`stock-${good.availability?.status}`">{{ availabilityLabel(good) }}</span><small>{{ good.prices?.[0] ? `${good.prices[0].name}: ${formatMoney(good.prices[0].amount, good.prices[0].currency_code)} / ${unitLabel(measurementForGood(good))}` : 'Опубликованной цены нет' }}</small><em v-if="!good.is_published">Не опубликован</em></div>
+                        <div class="good-actions"><v-btn icon="mdi-cart-plus" size="x-small" variant="text" :title="good.measurement?.measure_id ? 'Добавить в заказ' : 'Укажите единицу в карточке товара'" :disabled="!good.measurement?.measure_id" @click="addToOrder(good)" /><v-btn icon="mdi-send" color="deep-purple-lighten-1" size="x-small" variant="tonal" title="Отправить клиенту" @click="openProduct(good)" /></div>
                     </article>
                     <div v-if="!goods.length && !goodsLoading" class="order-empty"><v-icon icon="mdi-package-variant-remove" size="28" /><span>Товары не найдены.</span></div>
                 </div>
@@ -858,14 +873,14 @@ onBeforeUnmount(() => {
                     <div class="product-dialog__grid">
                         <div class="product-settings">
                             <v-text-field v-model="productForm.intro" label="Вводная фраза" placeholder="Например: Подобрал подходящий товар" density="compact" variant="outlined" hide-details clearable />
-                            <div class="form-grid"><v-select v-model="productForm.price_value_id" :items="selectedGood.prices" :item-title="item => `${item.name} · ${formatMoney(item.amount, item.currency_code)}`" item-value="id" label="Цена" density="compact" variant="outlined" hide-details clearable /><v-text-field v-model="productForm.quantity" type="number" min="0.001" step="0.001" label="Количество" density="compact" variant="outlined" hide-details /></div>
+                            <div class="form-grid"><v-select v-model="productForm.price_value_id" :items="selectedGood.prices" :item-title="item => `${item.name} · ${formatMoney(item.amount, item.currency_code)} / ${unitLabel(measurementForGood(selectedGood))}`" item-value="id" label="Цена" density="compact" variant="outlined" hide-details clearable /><v-text-field v-model="productForm.quantity" type="number" min="0.001" step="0.001" :label="`Количество, ${unitLabel(measurementForGood(selectedGood))}`" density="compact" variant="outlined" hide-details /></div>
                             <div class="send-options"><v-checkbox v-model="productForm.include_description" label="Описание" density="compact" hide-details /><v-checkbox v-model="productForm.include_price" label="Цена" density="compact" hide-details /><v-checkbox v-model="productForm.include_stock" label="Наличие" density="compact" hide-details /><v-checkbox v-model="productForm.include_link" label="Ссылка" density="compact" hide-details /></div>
                             <div v-if="selectedGood.media?.length" class="media-picker"><span>Фотографии · до 5</span><label v-for="media in selectedGood.media" :key="media.id"><input v-model="productForm.media_ids" type="checkbox" :value="media.id" :disabled="!productForm.media_ids.includes(media.id) && productForm.media_ids.length >= 5"><img :src="media.url" :alt="media.title" loading="lazy"><i v-if="media.is_ava">Главная</i></label></div>
                         </div>
                         <div class="message-preview"><span>Предпросмотр текста</span><pre>{{ productPreview }}</pre><small>Каждое выбранное фото будет отправлено отдельным сообщением.</small></div>
                     </div>
                 </v-card-text>
-                <v-card-actions><v-btn variant="text" @click="addToOrder(selectedGood); productDialog = false">Добавить в заказ</v-btn><v-spacer /><v-btn color="deep-purple-lighten-1" prepend-icon="mdi-send" :loading="saving" @click="sendProduct">Отправить в Avito</v-btn></v-card-actions>
+                <v-card-actions><v-btn variant="text" :disabled="!selectedGood?.measurement?.measure_id" @click="addToOrder(selectedGood); productDialog = false">Добавить в заказ</v-btn><v-spacer /><v-btn color="deep-purple-lighten-1" prepend-icon="mdi-send" :loading="saving" @click="sendProduct">Отправить в Avito</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
         <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :external-busy="orderSending" theme="dark" @saved="orderSaved">
