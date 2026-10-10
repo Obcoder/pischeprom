@@ -8,6 +8,7 @@ use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
+use App\Services\Seo\GoodSeoService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Collection;
@@ -129,7 +130,7 @@ class CatalogSiteContext
         $sources = [
             'category' => Category::query()->whereIn('id', $nodes->where('entity_type', 'category')->pluck('entity_id'))->get(['id', 'name', 'slug', 'image', 'is_published', 'is_featured'])->keyBy('id'),
             'product' => Product::without(['category', 'manufacturers'])->whereIn('id', $nodes->where('entity_type', 'product')->pluck('entity_id'))->get(['id', 'rus', 'is_published'])->keyBy('id'),
-            'good' => Good::without('measure')->whereIn('id', $nodes->where('entity_type', 'good')->pluck('entity_id'))->get(['id', 'name', 'slug', 'ava_image', 'ava_thumb', 'is_published'])->keyBy('id'),
+            'good' => Good::without('measure')->with('seo:id,good_id,slug_override,is_active')->whereIn('id', $nodes->where('entity_type', 'good')->pluck('entity_id'))->get(['id', 'name', 'slug', 'ava_image', 'ava_thumb', 'is_published'])->keyBy('id'),
         ];
         $nodes = $nodes->map(function (array $node) use ($sources): array {
             if ($node['entity_type']) {
@@ -138,6 +139,9 @@ class CatalogSiteContext
                 if ($source) {
                     $node['name'] = $source instanceof Product ? $source->rus : $source->name;
                     $node['slug'] = $source->slug ?? $node['slug'];
+                    if ($source instanceof Good) {
+                        $node['offer_url'] = app(GoodSeoService::class)->publicUrl($source);
+                    }
                     if ($source instanceof Category) {
                         $node['is_featured'] = (bool) $source->is_featured;
                     }
@@ -154,7 +158,7 @@ class CatalogSiteContext
         $nodes = $nodes->map(function (array $node) use ($paths): array {
             $node['catalog_path'] = $paths[$node['id']] ?? null;
             $node['public_url'] = $node['entity_type'] === 'good'
-                ? route('public.goods.show', $node['slug'])
+                ? ($node['offer_url'] ?? route('public.goods.show', (string) ($node['entity_id'] ?: 0)))
                 : ($node['catalog_path'] !== null ? route('public.catalog.path', ['path' => $node['catalog_path']]) : null);
 
             return $node;
