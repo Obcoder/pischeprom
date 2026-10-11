@@ -10,6 +10,7 @@
         "ext-libxml": "*",
         "ext-simplexml": "*",
         "ext-xmlwriter": "*",
+        "enshrined/svg-sanitize": "^1.0",
         "inertiajs/inertia-laravel": "^3.0",
         "intervention/image": "^3.11",
         "laravel/framework": "^12.0",

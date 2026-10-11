@@ -8,6 +8,7 @@ use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CatalogAvatars;
+use App\Services\Catalog\CatalogImageUploads;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -133,11 +134,11 @@ class CategoryController extends Controller
         }
 
         if ($request->hasFile('avatar')) {
+            $path = app(CatalogImageUploads::class)->store($request->file('avatar'), 'category-avatars', 'avatar');
             if ($category) {
                 $this->deleteLocalAvatar($category->image);
             }
 
-            $path = $request->file('avatar')->store('category-avatars', 'public');
             $data['image'] = Storage::disk('public')->url($path);
         } elseif ($request->boolean('remove_avatar') && $category) {
             $this->deleteLocalAvatar($category->image);

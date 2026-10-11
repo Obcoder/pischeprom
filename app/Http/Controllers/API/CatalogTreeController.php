@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
+use App\Services\Catalog\CatalogImageUploads;
 use App\Services\Catalog\CatalogService;
 use App\Services\Catalog\CatalogTranslations;
 use App\Services\Goods\GoodMeasurement;
@@ -211,8 +212,8 @@ class CatalogTreeController extends Controller
 
     public function uploadImage(Request $request, CatalogNode $node): JsonResponse
     {
-        $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120']]);
-        $path = $request->file('image')->store('catalog-images', 'public');
+        $request->validate(['image' => ['required', 'image:allow_svg', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:5120']]);
+        $path = app(CatalogImageUploads::class)->store($request->file('image'), 'catalog-images');
         try {
             $node = $this->catalog->saveNode(['image' => Storage::disk('public')->url($path)], $node);
         } catch (\Throwable $exception) {

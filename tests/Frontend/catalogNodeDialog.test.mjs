@@ -113,6 +113,41 @@ test('avatar upload previews the chosen file and releases the preview when clear
     assert.equal(h.api.imageFile.value, null)
 })
 
+test('category SVG avatar can be selected, previewed and saved through the image upload', async t => {
+    const created = t.mock.method(URL, 'createObjectURL', () => 'blob:catalog-svg-preview')
+    const revoked = t.mock.method(URL, 'revokeObjectURL', () => {})
+    const original = sourceNode({ entity_type: 'category', image: '/storage/old.png' })
+    const h = harness(t, { node: original })
+    const input = findVNode(h.render(), node => node.props?.label === 'Загрузить аватар')
+    assert.ok(input.props.accept.split(',').includes('image/svg+xml'))
+    assert.ok(input.props.accept.split(',').includes('.svg'))
+    assert.match(input.props.hint, /SVG до 5 МБ/)
+    const content = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z"/></svg>'
+    const file = new File([content], 'category.svg', { type: 'image/svg+xml' })
+    updateModel(input, [file])
+    await Vue.nextTick()
+    assert.equal(created.mock.calls[0].arguments[0], file)
+    assert.equal(h.api.avatarPreviewSource.value, 'blob:catalog-svg-preview')
+    const pending = h.api.save()
+    h.requests[0].resolve(original)
+    await h.ready()
+    const upload = h.requests[1]
+    assert.equal(upload.method, 'post')
+    assert.equal(upload.url, '/api/catalog/nodes/7/image')
+    assert.ok(upload.data instanceof FormData)
+    assert.equal(upload.data.get('image').name, 'category.svg')
+    assert.equal(upload.data.get('image').type, 'image/svg+xml')
+    assert.equal(await upload.data.get('image').text(), content)
+    const saved = { ...original, image: '/storage/catalog-images/category.svg' }
+    upload.resolve(saved)
+    await pending
+    await Vue.nextTick()
+    assert.equal(h.api.imageFile.value, null)
+    assert.equal(h.props.modelValue, false)
+    assert.equal(revoked.mock.calls[0].arguments[0], 'blob:catalog-svg-preview')
+    assert.deepEqual(h.emitted.find(event => event[0] === 'saved'), ['saved', saved])
+})
+
 test('parent choices retain avatars and hierarchy icons without admitting terminal goods', t => {
     const parent = { id: 5, name: 'Категория', entity_type: 'category', image: '/storage/category.png', thumbnail_url: '/storage/category-thumb.png' }
     const h = harness(t, { node: sourceNode({ entity_type: 'custom' }), nodes: [parent, sourceNode()] })

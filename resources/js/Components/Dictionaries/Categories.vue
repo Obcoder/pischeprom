@@ -863,7 +863,9 @@ onBeforeUnmount(() => {
                                             <v-file-input
                                                 v-model="avatarFile"
                                                 label="Загрузить аватар"
-                                                accept="image/*"
+                                                accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/svg+xml,.svg"
+                                                hint="JPG, PNG, WebP, GIF, BMP или SVG до 4 МБ"
+                                                persistent-hint
                                                 variant="outlined"
                                                 density="comfortable"
                                                 prepend-icon="mdi-camera"

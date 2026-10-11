@@ -14,6 +14,8 @@ use App\Services\Catalog\CatalogService;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicCatalogService;
 use App\Services\Goods\HomeGoodsModuleService;
+use DOMDocument;
+use DOMXPath;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -100,6 +102,138 @@ class CatalogAvatarTest extends TestCase
         }
     }
 
+    #[DataProvider('classifications')]
+    public function test_every_classification_accepts_svg_without_losing_shapes_styles_or_gradients(string $kind): void
+    {
+        Storage::fake('public');
+        $this->staff();
+        $level = match ($kind) {
+            'unclassified' => null,
+            'domain' => CatalogLevel::where('is_domain', true)->firstOrFail(),
+            'custom' => CatalogLevel::create(['name' => 'Класс SVG', 'entity_type' => 'custom']),
+            default => CatalogLevel::where('entity_type', $kind)->firstOrFail(),
+        };
+        $node = $this->postJson('/api/catalog/nodes', ['name' => 'SVG '.$kind, 'level_id' => $level?->id])
+            ->assertCreated()->json('data');
+        $response = $this->postJson('/api/catalog/nodes/'.$node['id'].'/image', [
+            'image' => UploadedFile::fake()->createWithContent('avatar.svg', $this->svg()),
+        ])->assertOk();
+        $image = $response->json('data.image');
+        $response->assertJsonPath('data.thumbnail_url', $image);
+        $this->assertStringEndsWith('.svg', $image);
+        $files = Storage::disk('public')->allFiles('catalog-images');
+        $this->assertCount(1, $files);
+        $this->assertSame(Storage::disk('public')->url($files[0]), $image);
+        $this->assertSame($image, CatalogNode::findOrFail($node['id'])->image);
+        if ($kind === 'category') {
+            $this->assertSame($image, Category::findOrFail($node['entity_id'])->image);
+        }
+        $this->assertSvgArtworkPreserved(Storage::disk('public')->get($files[0]));
+    }
+
+    public function test_svg_upload_removes_executable_content_and_external_references(): void
+    {
+        Storage::fake('public');
+        $this->staff();
+        $node = CatalogNode::create(['name' => 'Аватар SVG']);
+        $svg = str_replace('viewBox="0 0 32 32"', 'viewBox="0 0 32 32" onload="alert(1)"', $this->svg());
+        $svg = str_replace('</svg>', <<<'SVG'
+            <script>alert('unsafe-script')</script>
+            <foreignObject><div xmlns="http://www.w3.org/1999/xhtml">unsafe-html</div></foreignObject>
+            <image href="https://remote.example.test/avatar.png" width="32" height="32" />
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://remote.example.test/symbols.svg#icon" />
+            <rect onclick="alert(2)" width="1" height="1" />
+            <path style="fill: url(https://remote.example.test/fill.svg#gradient)" d="M0 0h1v1Z" />
+            <style>@import url("https://remote.example.test/style.css"); .remote { fill: url("https://remote.example.test/fill.svg#gradient"); }</style>
+            </svg>
+            SVG, $svg);
+        $this->postJson('/api/catalog/nodes/'.$node->id.'/image', [
+            'image' => UploadedFile::fake()->createWithContent('avatar.svg', $svg),
+        ])->assertOk();
+
+        $files = Storage::disk('public')->allFiles('catalog-images');
+        $this->assertCount(1, $files);
+        $stored = Storage::disk('public')->get($files[0]);
+        foreach (['<script', 'onload=', 'onclick=', 'foreignObject', 'unsafe-script', 'unsafe-html', 'remote.example.test'] as $removed) {
+            $this->assertStringNotContainsString($removed, $stored);
+        }
+        $this->assertSvgArtworkPreserved($stored);
+        Http::assertNothingSent();
+    }
+
+    public function test_invalid_svg_documents_preserve_the_current_catalog_avatar_and_files(): void
+    {
+        Storage::fake('public');
+        $this->staff();
+        $path = 'catalog-images/existing.svg';
+        Storage::disk('public')->put($path, $this->svg());
+        $image = Storage::disk('public')->url($path);
+        $node = CatalogNode::create(['name' => 'Существующий аватар', 'image' => $image]);
+        foreach ([
+            '<svg xmlns="http://www.w3.org/2000/svg"><path></svg>',
+            '<svg xmlns="urn:wrong-namespace"><path d="M0 0h1v1Z" /></svg>',
+            '<div xmlns="http://www.w3.org/2000/svg">Not an SVG root</div>',
+        ] as $invalid) {
+            $this->postJson('/api/catalog/nodes/'.$node->id.'/image', [
+                'image' => UploadedFile::fake()->createWithContent('broken.svg', $invalid),
+            ])->assertUnprocessable()->assertJsonValidationErrors('image');
+            $this->assertSame($image, $node->fresh()->image);
+            $this->assertSame([$path], Storage::disk('public')->allFiles('catalog-images'));
+            $this->assertSame($this->svg(), Storage::disk('public')->get($path));
+        }
+    }
+
+    public function test_legacy_categories_can_create_and_replace_svg_avatars(): void
+    {
+        Storage::fake('public');
+        $this->staff();
+        $response = $this->postJson('/api/categories', [
+            'name' => 'Категория SVG', 'avatar' => UploadedFile::fake()->createWithContent('avatar.svg', $this->svg()),
+        ])->assertCreated();
+        $id = $response->json('data.id');
+        $firstFiles = Storage::disk('public')->allFiles('category-avatars');
+        $this->assertCount(1, $firstFiles);
+        $response->assertJsonPath('data.image', Storage::disk('public')->url($firstFiles[0]));
+        $this->assertSvgArtworkPreserved(Storage::disk('public')->get($firstFiles[0]));
+
+        $replacement = str_replace('</svg>', '<script>alert(1)</script></svg>', $this->svg());
+        $response = $this->patchJson('/api/categories/'.$id, [
+            'name' => 'Категория SVG', 'avatar' => UploadedFile::fake()->createWithContent('replacement.svg', $replacement),
+        ])->assertOk();
+        $files = Storage::disk('public')->allFiles('category-avatars');
+        $this->assertCount(1, $files);
+        $this->assertNotSame($firstFiles[0], $files[0]);
+        Storage::disk('public')->assertMissing($firstFiles[0]);
+        $response->assertJsonPath('data.image', Storage::disk('public')->url($files[0]));
+        $this->assertSame($response->json('data.image'), Category::findOrFail($id)->image);
+        $stored = Storage::disk('public')->get($files[0]);
+        $this->assertStringNotContainsString('<script', $stored);
+        $this->assertSvgArtworkPreserved($stored);
+    }
+
+    public function test_invalid_legacy_category_upload_keeps_the_existing_avatar_even_when_removal_is_requested(): void
+    {
+        Storage::fake('public');
+        $this->staff();
+        $path = 'category-avatars/existing.svg';
+        Storage::disk('public')->put($path, $this->svg());
+        $image = Storage::disk('public')->url($path);
+        $category = Category::create(['name' => 'Категория с аватаром', 'image' => $image]);
+        foreach ([
+            UploadedFile::fake()->createWithContent('broken.svg', '<svg xmlns="http://www.w3.org/2000/svg"><path></svg>'),
+            UploadedFile::fake()->createWithContent('wrong-root.svg', '<div xmlns="http://www.w3.org/2000/svg">Not an SVG root</div>'),
+            UploadedFile::fake()->createWithContent('not-image.txt', 'This is not an image'),
+            UploadedFile::fake()->createWithContent('large.svg', $this->svg())->size(4097),
+        ] as $file) {
+            $this->patchJson('/api/categories/'.$category->id, [
+                'name' => $category->name, 'avatar' => $file, 'remove_avatar' => true,
+            ])->assertUnprocessable()->assertJsonValidationErrors('avatar');
+            $this->assertSame($image, $category->fresh()->image);
+            $this->assertSame([$path], Storage::disk('public')->allFiles('category-avatars'));
+            $this->assertSame($this->svg(), Storage::disk('public')->get($path));
+        }
+    }
+
     public function test_upload_permissions_and_validation_do_not_create_invalid_files(): void
     {
         Storage::fake('public');
@@ -109,7 +243,13 @@ class CatalogAvatarTest extends TestCase
         $this->actingAs(User::factory()->create(['type' => 'customer', 'status' => 'active']))
             ->postJson($url, ['image' => UploadedFile::fake()->image('avatar.png')])->assertForbidden();
         $this->staff();
-        foreach ([UploadedFile::fake()->create('avatar.svg', 1, 'image/svg+xml'), UploadedFile::fake()->image('large.jpg')->size(5121)] as $file) {
+        foreach ([
+            // An empty file claiming the SVG MIME type is still invalid XML.
+            UploadedFile::fake()->create('avatar.svg', 1, 'image/svg+xml'),
+            UploadedFile::fake()->createWithContent('not-image.txt', 'This is not an image'),
+            UploadedFile::fake()->image('large.jpg')->size(5121),
+            UploadedFile::fake()->createWithContent('large.svg', $this->svg())->size(5121),
+        ] as $file) {
             $this->postJson($url, ['image' => $file])->assertUnprocessable()->assertJsonValidationErrors('image');
         }
         $this->patchJson('/api/catalog/nodes/'.$node->id, ['image' => 'javascript:alert(1)'])->assertUnprocessable()->assertJsonValidationErrors('image');
@@ -244,5 +384,34 @@ class CatalogAvatarTest extends TestCase
     private function staff(): void
     {
         $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));
+    }
+
+    private function svg(): string
+    {
+        return <<<'SVG'
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+              <defs><linearGradient id="avatar-gradient"><stop offset="0" stop-color="#123456" /><stop offset="1" stop-color="#abcdef" /></linearGradient></defs>
+              <style>.avatar-shape { fill: url(#avatar-gradient); stroke: #654321; }</style>
+              <path id="avatar-shape" class="avatar-shape" style="opacity: 0.8" d="M2 2h28v28H2Z" />
+            </svg>
+            SVG;
+    }
+
+    private function assertSvgArtworkPreserved(string $svg): void
+    {
+        $document = new DOMDocument;
+        $this->assertTrue($document->loadXML($svg, LIBXML_NONET));
+        $this->assertSame('svg', $document->documentElement->localName);
+        $this->assertSame('http://www.w3.org/2000/svg', $document->documentElement->namespaceURI);
+        $this->assertSame('0 0 32 32', $document->documentElement->getAttribute('viewBox'));
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('svg', 'http://www.w3.org/2000/svg');
+        $path = $xpath->query('//svg:path[@id="avatar-shape"]')->item(0);
+        $this->assertNotNull($path);
+        $this->assertSame('M2 2h28v28H2Z', $path->getAttribute('d'));
+        $this->assertSame('opacity: 0.8', $path->getAttribute('style'));
+        $this->assertSame(2, $xpath->query('//svg:linearGradient[@id="avatar-gradient"]/svg:stop')->length);
+        $this->assertSame('#123456', $xpath->query('//svg:linearGradient/svg:stop')->item(0)->getAttribute('stop-color'));
+        $this->assertStringContainsString('fill: url(#avatar-gradient)', $xpath->query('//svg:style')->item(0)->textContent);
     }
 }

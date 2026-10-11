@@ -685,7 +685,7 @@ async function remove() {
                                 <v-text-field v-model="goodForm.avatar_thumb_source_url" label="Миниатюра: URL / CDN" type="url" variant="outlined" density="compact" clearable :disabled="!goodReady || saving || Boolean(selectedFile) || goodForm.remove_ava" :error-messages="goodErrors.avatar_thumb_source_url" />
                             </template>
                             <v-text-field v-else v-model="form.image" label="Аватар: URL / CDN" variant="outlined" density="compact" clearable :disabled="saving || Boolean(selectedFile)" :error-messages="fieldErrors('image')" />
-                            <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint :disabled="saving || (isGood && !goodReady)" />
+                            <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml,.svg" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP, GIF или SVG до 5 МБ" persistent-hint :disabled="saving || (isGood && !goodReady)" />
                             <v-checkbox v-if="isGood" :model-value="goodForm.remove_ava" label="Удалить аватар" color="error" density="compact" hide-details :disabled="!goodReady || saving" :error-messages="goodErrors.remove_ava" @update:model-value="removeGoodAvatar" />
                         </section>
                         <section v-if="!isGood" class="catalog-node-dialog__section catalog-node-dialog__seo">

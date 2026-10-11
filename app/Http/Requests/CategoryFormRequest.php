@@ -13,7 +13,7 @@ class CategoryFormRequest extends FormRequest
             $this->merge(['field_id' => null]);
         }
 
-        if (!$this->has('keywords') || is_array($this->input('keywords'))) {
+        if (! $this->has('keywords') || is_array($this->input('keywords'))) {
             return;
         }
 
@@ -64,7 +64,7 @@ class CategoryFormRequest extends FormRequest
             'local_code' => ['nullable', 'string', 'max:255'],
             'field_id' => ['nullable', 'integer', 'exists:fields,id'],
             'image' => ['nullable', 'string', 'max:2048'],
-            'avatar' => ['nullable', 'image', 'max:4096'],
+            'avatar' => ['nullable', 'image:allow_svg', 'max:4096'],
             'remove_avatar' => ['nullable', 'boolean'],
             'image_alt' => ['nullable', 'string', 'max:255'],
             'is_published' => ['nullable', 'boolean'],
