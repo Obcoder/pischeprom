@@ -15,6 +15,13 @@ class ClassPageHtmlVerifierTest extends TestCase
         $this->expectNotToPerformAssertions();
     }
 
+    public function test_breadcrumb_avatars_and_metadata_preserve_the_expected_hierarchy(): void
+    {
+        $html = str_replace('>Рыба</a>', '><img src="/storage/fish.png" alt="">Рыба</a>', $this->html());
+        (new ClassPageHtmlVerifier)->verify($html, $this->page());
+        $this->expectNotToPerformAssertions();
+    }
+
     #[DataProvider('invalidHtml')]
     public function test_serialized_props_and_incorrect_rendered_catalogs_do_not_pass(string $change): void
     {
@@ -29,6 +36,12 @@ class ClassPageHtmlVerifierTest extends TestCase
             'wrong-schema' => str_replace('"numberOfItems":1', '"numberOfItems":0', $html),
             'duplicate-title' => str_replace('<head>', '<head><title>Default title</title>', $html),
             'wrong-breadcrumb-link' => str_replace('href="https://example.test/catalog/ryba"', 'href="https://example.test/category/fish"', $html),
+            'wrong-breadcrumb-name' => str_replace('>Рыба</a>', '>Другая категория</a>', $html),
+            'wrong-breadcrumb-order' => str_replace(
+                '<a href="https://example.test">Главная</a><a href="https://example.test/catalog/ryba">Рыба</a>',
+                '<a href="https://example.test/catalog/ryba">Рыба</a><a href="https://example.test">Главная</a>',
+                $html,
+            ),
             'wrong-breadcrumb-schema' => str_replace('"position":2', '"position":9', $html),
         };
         $this->expectException(RuntimeException::class);
@@ -37,7 +50,7 @@ class ClassPageHtmlVerifierTest extends TestCase
 
     public static function invalidHtml(): array
     {
-        return array_map(fn ($case) => [$case], ['only-props', 'old-link', 'duplicate', 'noindex', 'wrong-canonical', 'missing-article', 'wrong-schema', 'duplicate-title', 'wrong-breadcrumb-link', 'wrong-breadcrumb-schema']);
+        return array_map(fn ($case) => [$case], ['only-props', 'old-link', 'duplicate', 'noindex', 'wrong-canonical', 'missing-article', 'wrong-schema', 'duplicate-title', 'wrong-breadcrumb-link', 'wrong-breadcrumb-name', 'wrong-breadcrumb-order', 'wrong-breadcrumb-schema']);
     }
 
     private function page(): array
@@ -48,8 +61,10 @@ class ClassPageHtmlVerifierTest extends TestCase
             'inlineGoods' => [75 => ['url' => 'https://example.test/g/current']],
             'breadcrumbs' => [
                 ['name' => 'Главная', 'url' => 'https://example.test'],
-                ['name' => 'Рыба', 'url' => 'https://example.test/catalog/ryba'],
-                ['name' => 'Скумбрия', 'url' => 'https://example.test/catalog/ryba/skumbriia'],
+                ['name' => 'Рыба', 'url' => 'https://example.test/catalog/ryba', 'entity_type' => 'category',
+                    'image' => '/storage/fish.png', 'thumbnail_url' => '/storage/fish.png'],
+                ['name' => 'Скумбрия', 'url' => 'https://example.test/catalog/ryba/skumbriia', 'entity_type' => 'product',
+                    'image' => '/storage/mackerel.png', 'thumbnail_url' => '/storage/mackerel.png'],
             ],
             'seo' => ['h1' => 'Скумбрия', 'title' => 'Скумбрия: каталог', 'description' => 'Гид и каталог',
                 'canonical' => 'https://example.test/catalog/ryba/skumbriia', 'robots' => 'index,follow'],

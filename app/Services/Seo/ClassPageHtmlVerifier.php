@@ -41,7 +41,9 @@ class ClassPageHtmlVerifier
         }
         $headings = $xpath->query('.//h1', $root);
         $this->require($headings->length === 1 && trim($headings->item(0)->textContent) === $page['seo']['h1'], 'The rendered H1 is incorrect.');
-        $breadcrumbs = $page['breadcrumbs'];
+        $breadcrumbs = array_map(fn (array $item): array => [
+            'name' => $item['name'], 'url' => $item['url'],
+        ], $page['breadcrumbs']);
         $breadcrumbNavs = $xpath->query('.//nav[@aria-label="Хлебные крошки"]', $root);
         $this->require($breadcrumbNavs->length === 1, 'The rendered catalog breadcrumbs are missing.');
         $breadcrumbLinks = $xpath->query('.//a[@href]', $breadcrumbNavs->item(0));
