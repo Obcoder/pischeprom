@@ -32,7 +32,6 @@ jobs:
     env:
       VITE_MOBILE_API_URL: https://xn----dtbhbbn3apgclecj7i.xn--p1ai/api/mobile/v1
       MOBILE_SIGNER_SHA256: 40e0eafc20adf7db4235b86fc3629fb9828a40e3a92ba925e02453294c2960e1
-      MOBILE_ANDROID_KEYSTORE: ${{ runner.temp }}/pischeprom-debug.keystore
 
     steps:
       - name: Check out the requested commit
@@ -69,12 +68,14 @@ jobs:
           MOBILE_KEYSTORE: ${{ secrets.MOBILE_ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
           set -Eeuo pipefail
+          signing_key="$RUNNER_TEMP/pischeprom-debug.keystore"
+          printf 'MOBILE_ANDROID_KEYSTORE=%s\n' "$signing_key" >> "$GITHUB_ENV"
           if [[ -z "$MOBILE_KEYSTORE" ]]; then
             echo '::error::MOBILE_ANDROID_DEBUG_KEYSTORE_BASE64 is required to preserve Android update compatibility.'
             exit 1
           fi
           umask 077
-          printf '%s' "$MOBILE_KEYSTORE" | base64 --decode > "$MOBILE_ANDROID_KEYSTORE"
+          printf '%s' "$MOBILE_KEYSTORE" | base64 --decode > "$signing_key"
 
       - name: Assemble APK
         working-directory: mobile/android
@@ -124,7 +125,7 @@ jobs:
 
       - name: Remove signing key from runner
         if: always()
-        run: rm -f -- "$MOBILE_ANDROID_KEYSTORE"
+        run: rm -f -- "$RUNNER_TEMP/pischeprom-debug.keystore"
 
       - name: Upload installable APK
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
