@@ -43,6 +43,12 @@ class MobileAccess
         return Sanctum::personalAccessTokenModel()::findToken($bearer);
     }
 
+    public static function canCreateOrders(User $user): bool
+    {
+        return self::allowed($user) && ($user->hasRole('admin', 'crm')
+            || $user->checkPermissionTo('orders.create', 'crm'));
+    }
+
     public static function isMobileToken(PersonalAccessToken $token): bool
     {
         return str_starts_with($token->name, 'mobile:')

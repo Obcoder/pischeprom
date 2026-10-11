@@ -6,10 +6,17 @@ import { ApiError, createApi } from './api.js'
 import { createShipmentOperation, validatePreparation } from './shipment.js'
 import DeliveryContacts from './DeliveryContacts.vue'
 import DeliveryMap from './DeliveryMap.vue'
+import ProductSummary from './ProductSummary.vue'
+import OrderCreate from './OrderCreate.vue'
 import { calendarDay, deliveryDateQuery, formatDeliveryDate } from './delivery-date.js'
 
 const user = ref(null)
 const abilities = ref([])
+const capabilities = ref({})
+const creatingOrder = ref(false)
+const savingNewOrder = ref(false)
+const orderCreateForm = ref(null)
+const productDate = ref(calendarDay())
 const email = ref('')
 const password = ref('')
 const twoFactorCode = ref('')
@@ -58,6 +65,9 @@ function clearSession(message = '') {
     shipment?.clear()
     user.value = null
     abilities.value = []
+    capabilities.value = {}
+    creatingOrder.value = false
+    savingNewOrder.value = false
     password.value = ''
     twoFactorCode.value = ''
     orders.value = []
@@ -95,7 +105,7 @@ const statuses = {
 }
 const status = value => statuses[value] || { label: 'Требует проверки', color: 'warning', icon: 'mdi-alert-circle-outline' }
 const inDetail = computed(() => selectedId.value !== null)
-const busy = computed(() => preparing.value || shipping.value || savingDeliveryDate.value || loggingOut.value)
+const busy = computed(() => preparing.value || shipping.value || savingDeliveryDate.value || savingNewOrder.value || loggingOut.value)
 const deliveryDateDirty = computed(() => (deliveryDateDraft.value || '') !== (order.value?.delivery_date || ''))
 const canSaveDeliveryDate = computed(() => order.value && deliveryDateDirty.value && !busy.value && !stale.value && online.value && !orderLoading.value && !uncertainShipment.value)
 const checkedCount = computed(() => rows.value.filter(row => row.checked).length)
@@ -108,6 +118,10 @@ const quantity = value => new Intl.NumberFormat('ru-RU', { maximumFractionDigits
 function money(value, currency = 'RUB') {
     try { return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: currency || 'RUB', maximumFractionDigits: 2 }).format(Number(value || 0)) }
     catch { return `${quantity(value)} ${currency || ''}`.trim() }
+}
+function orderMoney(value) {
+    const totals = Object.entries(value.totals_by_currency || {})
+    return totals.length ? totals.map(([currency, total]) => money(total, currency)).join(' + ') : money(value.total_amount, value.currency_code)
 }
 function notify(message) {
     notification.value = message
@@ -128,6 +142,8 @@ async function login() {
         api.setToken(result.token)
         user.value = result.user
         abilities.value = result.abilities || []
+        capabilities.value = result.capabilities || {}
+        productDate.value = calendarDay()
         password.value = ''
         twoFactorCode.value = ''
         await loadOrders()
@@ -244,8 +260,39 @@ async function openOrder(id) {
     }
 }
 
+function startOrder() {
+    if (busy.value || !online.value || !capabilities.value.can_create_orders) return
+    creatingOrder.value = true
+    window.scrollTo({ top: 0, behavior: 'instant' })
+}
+
+function orderCreated(value) {
+    if (!user.value) return
+    savingNewOrder.value = false
+    creatingOrder.value = false
+    screen.value = 'list'
+    selectedId.value = value.id
+    orderError.value = ''
+    applyOrder(value)
+    notify(`Заказ № ${value.number} создан.`)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+}
+
+function cancelCreate(options = {}) {
+    creatingOrder.value = false
+    if (options.checkOrders) {
+        showAllOrders()
+        screen.value = 'list'
+    }
+    if (screen.value === 'list') loadOrders()
+}
+
 function back() {
     if (busy.value) return
+    if (creatingOrder.value) {
+        orderCreateForm.value?.requestClose()
+        return
+    }
     if (confirmShipment.value) {
         confirmShipment.value = false
         return
@@ -259,7 +306,7 @@ function back() {
         if (screen.value === 'list') loadOrders()
         return
     }
-    if (screen.value === 'map') screen.value = 'list'
+    if (screen.value !== 'list') screen.value = 'list'
 }
 
 function operationError(error, action) {
@@ -337,7 +384,7 @@ onMounted(async () => {
     window.addEventListener('offline', updateConnection)
     if (Capacitor.isNativePlatform()) {
         backListener = await NativeApp.addListener('backButton', () => {
-            if (inDetail.value || confirmShipment.value || screen.value === 'map') back()
+            if (inDetail.value || creatingOrder.value || confirmShipment.value || screen.value !== 'list') back()
             else if (!busy.value) NativeApp.minimizeApp()
         })
     }
@@ -354,7 +401,7 @@ onBeforeUnmount(() => {
     <v-app>
         <div class="app-shell">
             <header class="topbar">
-                <button v-if="user && (inDetail || screen === 'map')" class="icon-button" :aria-label="inDetail && screen === 'map' ? 'Назад к карте' : 'Назад к заказам'" :disabled="busy" @click="back">
+                <button v-if="user && (inDetail || creatingOrder || screen !== 'list')" class="icon-button" :aria-label="creatingOrder ? 'Закрыть новый заказ' : inDetail && screen === 'map' ? 'Назад к карте' : 'Назад к заказам'" :disabled="busy" @click="back">
                     <v-icon icon="mdi-arrow-left" />
                 </button>
                 <div v-else class="brand-mark" aria-hidden="true"><v-icon icon="mdi-package-variant-closed" size="25" /></div>
@@ -399,15 +446,21 @@ onBeforeUnmount(() => {
                     <p class="login-footnote"><v-icon icon="mdi-lock-outline" size="16" /> Данные из общей системы учёта</p>
                 </section>
 
+                <OrderCreate v-else-if="creatingOrder" ref="orderCreateForm" :api="api" :online="online" @created="orderCreated" @cancel="cancelCreate" @busy-change="savingNewOrder = $event" />
+
                 <section v-else-if="!inDetail" aria-labelledby="orders-title">
                     <div class="page-title-row">
-                        <div><div class="eyebrow">РАБОЧЕЕ МЕСТО</div><h1 id="orders-title">{{ screen === 'map' ? 'Карта доставок' : 'Заказы' }}<span v-if="screen === 'list' && !listLoading" class="count-badge">{{ meta.total }}</span></h1></div>
+                        <div><div class="eyebrow">РАБОЧЕЕ МЕСТО</div><h1 id="orders-title">{{ screen === 'products' ? 'Товары' : screen === 'map' ? 'Карта доставок' : 'Заказы' }}<span v-if="screen === 'list' && !listLoading" class="count-badge">{{ meta.total }}</span></h1></div>
                         <v-btn v-if="screen === 'list'" icon="mdi-refresh" variant="text" aria-label="Обновить заказы" :loading="listLoading" @click="loadOrders()" />
                     </div>
+                    <v-btn v-if="capabilities.can_create_orders" color="primary" prepend-icon="mdi-plus" block size="large" class="mb-4" :disabled="busy || !online" @click="startOrder">Новый заказ</v-btn>
                     <div class="screen-switch" role="group" aria-label="Вид заказов">
                         <button :class="{ active: screen === 'list' }" :aria-pressed="screen === 'list'" @click="screen = 'list'"><v-icon icon="mdi-format-list-bulleted" size="20" />Список</button>
+                        <button :class="{ active: screen === 'products' }" :aria-pressed="screen === 'products'" @click="screen = 'products'"><v-icon icon="mdi-package-variant" size="20" />Товары</button>
                         <button :class="{ active: screen === 'map' }" :aria-pressed="screen === 'map'" @click="screen = 'map'"><v-icon icon="mdi-map-outline" size="20" />Карта</button>
                     </div>
+                    <ProductSummary v-if="screen === 'products'" v-model:date="productDate" :api="api" :online="online" />
+                    <template v-else>
                     <v-text-field v-model="search" placeholder="Номер заказа или покупатель" aria-label="Поиск по номеру заказа или покупателю" prepend-inner-icon="mdi-magnify" clearable hide-details density="comfortable" bg-color="surface" class="search-field" @click:clear="search = ''" />
                     <div class="filter-scroll" role="group" aria-label="Фильтр заказов">
                         <button v-for="option in filters" :key="option.value" :class="['filter-button', { active: filter === option.value }]" :aria-pressed="filter === option.value" @click="filter = option.value">{{ option.label }}</button>
@@ -417,6 +470,7 @@ onBeforeUnmount(() => {
                         <div class="delivery-filter-heading"><v-icon icon="mdi-calendar-clock-outline" size="18" /><strong>День доставки</strong><span>{{ deliveryUnscheduled ? 'Не назначен' : deliveryDate ? formatDeliveryDate(deliveryDate) : 'Все даты' }}</span></div>
                         <div class="delivery-day-buttons" role="group" aria-label="Выбрать день доставки">
                             <button :class="{ active: !deliveryDate && !deliveryUnscheduled }" :aria-pressed="!deliveryDate && !deliveryUnscheduled" @click="chooseDeliveryDay()">Все даты</button>
+                            <button :class="{ active: deliveryDate === calendarDay(-1) && !deliveryUnscheduled }" :aria-pressed="deliveryDate === calendarDay(-1) && !deliveryUnscheduled" @click="chooseDeliveryDay(calendarDay(-1))">Вчера</button>
                             <button :class="{ active: deliveryDate === calendarDay() && !deliveryUnscheduled }" :aria-pressed="deliveryDate === calendarDay() && !deliveryUnscheduled" @click="chooseDeliveryDay(calendarDay())">Сегодня</button>
                             <button :class="{ active: deliveryDate === calendarDay(1) && !deliveryUnscheduled }" :aria-pressed="deliveryDate === calendarDay(1) && !deliveryUnscheduled" @click="chooseDeliveryDay(calendarDay(1))">Завтра</button>
                             <button :class="{ active: deliveryUnscheduled }" :aria-pressed="deliveryUnscheduled" @click="chooseDeliveryDay('', true)">Без даты</button>
@@ -444,17 +498,21 @@ onBeforeUnmount(() => {
                             <h2 class="customer-name">{{ item.entity?.name || 'Покупатель не указан' }}</h2>
                             <div class="card-date">{{ date(item.submitted_at) }}<span>·</span>{{ item.items_count }} поз.</div>
                             </button>
+                            <ul v-if="item.items?.length" class="card-products" :aria-label="`Товары заказа № ${item.number}`">
+                                <li v-for="product in item.items" :key="product.id"><span>{{ product.name }}</span><strong>{{ quantity(product.quantity) }} <small>{{ product.measure_name || 'ед. не задана' }}</small></strong></li>
+                            </ul>
                             <div class="card-divider" />
                             <div class="card-delivery-day"><v-icon icon="mdi-calendar-clock-outline" size="18" /><span>Доставка: <strong>{{ formatDeliveryDate(item.delivery_date) }}</strong></span></div>
                             <DeliveryContacts :addresses="item.delivery_addresses || []" :telephone="item.contact_telephone" compact />
                             <div class="card-info"><v-icon icon="mdi-warehouse" size="18" /><span>{{ item.warehouse?.name || 'Склад не указан' }}</span></div>
                             <div class="card-info"><v-icon icon="mdi-account-outline" size="18" /><span>{{ item.responsible?.name || 'Ответственный не назначен' }}</span></div>
                             <div v-if="item.warnings?.length" class="card-warning"><v-icon icon="mdi-alert-circle-outline" size="17" /><span>{{ item.warnings[0].message }}<span v-if="item.warnings.length > 1"> · ещё {{ item.warnings.length - 1 }}</span></span></div>
-                            <button class="card-bottom" :aria-label="`Открыть заказ № ${item.number}`" @click="openOrder(item.id)"><strong>{{ money(item.total_amount, item.currency_code) }}</strong><span class="open-order">Открыть<v-icon icon="mdi-arrow-right" size="19" /></span></button>
+                            <button class="card-bottom" :aria-label="`Открыть заказ № ${item.number}`" @click="openOrder(item.id)"><strong>{{ orderMoney(item) }}</strong><span class="open-order">Открыть<v-icon icon="mdi-arrow-right" size="19" /></span></button>
                         </article>
                     </div>
                     <v-btn v-if="orders.length && meta.current_page < meta.last_page" block variant="outlined" size="large" class="mt-5" :loading="listLoading" @click="loadOrders(meta.current_page + 1)">Показать ещё</v-btn>
                     <p v-if="orders.length" class="list-footnote">Показано {{ orders.length }} из {{ meta.total }}</p>
+                    </template>
                     </template>
                 </section>
 
@@ -491,7 +549,7 @@ onBeforeUnmount(() => {
                                 <div><dt><v-icon icon="mdi-warehouse" size="18" />Склад</dt><dd>{{ order.warehouse?.name || 'Не указан' }}</dd></div>
                                 <div><dt><v-icon icon="mdi-account-outline" size="18" />Ответственный</dt><dd>{{ order.responsible?.name || 'Не назначен' }}</dd></div>
                             </dl>
-                            <div class="detail-total"><span>Сумма заказа</span><strong>{{ money(order.total_amount, order.currency_code) }}</strong></div>
+                            <div class="detail-total"><span>Сумма заказа</span><strong>{{ orderMoney(order) }}</strong></div>
                         </v-card>
 
                         <v-alert v-for="(warning, index) in order.warnings || []" :key="`${warning.code}-${index}`" type="warning" class="mb-3">{{ warning.message }}</v-alert>
@@ -501,7 +559,7 @@ onBeforeUnmount(() => {
                         <div class="items-list">
                             <v-card v-for="(item, index) in order.items || []" :key="item.id" class="item-card">
                                 <div class="item-heading"><span class="item-index">{{ index + 1 }}</span><h3>{{ item.name }}</h3></div>
-                                <div class="item-price"><span>{{ quantity(item.quantity) }} {{ item.measure_name || 'единица не задана' }} × {{ money(item.price, order.currency_code) }}</span><strong>{{ money(item.total, order.currency_code) }}</strong></div>
+                                <div class="item-price"><span>{{ quantity(item.quantity) }} {{ item.measure_name || 'единица не задана' }} × {{ money(item.price, item.currency_code || order.currency_code) }}</span><strong>{{ money(item.total, item.currency_code || order.currency_code) }}</strong></div>
                                 <template v-if="order.workflow_status === 'awaiting' && order.can_prepare && rows[index]">
                                     <div class="quantity-fields">
                                         <v-text-field v-model="rows[index].quantity" :label="`Собрано, ${item.measure_name || 'единица не задана'}`" inputmode="decimal" density="comfortable" hide-details :disabled="busy || stale || orderLoading" @update:model-value="rows[index].checked = false" />
@@ -523,12 +581,12 @@ onBeforeUnmount(() => {
 
             <footer v-if="user && order && order.workflow_status !== 'shipped'" class="action-bar">
                 <template v-if="order.workflow_status === 'awaiting'">
-                    <div class="action-summary"><span>Сверено {{ checkedCount }} из {{ order.items_count }}</span><strong>{{ money(order.total_amount, order.currency_code) }}</strong></div>
+                    <div class="action-summary"><span>Сверено {{ checkedCount }} из {{ order.items_count }}</span><strong>{{ orderMoney(order) }}</strong></div>
                     <v-btn color="primary" size="x-large" block :disabled="!canPrepare || busy" :loading="preparing" prepend-icon="mdi-package-variant-closed-check" @click="prepare">Подтвердить сборку</v-btn>
                     <p v-if="order.can_prepare && preparationError && !stale" class="action-hint">{{ preparationError }}</p>
                 </template>
                 <template v-else-if="order.workflow_status === 'ready'">
-                    <div class="action-summary"><span>К полной отгрузке</span><strong>{{ money(order.total_amount, order.currency_code) }}</strong></div>
+                    <div class="action-summary"><span>К полной отгрузке</span><strong>{{ orderMoney(order) }}</strong></div>
                     <v-btn color="primary" size="x-large" block :disabled="!canShip || busy" :loading="shipping" prepend-icon="mdi-truck-check-outline" @click="confirmShipment = true">{{ uncertainShipment ? 'Повторить подтверждение' : 'Подтвердить отгрузку' }}</v-btn>
                 </template>
                 <p v-if="stale" class="action-hint">Обновите заказ перед подтверждением.</p>
@@ -540,7 +598,7 @@ onBeforeUnmount(() => {
                 <div class="hero-icon small"><v-icon icon="mdi-truck-check-outline" size="30" /></div>
                 <h2>Отгрузить заказ № {{ order.number }}?</h2>
                 <p class="muted mt-3">{{ order.entity?.name }}</p>
-                <dl class="confirmation-facts"><div><dt>Склад</dt><dd>{{ order.warehouse?.name }}</dd></div><div><dt>Позиций</dt><dd>{{ order.items_count }}</dd></div><div><dt>Сумма</dt><dd>{{ money(order.total_amount, order.currency_code) }}</dd></div></dl>
+                <dl class="confirmation-facts"><div><dt>Склад</dt><dd>{{ order.warehouse?.name }}</dd></div><div><dt>Позиций</dt><dd>{{ order.items_count }}</dd></div><div><dt>Сумма</dt><dd>{{ orderMoney(order) }}</dd></div></dl>
                 <p class="confirmation-note">Весь товар будет списан с указанного склада, а продажа оформлена в общей системе учёта.</p>
                 <v-alert v-if="order.allow_negative_stock === true" type="warning" class="mb-4">Временно разрешена отгрузка без достаточного остатка. Если товара на складе по учёту не хватает, остаток станет отрицательным. Подтверждайте только фактически переданный товар.</v-alert>
                 <v-alert v-if="uncertainShipment" type="info" class="mb-4">Повторное подтверждение проверит ту же операцию и не создаст вторую продажу.</v-alert>

@@ -167,6 +167,12 @@ Route::prefix('mobile/v1')
                 Route::get('/delivery-map/config', [\App\Http\Controllers\API\Mobile\MobileDeliveryMapController::class, 'configuration'])->name('delivery-map.config');
                 Route::get('/delivery-map/orders', [\App\Http\Controllers\API\Mobile\MobileDeliveryMapController::class, 'orders'])->name('delivery-map.orders');
                 Route::get('/orders', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'index'])->name('orders.index');
+                Route::get('/order-options', [\App\Http\Controllers\API\Mobile\MobileOrderCreationController::class, 'options'])->name('order-options');
+                Route::get('/order-options/entities', [\App\Http\Controllers\API\Mobile\MobileOrderCreationController::class, 'entities'])->name('order-options.entities');
+                Route::get('/order-options/goods', [\App\Http\Controllers\API\Mobile\MobileOrderCreationController::class, 'goods'])->name('order-options.goods');
+                Route::post('/orders', [\App\Http\Controllers\API\Mobile\MobileOrderCreationController::class, 'store'])
+                    ->middleware('throttle:30,1,mobile-create')->name('orders.store');
+                Route::get('/products', [\App\Http\Controllers\API\Mobile\MobileProductSummaryController::class, 'index'])->name('products.index');
                 Route::get('/orders/{order}', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'show'])->name('orders.show');
                 Route::patch('/orders/{order}/delivery-date', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'deliveryDate'])->name('orders.delivery-date');
                 Route::patch('/orders/{order}/prepare', [\App\Http\Controllers\API\Mobile\MobileOrderController::class, 'prepare'])->name('orders.prepare');

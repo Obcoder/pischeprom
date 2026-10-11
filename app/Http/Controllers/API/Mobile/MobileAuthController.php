@@ -95,6 +95,7 @@ class MobileAuthController extends Controller
         return [
             'user' => $user->only(['id', 'name', 'email']),
             'abilities' => [MobileAccess::ABILITY],
+            'capabilities' => ['can_create_orders' => MobileAccess::canCreateOrders($user)],
         ];
     }
 }

@@ -20,3 +20,8 @@ test('unscheduled and exact delivery day filters cannot be sent together', () =>
     assert.deepEqual(deliveryDateQuery('2026-09-21', true), { delivery_unscheduled: 1 })
     assert.deepEqual(deliveryDateQuery(''), {})
 })
+
+test('yesterday crosses year and leap-day boundaries', () => {
+    assert.equal(calendarDay(-1, new Date(2027, 0, 1, 0, 1)), '2026-12-31')
+    assert.equal(calendarDay(-1, new Date(2028, 2, 1)), '2028-02-29')
+})

@@ -26,8 +26,8 @@ h2 { font-size: 19px; font-weight: 650; line-height: 1.35; }
 .count-badge { display: inline-flex; vertical-align: middle; align-items: center; justify-content: center; min-width: 32px; height: 28px; padding: 0 8px; margin-left: 10px; border-radius: 8px; font-size: 13px; letter-spacing: 0; background: #e3e9e0; color: #536b54; }
 .search-field .v-field { font-size: 14px; }
 .search-field .v-field__outline { --v-field-border-opacity: .12; }
-.screen-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 5px; margin-bottom: 18px; border-radius: 13px; background: #e5ebe1; }
-.screen-switch button { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border-radius: 9px; color: #65795e; font-size: 14px; font-weight: 600; }
+.screen-switch { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; padding: 5px; margin-bottom: 18px; border-radius: 13px; background: #e5ebe1; }
+.screen-switch button { display: flex; justify-content: center; align-items: center; gap: 5px; min-height: 44px; padding: 8px 5px; border-radius: 9px; color: #65795e; font-size: 13px; font-weight: 600; }
 .screen-switch button.active { background: #fff; color: #236254; box-shadow: 0 1px 5px #1b3f2810; }
 .filter-scroll { display: flex; gap: 8px; overflow-x: auto; margin: 18px -22px 23px; padding: 0 22px 7px; scrollbar-width: none; }
 .filter-scroll::-webkit-scrollbar { display: none; }
@@ -53,6 +53,12 @@ h2 { font-size: 19px; font-weight: 650; line-height: 1.35; }
 .card-top .v-chip { font-size: 11px; font-weight: 650; }
 .customer-name { font-size: 18px; letter-spacing: -.25px; overflow-wrap: anywhere; }
 .card-date { font-size: 12px; color: #7b887f; margin-top: 6px; display: flex; gap: 9px; }
+.card-products { list-style: none; padding: 11px 12px; margin-top: 13px; border-radius: 10px; background: #f6f8f3; }
+.card-products li { display: flex; align-items: baseline; gap: 10px; font-size: 12px; line-height: 1.5; }
+.card-products li + li { margin-top: 5px; }
+.card-products li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: #526653; }
+.card-products strong { flex-shrink: 0; max-width: 48%; text-align: right; font-variant-numeric: tabular-nums; color: #264c3d; overflow-wrap: anywhere; }
+.card-products small { font-size: inherit; font-weight: 400; }
 .card-divider { height: 1px; background: #edf0e9; margin: 16px 0 13px; }
 .card-info { display: flex; gap: 8px; font-size: 12px; align-items: center; color: #6c7d72; margin-top: 7px; }
 .card-info .v-icon { color: #8b9c8d; flex-shrink: 0; }
@@ -128,5 +134,5 @@ h2 { font-size: 19px; font-weight: 650; line-height: 1.35; }
 .confirmation-note { padding: 16px; background: #f0f4ed; color: #698167; border-radius: 10px; font-size: 13px; line-height: 1.6; margin: 8px 0 22px; }
 .v-alert { font-size: 13px; line-height: 1.6; }
 @media (min-width: 680px) { .app-shell { border-left: 1px solid #e1e7dd; border-right: 1px solid #e1e7dd; } .main-content { padding-inline: 30px; } .topbar { padding-inline: 30px; } .login-section { max-width: 440px; margin: auto; } .order-card { padding: 22px; } .action-bar { padding-inline: 30px; } }
-@media (max-width: 360px) { .topbar { padding-inline: 14px; } .main-content { padding-inline: 14px; } .order-card, .v-card.item-card, .v-card.detail-summary { padding: 15px; } .action-bar { padding-inline: 14px; } .v-card.login-card { padding: 18px; } .detail-facts > div { flex-direction: column; gap: 4px; } .detail-facts dd { text-align: left; } .quantity-fields { gap: 8px; } }
+@media (max-width: 360px) { .topbar { padding-inline: 14px; } .main-content { padding-inline: 14px; } .filter-scroll { margin-inline: -14px; padding-inline: 14px; } .order-card, .v-card.item-card, .v-card.detail-summary { padding: 15px; } .action-bar { padding-inline: 14px; } .v-card.login-card { padding: 18px; } .detail-facts > div { flex-direction: column; gap: 4px; } .detail-facts dd { text-align: left; } .quantity-fields { gap: 8px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

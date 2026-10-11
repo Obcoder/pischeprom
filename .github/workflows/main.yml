@@ -146,6 +146,8 @@ jobs:
             app/Services/Mobile \
             app/Services/Orders/MobileOrderPresenter.php \
             app/Services/Orders/MobileOrderQuery.php \
+            app/Services/Orders/MobileProductSummary.php \
+            app/Services/Orders/OrderDataValidator.php \
             app/Services/Orders/OrderDeliveryAccess.php \
             app/Services/Orders/OrderDeliveryDateService.php \
             app/Services/Orders/OrderDeliveryFilter.php \
@@ -153,6 +155,7 @@ jobs:
             config/cors.php config/mobile.php \
             database/migrations/2026_09_21_120100_add_order_fulfillment.php \
             database/migrations/2026_09_21_130000_add_delivery_date_to_orders.php \
+            database/migrations/2026_10_11_140000_create_mobile_order_creation_requests_table.php \
             scripts/check-production-mobile.php \
             scripts/configure-production-yandex-maps.php \
             tests/Unit/Mobile \

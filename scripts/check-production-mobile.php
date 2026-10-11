@@ -31,6 +31,11 @@ try {
         throw new RuntimeException('Mobile order fulfillment migration is missing.');
     }
 
+    $stage = 'mobile order creation schema';
+    if (! Schema::hasColumns('mobile_order_creation_requests', ['user_id', 'request_id', 'payload_hash', 'order_id'])) {
+        throw new RuntimeException('Mobile order creation migration is missing.');
+    }
+
     $stage = 'HTTPS application URL';
     $baseUrl = rtrim((string) config('app.url'), '/');
     $url = parse_url($baseUrl);
@@ -61,18 +66,18 @@ try {
         throw new RuntimeException('The orders endpoint must reject anonymous requests.');
     }
 
-    foreach (['config', 'orders'] as $endpoint) {
-        $stage = 'GET /api/mobile/v1/delivery-map/'.$endpoint.' without authentication';
-        $map = Http::acceptJson()->connectTimeout(5)->timeout(15)
-            ->withoutRedirecting()->get($baseUrl.'/api/mobile/v1/delivery-map/'.$endpoint);
-        if ($map->status() !== 401
-            || ! str_contains(strtolower($map->header('Content-Type')), 'application/json')
-            || ! is_string($map->json('message'))) {
-            throw new RuntimeException('Delivery map endpoints must reject anonymous requests.');
+    foreach (['delivery-map/config', 'delivery-map/orders', 'products', 'order-options', 'order-options/entities', 'order-options/goods'] as $endpoint) {
+        $stage = 'GET /api/mobile/v1/'.$endpoint.' without authentication';
+        $response = Http::acceptJson()->connectTimeout(5)->timeout(15)
+            ->withoutRedirecting()->get($baseUrl.'/api/mobile/v1/'.$endpoint);
+        if ($response->status() !== 401
+            || ! str_contains(strtolower($response->header('Content-Type')), 'application/json')
+            || ! is_string($response->json('message'))) {
+            throw new RuntimeException('Mobile endpoints must reject anonymous requests.');
         }
     }
 
-    fwrite(STDOUT, "Mobile API checks passed: fulfillment schema, login HTTP 422, anonymous orders and delivery map HTTP 401.\n");
+    fwrite(STDOUT, "Mobile API checks passed: fulfillment and creation schema, login HTTP 422, anonymous orders, products, creation options and delivery map HTTP 401.\n");
     fwrite(STDOUT, 'Mobile stock shortage override: '.(config('mobile.allow_negative_stock') ? 'enabled' : 'disabled').".\n");
     fwrite(STDOUT, 'Yandex delivery map key: '.(trim((string) config('gis.providers.yandex.api_key')) !== '' ? 'configured' : 'not configured').".\n");
 } catch (Throwable) {

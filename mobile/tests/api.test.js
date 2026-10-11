@@ -170,3 +170,33 @@ test('saving and clearing delivery day use a versioned date-only PATCH in both t
         })
     }
 })
+
+test('product summaries and order creation use scoped mobile endpoints in both transports', async t => {
+    for (const native of [false, true]) {
+        await t.test(native ? 'native' : 'browser', async () => {
+            const calls = []
+            const api = createApi({ baseUrl, ...(native ? {
+                nativeRequest: async options => { calls.push(options); return { status: 200, data: { data: [] } } },
+            } : {
+                fetchImpl: async (url, options) => { calls.push({ url, ...options }); return response(200, { data: [] }) },
+            }) })
+            api.setToken('employee-token')
+            await api.products({ delivery_date: '2026-10-11' })
+            await api.orderCreateOptions()
+            await api.orderCustomers({ search: 'Покупатель & ИП', page: 2 })
+            await api.orderGoods({ search: 'Скумбрия', page: 3 })
+            const payload = { request_id: 'same-create-request', entity_id: 3, delivery_date: '2026-10-11', items: [{ good_id: 7, quantity: 2, unit_price: 100 }] }
+            await api.createOrder(payload)
+            assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+                '/api/mobile/v1/products', '/api/mobile/v1/order-options', '/api/mobile/v1/order-options/entities',
+                '/api/mobile/v1/order-options/goods', '/api/mobile/v1/orders',
+            ])
+            assert.equal(new URL(calls[0].url).searchParams.get('delivery_date'), '2026-10-11')
+            assert.equal(new URL(calls[2].url).searchParams.get('search'), 'Покупатель & ИП')
+            assert.equal(new URL(calls[3].url).searchParams.get('page'), '3')
+            assert.equal(calls[4].method, 'POST')
+            assert.deepEqual(native ? calls[4].data : JSON.parse(calls[4].body), payload)
+            assert.ok(calls.every(call => call.headers.Authorization === 'Bearer employee-token'))
+        })
+    }
+})
