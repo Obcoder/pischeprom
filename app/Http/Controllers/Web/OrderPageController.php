@@ -19,8 +19,8 @@ class OrderPageController extends Controller
 
     public function create(): Response
     {
-        return Inertia::render('Ameise/Orders/Show', [
-            'orderId' => null,
+        return Inertia::render('Ameise/Orders/Index', [
+            'createOrder' => true,
             'permissions' => $this->permissions(),
         ]);
     }

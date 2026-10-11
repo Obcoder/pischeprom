@@ -8,6 +8,7 @@ use App\Models\Building;
 use App\Models\Currency;
 use App\Models\Entity;
 use App\Models\Good;
+use App\Models\GoodPriceTypeValue;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Services\Orders\OrderDeliveryAccess;
@@ -119,8 +120,21 @@ class OrderController extends Controller
                 ->get(['id', 'code', 'name', 'color', 'sort_order', 'is_closed']),
             'entities' => Entity::query()
                 ->withoutEagerLoads()
+                ->with([
+                    'classification:id,name',
+                    'telephones:id,number',
+                    'emails:id,address',
+                    'buildings' => fn ($query) => $query->withoutEagerLoads()->select('buildings.id'),
+                ])
                 ->orderBy('name')
-                ->get(['id', 'name', 'INN']),
+                ->get(['id', 'name', 'full_name', 'INN', 'KPP', 'OGRN', 'legal_address', 'entity_classification_id'])
+                ->map(fn (Entity $entity) => [
+                    ...$entity->only(['id', 'name', 'full_name', 'INN', 'KPP', 'OGRN', 'legal_address']),
+                    'classification' => $entity->classification->exists ? $entity->classification->only(['id', 'name']) : null,
+                    'telephones' => $entity->telephones->map->only(['id', 'number'])->values(),
+                    'emails' => $entity->emails->map->only(['id', 'address'])->values(),
+                    'building_ids' => $entity->buildings->pluck('id')->values(),
+                ]),
             'buildings' => Building::query()
                 ->with(['city:id,name', 'buildingType:id,name'])
                 ->orderBy('address')
@@ -135,9 +149,33 @@ class OrderController extends Controller
                 ])
                 ->values(),
             'goods' => Good::query()
+                ->with(['priceTypeValues' => fn ($query) => $query
+                    ->with(['currency:id,code', 'priceType.currency:id,code'])
+                    ->whereHas('priceType', fn (Builder $type) => $type->where('is_active', true))
+                    ->whereNotNull('price_gross')
+                    ->where('price_gross', '>=', 0)
+                    ->where(fn (Builder $date) => $date->whereNull('valid_from')->orWhereDate('valid_from', '<=', today()))
+                    ->where(fn (Builder $date) => $date->whereNull('valid_to')->orWhereDate('valid_to', '>=', today()))])
                 ->when($goodSearch !== '', fn (Builder $query) => $query->search($goodSearch))
                 ->orderBy('name')
-                ->get(['id', 'name', 'slug', 'denominator', 'measure_id', 'unit_weight_kg']),
+                ->get(['id', 'name', 'slug', 'denominator', 'measure_id', 'unit_weight_kg'])
+                ->map(fn (Good $good) => [
+                    ...$good->only(['id', 'name', 'slug', 'denominator', 'measure_id', 'unit_weight_kg']),
+                    'measurement' => $good->measurement(),
+                    'prices' => $good->priceTypeValues->sortBy(fn (GoodPriceTypeValue $price) => $price->priceType->sort_order)
+                        ->map(fn (GoodPriceTypeValue $price) => [
+                            'id' => $price->id,
+                            'price_gross' => $price->price_gross,
+                            'unit_price' => $price->price_gross,
+                            'currency_code' => strtoupper($price->currency?->code ?: $price->priceType?->currency?->code ?: 'RUB'),
+                            'price_type' => $price->priceType?->only(['id', 'name', 'code']),
+                            'measure_id' => $good->measure_id,
+                            'unit_label' => $good->measurement()['unit_label'],
+                            'vat_rate' => $price->vat_rate,
+                            'valid_from' => $price->valid_from?->toDateString(),
+                            'valid_to' => $price->valid_to?->toDateString(),
+                        ])->values(),
+                ]),
             'currency_codes' => Currency::query()
                 ->whereNotNull('code')
                 ->orderBy('code')
@@ -230,7 +268,7 @@ class OrderController extends Controller
             'delivery_date' => OrderDeliveryDateService::dateRules(),
             'delivery_version' => [Rule::requiredIf($order && $request->exists('delivery_date')), 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
             'internal_comment' => ['nullable', 'string', 'max:10000'],
-            'currency_code' => ['required', 'string', 'min:3', 'max:8'],
+            'currency_code' => ['sometimes', 'required', 'string', 'regex:/^[A-Za-z]{3,8}$/'],
             'submitted_at' => ['nullable', 'date'],
             'building_ids' => ['nullable', 'array'],
             'building_ids.*' => ['integer', 'distinct', 'exists:buildings,id'],
@@ -246,6 +284,8 @@ class OrderController extends Controller
             'items.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:999999999', 'decimal:0,3'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+            'items.*.line_total' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+            'items.*.currency_code' => ['sometimes', 'required', 'string', 'regex:/^[A-Za-z]{3,8}$/'],
         ]);
     }
 }

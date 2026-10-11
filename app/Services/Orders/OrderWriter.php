@@ -59,9 +59,14 @@ class OrderWriter
                         $usedIds[] = $previous->id;
                     }
 
-                    return $this->makeLine($goods[(int) $item['good_id']], $item, $data['currency_code'], $previous, "items.{$index}.measure_id");
+                    return $this->makeLine($goods[(int) $item['good_id']], $item, $data['currency_code'] ?? $previous?->currency_code ?? 'RUB', $previous, "items.{$index}");
                 })
                 ->values();
+
+            $totals = $lines->groupBy('currency_code')->map(fn (Collection $currencyLines) => round($currencyLines->sum('line_total'), 4));
+            if ($totals->contains(fn (float $total) => ! is_finite($total) || $total >= 1e12)) {
+                throw ValidationException::withMessages(['items' => 'Сумма заказа превышает допустимое значение.']);
+            }
 
             $order->fill([
                 'number' => $data['number'] ?? $order->number,
@@ -76,8 +81,8 @@ class OrderWriter
                     ? $data['delivery_date']
                     : $order->delivery_date,
                 'internal_comment' => $data['internal_comment'] ?? null,
-                'currency_code' => strtoupper($data['currency_code']),
-                'total_amount' => $lines->sum(fn (array $line) => (float) ($line['line_total'] ?? 0)),
+                'currency_code' => $totals->count() === 1 ? $totals->keys()->first() : strtoupper($data['currency_code'] ?? 'RUB'),
+                'total_amount' => $totals->count() === 1 ? $totals->first() : null,
                 'total_weight' => $lines->contains(fn (array $line) => $line['line_weight'] === null)
                     ? null : $lines->sum('line_weight'),
                 'submitted_at' => $data['submitted_at'] ?? $order->submitted_at ?? now(),
@@ -205,19 +210,37 @@ class OrderWriter
         $unitPrice = filled($item['unit_price'] ?? null)
             ? round((float) $item['unit_price'], 4)
             : null;
-        $measurement = $previous?->measurement() ?? app(GoodMeasurement::class)->assertConfigured($good, $key);
+        $pricingBasis = 'unit_price';
+        $lineTotal = $unitPrice !== null ? round($unitPrice * $quantity, 4) : null;
+        if (filled($item['line_total'] ?? null)) {
+            $lineTotal = round((float) $item['line_total'], 4);
+            $unitPrice = round($lineTotal / $quantity, 4);
+            $pricingBasis = 'total';
+        } elseif (! array_key_exists('line_total', $item) && $previous
+            && ($previous->snapshot['pricing_basis'] ?? null) === 'total'
+            && $previous->quantity === $quantity && $previous->price_gross === $unitPrice) {
+            // Unrelated edits must retain the entered amount, including division remainders.
+            $lineTotal = $previous->line_total;
+            $pricingBasis = 'total';
+        }
+        if (($unitPrice !== null && (! is_finite($unitPrice) || $unitPrice < 0 || $unitPrice >= 1e12))
+            || ($lineTotal !== null && (! is_finite($lineTotal) || $lineTotal < 0 || $lineTotal >= 1e12))) {
+            throw ValidationException::withMessages([$key.'.unit_price' => 'Цена или сумма позиции превышает допустимое значение.']);
+        }
+        $measurementKey = $key.'.measure_id';
+        $measurement = $previous?->measurement() ?? app(GoodMeasurement::class)->assertConfigured($good, $measurementKey);
         if (! $previous) {
-            app(GoodMeasurement::class)->assertSnapshot($good, $item['measurement'] ?? null, $key);
+            app(GoodMeasurement::class)->assertSnapshot($good, $item['measurement'] ?? null, $measurementKey);
         } elseif (isset($item['measurement']) && (
             (int) ($item['measurement']['measure_id'] ?? 0) !== (int) ($measurement['measure_id'] ?? 0)
             || ($item['measurement']['kilograms_per_unit'] ?? null) !== null && $measurement['kilograms_per_unit'] === null
             || ($item['measurement']['kilograms_per_unit'] ?? null) === null && $measurement['kilograms_per_unit'] !== null
             || abs((float) ($item['measurement']['kilograms_per_unit'] ?? 0) - (float) ($measurement['kilograms_per_unit'] ?? 0)) > 0.000000001
         )) {
-            throw ValidationException::withMessages([$key => 'Единица или масса позиции заказа изменилась. Обновите заказ.']);
+            throw ValidationException::withMessages([$measurementKey => 'Единица или масса позиции заказа изменилась. Обновите заказ.']);
         }
         if (filled($item['measure_id'] ?? null) && (int) $item['measure_id'] !== (int) $measurement['measure_id']) {
-            throw ValidationException::withMessages([$key => 'Единица измерения изменилась. Обновите товар или сохраните исходную единицу позиции заказа.']);
+            throw ValidationException::withMessages([$measurementKey => 'Единица измерения изменилась. Обновите товар или сохраните исходную единицу позиции заказа.']);
         }
         $denominator = $measurement['kilograms_per_unit'];
         $media = $good->publishedMedia->first();
@@ -237,10 +260,8 @@ class OrderWriter
                 ? round($denominator * $quantity, 6)
                 : null,
             'price_gross' => $unitPrice,
-            'currency_code' => strtoupper($currencyCode),
-            'line_total' => $unitPrice !== null
-                ? round($unitPrice * $quantity, 4)
-                : null,
+            'currency_code' => strtoupper($item['currency_code'] ?? $currencyCode),
+            'line_total' => $lineTotal,
             'country_name' => $good->country?->name,
             'snapshot' => [
                 ...($previous?->snapshot ?? []),
@@ -248,6 +269,7 @@ class OrderWriter
                 'name' => $good->name,
                 'slug' => $good->slug,
                 'measurement' => $measurement,
+                'pricing_basis' => $pricingBasis,
             ],
         ];
     }

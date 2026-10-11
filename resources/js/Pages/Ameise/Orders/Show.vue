@@ -76,16 +76,11 @@ const dateEditorDisabled = computed(() => !canEditDeliveryDate.value || loading.
 const pageTitle = computed(() => isNew.value
     ? 'Новый заказ'
     : `Заказ ${order.value?.number || `#${props.orderId}`}`)
-const calculatedTotal = computed(() => form.items.reduce((total, item) => {
-    const quantity = Number(item.quantity)
-    const unitPrice = Number(item.unit_price)
-
-    return total + (
-        Number.isFinite(quantity) && Number.isFinite(unitPrice)
-            ? quantity * unitPrice
-            : 0
-    )
-}, 0))
+const calculatedTotals = computed(() => form.items.reduce((totals, item) => {
+    const currency = item.currency_code || 'RUB'
+    totals[currency] = (totals[currency] || 0) + itemTotal(item)
+    return totals
+}, {}))
 const calculatedWeight = computed(() => form.items.reduce((total, item) => {
     if (!item.good_id) return total
     const value = itemWeight(item)
@@ -148,7 +143,8 @@ function fillForm(source) {
             id: item.id,
             good_id: item.good_id,
             quantity: item.quantity,
-            unit_price: item.unit_price ?? item.price_gross,
+            unit_price: Object.hasOwn(item, 'unit_price') ? item.unit_price : item.price_gross,
+            currency_code: item.currency_code || source.currency_code || 'RUB',
         })),
     })
     savedContentSnapshot = JSON.stringify(contentPayload())
@@ -168,6 +164,11 @@ function makeLine(source = {}) {
         measurement: source.measurement ?? null,
         quantity: source.quantity ?? 1,
         unit_price: source.unit_price ?? null,
+        currency_code: source.currency_code || 'RUB',
+        _saved_total: source.line_total ?? null,
+        _saved_quantity: source.quantity ?? 1,
+        _saved_price: source.unit_price ?? null,
+        _pricing_basis: source.pricing_basis || 'unit_price',
     }
 }
 
@@ -188,12 +189,19 @@ function goodById(goodId) {
     return options.goods.find((good) => Number(good.id) === Number(goodId))
 }
 
+function hasSavedItemTotal(item) {
+    return item._pricing_basis === 'total' && item._saved_total != null && item.unit_price !== null && item.unit_price !== ''
+        && String(item.good_id) === String(item._original_good_id)
+        && Number(item.quantity) === Number(item._saved_quantity) && Number(item.unit_price) === Number(item._saved_price)
+}
+
 function itemTotal(item) {
+    if (hasSavedItemTotal(item)) return Number(item._saved_total)
     const quantity = Number(item.quantity)
     const unitPrice = Number(item.unit_price)
 
     return Number.isFinite(quantity) && Number.isFinite(unitPrice)
-        ? quantity * unitPrice
+        ? Math.round(quantity * Math.round((unitPrice + Number.EPSILON) * 10000)) / 10000
         : 0
 }
 
@@ -209,8 +217,8 @@ function formatNumber(value, digits = 2) {
         : '—'
 }
 
-function formatMoney(value) {
-    return `${formatNumber(value)} ${form.currency_code === 'RUB' ? '₽' : form.currency_code}`
+function formatMoney(value, currency = 'RUB') {
+    return `${formatNumber(value)} ${currency === 'RUB' ? '₽' : currency}`
 }
 
 function toDateTimeLocal(value) {
@@ -255,6 +263,8 @@ function contentPayload() {
             measurement: itemMeasurement(item),
             quantity: item.quantity,
             unit_price: item.unit_price === '' ? null : item.unit_price,
+            currency_code: item.currency_code || 'RUB',
+            ...(hasSavedItemTotal(item) ? { line_total: item._saved_total } : {}),
         })),
     }
 }
@@ -612,16 +622,6 @@ onMounted(async () => {
                     </div>
 
                     <div class="order-items-toolbar">
-                        <v-select
-                            v-model="form.currency_code"
-                            :disabled="contentDisabled"
-                            :items="options.currency_codes"
-                            label="Валюта"
-                            variant="outlined"
-                            density="compact"
-                            hide-details
-                            class="order-items-toolbar__currency"
-                        />
                         <button type="button" :disabled="contentDisabled" @click="addItem">
                             <v-icon icon="mdi-plus" size="14" />
                             Добавить товар
@@ -695,7 +695,8 @@ onMounted(async () => {
                         />
 
                         <div class="order-item-row__total">
-                            <strong>{{ formatMoney(itemTotal(item)) }}</strong>
+                            <v-select v-model="item.currency_code" :items="options.currency_codes" :disabled="contentDisabled" label="Валюта позиции" variant="outlined" density="compact" hide-details="auto" :error-messages="lineError(index, 'currency_code')" />
+                            <strong>{{ formatMoney(itemTotal(item), item.currency_code) }}</strong>
                             <small v-if="itemWeight(item) !== null">
                                 {{ formatNumber(itemWeight(item), 6) }} кг
                             </small>
@@ -728,7 +729,7 @@ onMounted(async () => {
                     </div>
                     <div class="order-total__money">
                         <span>Итого</span>
-                        <strong>{{ formatMoney(calculatedTotal) }}</strong>
+                        <strong v-for="(amount, currency) in calculatedTotals" :key="currency">{{ formatMoney(amount, currency) }}</strong>
                     </div>
                 </footer>
             </section>

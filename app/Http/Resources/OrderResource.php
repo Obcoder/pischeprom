@@ -26,6 +26,7 @@ class OrderResource extends JsonResource
             'delivery_version' => app(OrderDeliveryDateService::class)->version($this->resource),
             'internal_comment' => $this->internal_comment,
             'total_amount' => $this->total_amount,
+            'totals_by_currency' => $this->whenLoaded('items', fn () => (object) $this->resource->totalsByCurrency()),
             'total_weight' => $this->total_weight,
             'currency_code' => $this->currency_code,
             'submitted_at' => $this->submitted_at?->toISOString(),
@@ -106,6 +107,7 @@ class OrderResource extends JsonResource
                 'currency_code' => $item->currency_code,
                 'total_amount' => $item->line_total,
                 'line_total' => $item->line_total,
+                'pricing_basis' => $item->snapshot['pricing_basis'] ?? 'unit_price',
                 'country_name' => $item->country_name,
                 'good' => $item->good ? [
                     'id' => $item->good->id,

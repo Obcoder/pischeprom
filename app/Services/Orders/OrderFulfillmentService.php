@@ -134,20 +134,25 @@ class OrderFulfillmentService
             $quantity = (float) $item->quantity;
             $price = (float) $item->price_gross;
             $lineTotal = round($quantity * $price, 4);
+            $storedTotal = (float) $item->line_total;
+            $matchesAmount = ($item->snapshot['pricing_basis'] ?? null) === 'total' && $quantity > 0
+                ? abs(round($storedTotal / $quantity, 4) - $price) <= 0.000051
+                : abs($lineTotal - $storedTotal) <= 0.000051;
             if (! is_finite($quantity) || $quantity <= 0 || $quantity > 999999999) {
                 $problems[] = ['code' => 'invalid_quantity', 'message' => "Проверьте количество: {$item->good_name}."];
             }
             if ($item->price_gross === null || ! is_finite($price) || $price < 0 || $price >= 1e12
                 || ! is_finite($lineTotal) || $lineTotal >= 1e12 || $item->line_total === null
-                || abs($lineTotal - (float) $item->line_total) > 0.000051) {
+                || ! is_finite($storedTotal) || $storedTotal < 0 || $storedTotal >= 1e12 || ! $matchesAmount) {
                 $problems[] = ['code' => 'invalid_price', 'message' => "Проверьте цену и сумму: {$item->good_name}."];
             }
-            $total += $lineTotal;
+            $total += $storedTotal;
         }
-        if (! is_finite($total) || $total < 0 || $total >= 1e12
-            || ! is_finite((float) $order->total_amount) || abs($total - (float) $order->total_amount) > 0.000051) {
+        $mixedCurrencies = $order->items->pluck('currency_code')->unique()->count() > 1;
+        if (! $mixedCurrencies && (! is_finite($total) || $total < 0 || $total >= 1e12 || $order->total_amount === null
+            || ! is_finite((float) $order->total_amount) || abs($total - (float) $order->total_amount) > 0.000051)) {
             $problems[] = ['code' => 'invalid_total', 'message' => 'Сумма заказа не совпадает с суммой его позиций. Пересохраните заказ в основном приложении.'];
-        } elseif (abs($this->saleTotal($order) - round($order->total_amount, 2)) > 0.000001) {
+        } elseif (! $mixedCurrencies && abs($this->saleTotal($order) - round($order->total_amount, 2)) > 0.000001) {
             $problems[] = ['code' => 'rounding_mismatch', 'message' => 'После округления каждой позиции до копеек сумма продажи отличается от суммы заказа. Уточните цены в основном приложении перед отгрузкой.'];
         }
 

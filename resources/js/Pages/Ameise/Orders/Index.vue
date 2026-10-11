@@ -9,9 +9,12 @@ import { route } from 'ziggy-js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import OrderStatusesDialog from '@/Components/Orders/OrderStatusesDialog.vue'
 import OrderDetailsDialog from '@/Components/Orders/OrderDetailsDialog.vue'
+import OrderCreateDialog from '@/Components/Orders/OrderCreateDialog.vue'
+import { orderTotals } from '@/utils/orderTotals.js'
 
 defineOptions({ layout: VerwalterLayout })
 const props = defineProps({
+    createOrder: { type: Boolean, default: false },
     permissions: {
         type: Object,
         default: () => ({ view: false, create: false, edit: false, delete: false }),
@@ -25,6 +28,8 @@ const optionsError = ref('')
 const filterMenuOpen = ref(false)
 const statusesOpen = ref(false)
 const orderDetailsOpen = ref(false)
+const createOrderOpen = ref(props.createOrder && props.permissions.create)
+const createdMessage = ref('')
 const selectedOrderId = ref(null)
 const orderToDelete = ref(null)
 const deleting = ref(false)
@@ -75,8 +80,9 @@ const hasActiveFilters = computed(() => Boolean(filters.search || activeFilters.
 const pageTotals = computed(() => {
     const totals = new Map()
     for (const order of orders.value) {
-        const code = order.currency_code || 'RUB'
-        totals.set(code, (totals.get(code) || 0) + (Number(order.total_amount) || 0))
+        for (const [code, total] of Object.entries(orderTotals(order))) {
+            totals.set(code, (totals.get(code) || 0) + (Number(total) || 0))
+        }
     }
     return [...totals].map(([code, total]) => formatMoney(total, code)).join(' · ')
 })
@@ -172,6 +178,10 @@ function goodUrl(good) {
 function openOrder(order) {
     selectedOrderId.value = order.id
     orderDetailsOpen.value = true
+}
+function orderCreated(order) {
+    createdMessage.value = `Заказ ${order.number || `#${order.id}`} создан.`
+    return fetchOrders()
 }
 function canDeleteOrder(order) {
     return Boolean(props.permissions.delete && order?.id && order.permissions?.delete !== false && !order.shipped_sale_id)
@@ -317,7 +327,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                     </form>
                 </v-menu>
                 <button type="button" class="orders-action" title="Управление статусами заказов" @click="statusesOpen = true"><v-icon icon="mdi-tag-outline" size="17" /><span>Статусы</span></button>
-                <Link v-if="permissions.create" :href="route('Ameise.orders.create')" class="orders-action orders-action--primary"><v-icon icon="mdi-plus" size="18" /><span>Новый заказ</span></Link>
+                <button v-if="permissions.create" type="button" class="orders-action orders-action--primary" aria-haspopup="dialog" @click="createOrderOpen = true"><v-icon icon="mdi-plus" size="18" /><span>Новый заказ</span></button>
             </div>
         </header>
 
@@ -327,6 +337,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
         </div>
         <v-alert v-if="optionsError" type="error" density="compact" variant="tonal" class="mb-2">{{ optionsError }} <button type="button" class="orders-retry" @click="fetchOptions">Повторить</button></v-alert>
         <v-alert v-if="errorMessage" type="error" density="compact" variant="tonal" class="mb-2">{{ errorMessage }} <button type="button" class="orders-retry" @click="fetchOrders">Повторить</button></v-alert>
+        <v-alert v-if="createdMessage" type="success" density="compact" variant="tonal" closable class="mb-2" @click:close="createdMessage = ''">{{ createdMessage }}</v-alert>
 
         <section class="orders-ledger" :aria-busy="loading">
             <div class="orders-ledger__summary">
@@ -355,7 +366,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
                                     <span v-else>{{ item.good_name }} × {{ item.quantity }} {{ item.measurement?.unit_label || item.measure_name || '?' }}</span>
                                 </template>
                             </div></td>
-                            <td class="orders-ledger__money"><strong>{{ formatMoney(order.total_amount, order.currency_code) }}</strong><small>{{ formatWeight(order.total_weight) }}</small></td>
+                            <td class="orders-ledger__money"><strong v-for="(amount, currency) in orderTotals(order)" :key="currency">{{ formatMoney(amount, currency) }}</strong><small>{{ formatWeight(order.total_weight) }}</small></td>
                             <td class="orders-ledger__date">{{ formatDate(order.submitted_at || order.created_at) }}<small>{{ formatTime(order.submitted_at || order.created_at) }}</small></td>
                             <td><span class="orders-ledger__delivery" :class="{ 'is-unscheduled': !order.delivery_date }"><v-icon icon="mdi-truck-outline" size="13" />{{ formatDeliveryDate(order.delivery_date) }}</span><small v-if="buildingsLabel(order)" class="orders-ledger__building" :title="buildingsLabel(order)">{{ buildingsLabel(order) }}</small></td>
                             <td v-if="permissions.delete" class="orders-ledger__actions"><button v-if="canDeleteOrder(order)" type="button" class="orders-ledger__delete" :disabled="loading || deleting" :aria-label="`Удалить заказ ${order.number || `#${order.id}`}`" title="Удалить заказ" aria-haspopup="dialog" @click.stop="requestDeleteOrder(order)"><v-icon icon="mdi-delete-outline" size="17" /></button></td>
@@ -374,6 +385,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
             </footer>
         </section>
         <OrderStatusesDialog v-model="statusesOpen" :permissions="permissions" @changed="statusesChanged" />
+        <OrderCreateDialog v-if="permissions.create" v-model="createOrderOpen" :can-create-delivery="permissions.delivery_create" @saved="orderCreated" />
         <OrderDetailsDialog v-model="orderDetailsOpen" :order-id="selectedOrderId" :editable="permissions.edit" :external-busy="deleting" @saved="fetchOrders">
             <template #actions="{ order, disabled }">
                 <button v-if="canDeleteOrder(order)" type="button" class="orders-action orders-action--danger orders-details-delete" :disabled="disabled || loading" @click="requestDeleteOrder(order)"><v-icon icon="mdi-delete-outline" size="16" />Удалить заказ</button>
@@ -397,7 +409,7 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 </template>
 
 <style scoped>
-.orders-page { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: calc(100vh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); height: calc(100dvh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); min-height: 0; overflow: hidden; padding: 12px 12px 24px; background: #f4f5f7; color: #252a31; }
+.orders-page { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; max-width: 1560px; margin-inline: auto; height: calc(100vh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); height: calc(100dvh - var(--v-layout-top, 58px) - var(--v-layout-bottom, 0px)); min-height: 0; overflow: hidden; padding: 12px 24px 24px; background: #f4f5f7; color: #252a31; }
 .orders-page > :not(.orders-ledger) { flex: 0 0 auto; }
 .orders-page > .v-alert { font-size: 11px; line-height: 1.4; }
 .orders-header { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
@@ -442,9 +454,9 @@ onBeforeUnmount(() => { disposed = true; requestController?.abort() })
 .orders-ledger__totals + button { margin-left: 0; }
 .orders-ledger__progress { flex-shrink: 0; height: 2px; }
 .orders-ledger__scroll { flex: 1; min-height: 0; overflow: auto; }
-.orders-ledger table { width: 100%; min-width: 930px; border-collapse: collapse; table-layout: fixed; }
+.orders-ledger table { width: 100%; min-width: 900px; border-collapse: collapse; table-layout: fixed; }
 .col-number { width: 12%; } .col-status { width: 10%; } .col-entity { width: 17%; } .col-items { width: 23%; } .col-amount { width: 12%; } .col-date { width: 8%; } .col-delivery { width: 14%; } .col-actions { width: 4%; }
-.orders-ledger th, .orders-ledger td { padding: 6px 9px; border-bottom: 1px solid #e6e9ed; text-align: left; vertical-align: middle; }
+.orders-ledger th, .orders-ledger td { padding: 6px 8px; border-bottom: 1px solid #e6e9ed; text-align: left; vertical-align: middle; }
 .orders-ledger th { position: sticky; top: 0; z-index: 1; height: 29px; background: #eef0f3; color: #6c7682; font-size: 9px; font-weight: 750; letter-spacing: .035em; text-transform: uppercase; }
 .orders-ledger th button { display: inline-flex; align-items: center; gap: 3px; color: inherit; font: inherit; text-transform: inherit; }
 .orders-ledger tbody tr { cursor: pointer; }

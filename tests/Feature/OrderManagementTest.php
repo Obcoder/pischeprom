@@ -412,8 +412,8 @@ class OrderManagementTest extends TestCase
         $this->get('/Ameise/orders/create')
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Ameise/Orders/Show')
-                ->where('orderId', null)
+                ->component('Ameise/Orders/Index')
+                ->where('createOrder', true)
                 ->where('permissions.create', true));
         $this->getJson('/api/orders/options')->assertOk();
         $this->getJson('/api/orders')->assertOk();

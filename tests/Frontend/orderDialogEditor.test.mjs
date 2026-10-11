@@ -62,7 +62,7 @@ function harness(initial = sourceOrder(), initialProps = {}) {
     const props = reactive({ orderId: initial.id, visible: true, editable: true, ...initialProps })
     const requests = []
     const saved = []
-    const client = Object.fromEntries(['get', 'put', 'patch'].map(method => [method, (url, data) => {
+    const client = Object.fromEntries(['get', 'post', 'put', 'patch'].map(method => [method, (url, data) => {
         let resolve, reject
         const promise = new Promise((success, failure) => { resolve = success; reject = failure })
         requests.push({ method, url, data, resolve: data => resolve({ data }), reject })
@@ -74,6 +74,8 @@ function harness(initial = sourceOrder(), initialProps = {}) {
         orderId: () => props.orderId,
         visible: () => props.visible,
         editable: () => props.editable,
+        creating: () => props.creating === true,
+        canCreateDelivery: () => props.canCreateDelivery === true,
         onSaved: data => saved.push(data),
         client,
     }))
@@ -117,7 +119,7 @@ test('editing preserves selected premises, explicit null prices and stable item 
     assert.equal(write.url, '/api/orders/7')
     assert.deepEqual(write.data.building_ids, [2])
     assert.deepEqual(write.data.building_apartments, { 2: 21 })
-    assert.deepEqual(write.data.items, [{ id: 91, good_id: 4, measure_id: 2, measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 2.5 }, quantity: '3.000', unit_price: null }])
+    assert.deepEqual(write.data.items, [{ id: 91, good_id: 4, measure_id: 2, measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 2.5 }, quantity: '3.000', unit_price: null, currency_code: 'RUB' }])
     assert.equal(Object.hasOwn(write.data, 'contact_telephone_id'), false)
     assert.equal(write.data.delivery_version, 'v1')
     assert.equal(h.api.cancelEdit(), false)
@@ -434,4 +436,143 @@ test('closing aborts options immediately and malformed write responses require r
     assert.equal(h.api.stale.value, true)
     assert.equal(h.order.value.id, 7)
     assert.deepEqual(h.saved, [])
+})
+
+test('creation opens with one RUB line, chooses the open status and posts a complete order', async t => {
+    const h = harness({ id: null }, { orderId: null, creating: true, canCreateDelivery: true })
+    t.after(() => h.dispose())
+    await h.edit({ statuses: [{ id: 1, code: 'closed' }, { id: 2, code: 'open' }] })
+    assert.equal(h.api.isCreating.value, true)
+    assert.equal(h.api.canEdit.value, true)
+    assert.equal(h.api.form.order_status_id, 2)
+    assert.equal(h.api.form.items.length, 1)
+    assert.equal(h.api.form.items[0].currency_code, 'RUB')
+    assert.equal(h.api.dirty.value, false)
+    h.api.form.entity_id = 11
+    h.api.form.items[0].good_id = 4
+    h.api.form.items[0].unit_price = 120
+    h.api.form.delivery_date = '2026-10-12'
+    const pending = h.api.saveOrder()
+    const write = h.requests.at(-1)
+    assert.equal(write.method, 'post')
+    assert.equal(write.url, '/api/orders')
+    assert.equal(write.data.items[0].currency_code, 'RUB')
+    assert.equal(write.data.delivery_date, '2026-10-12')
+    assert.equal(Object.hasOwn(write.data, 'delivery_version'), false)
+    write.resolve({ data: sourceOrder({ id: 15 }) })
+    await pending
+    assert.equal(h.saved[0].id, 15)
+    assert.equal(h.api.saving.value, false)
+    assert.equal(h.api.success.value, 'Заказ создан.')
+})
+
+test('creation respects delivery permission and ignores a late post after closing', async t => {
+    const h = harness({ id: null }, { orderId: null, creating: true })
+    t.after(() => h.dispose())
+    await h.edit()
+    assert.equal(h.api.canEditDelivery.value, false)
+    h.api.form.delivery_date = '2026-10-12'
+    const pending = h.api.saveOrder()
+    const write = h.requests.at(-1)
+    assert.equal(Object.hasOwn(write.data, 'delivery_date'), false)
+    h.props.visible = false
+    write.resolve({ data: sourceOrder({ id: 15 }) })
+    await pending
+    assert.equal(h.saved.length, 0)
+    assert.equal(h.order.value.id, null)
+})
+
+test('entity buildings are stable-sorted first and unrelated selections remain available', async t => {
+    const h = harness()
+    t.after(() => h.dispose())
+    await h.edit({
+        entities: [{ id: 11, building_ids: [3] }, { id: 12, building_ids: [2] }],
+        buildings: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }],
+    })
+    assert.deepEqual(h.api.sortedBuildings.value.map(building => building.id), [3, 1, 2, 4])
+    h.api.form.entity_id = 12
+    assert.deepEqual(h.api.sortedBuildings.value.map(building => building.id), [2, 1, 3, 4])
+    assert.deepEqual(h.api.form.building_ids, [2, 3])
+    assert.deepEqual(h.api.options.buildings.map(building => building.id), [1, 2, 3, 4])
+    h.api.form.entity_id = null
+    assert.deepEqual(h.api.sortedBuildings.value.map(building => building.id), [1, 2, 3, 4])
+})
+
+test('catalog prices respect the saved unit, set their currency, and still permit a custom price', async t => {
+    const h = harness()
+    t.after(() => h.dispose())
+    await h.edit({ goods: [{ id: 4, measurement: { measure_id: 1, unit_label: 'кг' }, prices: [
+        { id: 10, measure_id: 1, unit_price: 50, currency_code: 'RUB' },
+        { id: 11, measure_id: 2, unit_price: 12.5, currency_code: 'USD' },
+    ] }] })
+    const item = h.api.form.items[0]
+    assert.deepEqual(h.api.itemPrices(item).map(price => price.id), [11])
+    h.api.selectItemPrice(item, 10)
+    assert.equal(item.unit_price, null)
+    h.api.selectItemPrice(item, '11')
+    assert.equal(item.unit_price, 12.5)
+    assert.equal(item.currency_code, 'USD')
+    assert.equal(h.api.itemTotal(item), 37.5)
+    item.unit_price = 8.75
+    h.api.changeItemPrice(item)
+    assert.equal(item._price_id, null)
+    assert.equal(item.currency_code, 'USD')
+    assert.equal(h.api.itemTotal(item), 26.25)
+})
+
+test('editable amounts recalculate prices without losing the exact amount and totals stay separate by currency', async t => {
+    const h = harness()
+    t.after(() => h.dispose())
+    await h.edit()
+    const item = h.api.form.items[0]
+    h.api.setItemTotal(item, '100')
+    assert.equal(item.unit_price, 33.3333)
+    assert.equal(h.api.itemTotal(item), 100)
+    h.api.addItem()
+    const second = h.api.form.items[1]
+    second.good_id = 4
+    second.quantity = 2
+    second.unit_price = 25
+    second.currency_code = 'USD'
+    assert.deepEqual(h.api.totalsByCurrency.value, { RUB: 100, USD: 50 })
+    const pending = h.api.saveOrder()
+    const write = h.requests.at(-1)
+    assert.equal(write.data.items[0].line_total, 100)
+    assert.equal(write.data.items[0].unit_price, 33.3333)
+    assert.equal(Object.hasOwn(write.data.items[1], 'line_total'), false)
+    write.resolve({ data: sourceOrder() })
+    await pending
+})
+
+test('saved amount authority survives editing; changing quantity or price switches back to price calculation', async t => {
+    const h = harness(sourceOrder({ items: [{ id: 91, good_id: 4, quantity: 3, unit_price: 33.3333, line_total: 100, pricing_basis: 'total', currency_code: 'EUR' }] }))
+    t.after(() => h.dispose())
+    await h.edit()
+    const item = h.api.form.items[0]
+    assert.equal(h.api.dirty.value, false)
+    assert.equal(h.api.itemTotal(item), 100)
+    assert.deepEqual(h.api.totalsByCurrency.value, { EUR: 100 })
+    item.quantity = 6
+    h.api.changeItemQuantity(item)
+    assert.equal(h.api.itemTotal(item), 199.9998)
+    h.api.setItemTotal(item, '120')
+    assert.equal(item.unit_price, 20)
+    item.unit_price = 15
+    h.api.changeItemPrice(item)
+    assert.equal(h.api.itemTotal(item), 90)
+    item.quantity = 0
+    h.api.setItemTotal(item, '120')
+    assert.equal(item.unit_price, 15)
+    assert.equal(item._line_total, null)
+    h.api.setItemTotal(item, '')
+    assert.equal(item.unit_price, null)
+})
+
+test('legacy foreign-currency lines inherit their existing order currency while added lines start in RUB', async t => {
+    const h = harness(sourceOrder({ currency_code: 'EUR' }))
+    t.after(() => h.dispose())
+    await h.edit()
+    assert.equal(h.api.form.items[0].currency_code, 'EUR')
+    h.api.addItem()
+    assert.equal(h.api.form.items[1].currency_code, 'RUB')
 })

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
 import OrderDialogForm from '@/Components/Orders/OrderDialogForm.vue'
 import { useOrderDialogEditor } from '@/Composables/useOrderDialogEditor'
 import { buildingApartmentLabel } from '@/utils/buildingApartments'
+import { orderTotals } from '@/utils/orderTotals.js'
 
 const props = defineProps({
     modelValue: Boolean,
@@ -30,6 +31,7 @@ const editor = reactive(useOrderDialogEditor({
 const busy = computed(() => props.externalBusy || editor.saving || editor.savingDate)
 const validationMessages = computed(() => [...new Set(Object.values(editor.errors).flat())])
 const orderNumber = computed(() => order.value?.number || (props.orderId ? `#${props.orderId}` : ''))
+const displayedTotals = computed(() => editor.editing ? editor.totalsByCurrency : orderTotals(order.value))
 let controller = null
 let requestId = 0
 let disposed = false
@@ -156,7 +158,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <v-dialog :model-value="modelValue" :aria-labelledby="titleId" :persistent="busy || editor.dirty" max-width="900" scrollable @update:model-value="updateDialog">
+    <v-dialog :model-value="modelValue" :aria-labelledby="titleId" :persistent="busy || editor.dirty" :max-width="editor.editing ? 1000 : 900" scrollable @update:model-value="updateDialog">
         <v-card class="order-details" :class="{ 'order-details--dark': theme === 'dark' }" :theme="theme">
             <header class="order-details__header">
                 <v-icon class="order-details__symbol" icon="mdi-receipt-text-outline" size="23" />
@@ -192,7 +194,7 @@ onBeforeUnmount(() => {
                     </div>
                     <div v-if="editor.success" class="order-details__notice" role="status"><v-icon icon="mdi-check-circle-outline" size="16" />{{ editor.success }}</div>
                     <div class="order-details__totals">
-                        <div><span>Сумма заказа</span><strong>{{ formatMoney(editor.editing ? editor.total : order.total_amount, editor.editing ? editor.form.currency_code : order.currency_code) }}</strong></div>
+                        <div><span>Сумма заказа</span><strong v-for="(amount, currency) in displayedTotals" :key="currency">{{ formatMoney(amount, currency) }}</strong></div>
                         <div><span>Общий вес</span><strong>{{ formatNumber(editor.editing ? editor.weight : order.total_weight, 6) }} <small>кг</small></strong></div>
                         <div><span>Позиций</span><strong>{{ editor.editing ? editor.form.items.length : (order.items_count ?? order.items?.length ?? 0) }}</strong></div>
                     </div>

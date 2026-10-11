@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
+import { orderTotals } from '../../resources/js/utils/orderTotals.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 function pageHarness(permissions = {}) {
@@ -23,7 +24,7 @@ function pageHarness(permissions = {}) {
     }
     const props = { permissions }
     const environment = {
-        ...Vue, Link: {}, VerwalterLayout: {}, OrderStatusesDialog: {}, OrderDetailsDialog: {},
+        ...Vue, Link: {}, VerwalterLayout: {}, OrderStatusesDialog: {}, OrderDetailsDialog: {}, OrderCreateDialog: {}, orderTotals,
         buildingApartmentLabel,
         route: () => '', useHead: () => {}, useDebounceFn: callback => callback,
         onMounted: () => {}, onBeforeUnmount: callback => disposal.push(callback),
@@ -49,6 +50,42 @@ function vnodeText(node) {
             : typeof node.children?.default === 'function' ? node.children.default() : []
     return children.map(vnodeText).join(' ')
 }
+
+test('new order opens a modal and saving refreshes the list while preserving filters', async t => {
+    const harness = pageHarness({ create: true, delivery_create: true })
+    t.after(() => harness.dispose())
+    const { api, render, requests } = harness
+    api.filters.entity_id = 18
+    api.filters.page = 2
+    const button = findVNode(render(), node => node.props?.['aria-haspopup'] === 'dialog' && vnodeText(node).includes('Новый заказ'))
+    assert.equal(button.type, 'button')
+    button.props.onClick()
+    const dialog = findVNode(render(), node => node.type === api.OrderCreateDialog)
+    assert.equal(dialog.props.modelValue, true)
+    assert.equal(dialog.props['can-create-delivery'], true)
+    const pending = dialog.props.onSaved({ id: 99, number: 'NEW-99' })
+    assert.equal(requests[0].options.params.entity_id, 18)
+    assert.equal(requests[0].options.params.page, 2)
+    requests[0].resolve({ data: [], meta: { current_page: 2, last_page: 2, total: 101 } })
+    await pending
+    assert.match(api.createdMessage.value, /NEW-99/)
+    dialog.props['onUpdate:modelValue'](false)
+    assert.equal(api.createOrderOpen.value, false)
+    assert.equal(api.filters.entity_id, 18)
+})
+
+test('mixed currency orders display and aggregate each currency separately', t => {
+    const harness = pageHarness()
+    t.after(() => harness.dispose())
+    harness.api.orders.value = [
+        { id: 1, total_amount: null, totals_by_currency: { RUB: 100, USD: 5 } },
+        { id: 2, currency_code: 'RUB', total_amount: 20 },
+    ]
+    assert.equal(harness.api.pageTotals.value, '120 ₽ · 5 USD')
+    const cell = findVNode(harness.render(), node => hasClass(node, 'orders-ledger__money'))
+    assert.match(vnodeText(cell), /100 ₽/)
+    assert.match(vnodeText(cell), /5 USD/)
+})
 
 test('order number opens details over the filtered list and closing preserves the current page', async t => {
     const harness = pageHarness()

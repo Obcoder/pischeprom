@@ -6,6 +6,7 @@ import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { buildingApartmentLabel } from '../../resources/js/utils/buildingApartments.js'
 import { useOrderDialogEditor } from '../../resources/js/Composables/useOrderDialogEditor.js'
+import { orderTotals } from '../../resources/js/utils/orderTotals.js'
 import { findVNode, hasClass, templateRenderer } from './support/renderTemplate.mjs'
 
 function dialogHarness(initialProps = {}, slots = {}) {
@@ -23,6 +24,7 @@ function dialogHarness(initialProps = {}, slots = {}) {
         ...Vue,
         buildingApartmentLabel,
         useOrderDialogEditor,
+        orderTotals,
         OrderDialogForm: { name: 'OrderDialogForm' },
         window: { confirm: () => false },
         useId: () => 'test-dialog',

@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { selectedApartment, selectedBuildingApartments } from '../utils/buildingApartments.js'
 import { lineMeasurement, quantityWeight, unitLabel } from '../utils/goodMeasurement.js'
 
-export function useOrderDialogEditor({ order, orderId, visible, editable, onSaved = () => {}, client = axios }) {
+export function useOrderDialogEditor({ order, orderId, visible, editable, creating = () => false, canCreateDelivery = () => false, onSaved = () => {}, client = axios }) {
     const editing = ref(false)
     const editingDate = ref(false)
     const loadingOptions = ref(false)
@@ -27,17 +27,28 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     let savedVersion = null
     let disposed = false
 
+    const isCreating = computed(() => Boolean(creating()))
     const currentOrder = computed(() => Boolean(visible() && order.value?.id)
         && String(order.value.id) === String(orderId()))
-    const canEdit = computed(() => currentOrder.value && editable() !== false
-        && !order.value.shipped_at && (order.value.permissions?.edit ?? true) === true)
-    const canEditDelivery = computed(() => currentOrder.value && editable() !== false
-        && order.value.permissions?.delivery_edit === true)
+    const canEdit = computed(() => editable() !== false && (isCreating.value ? visible() : currentOrder.value
+        && !order.value.shipped_at && (order.value.permissions?.edit ?? true) === true))
+    const canEditDelivery = computed(() => editable() !== false && (isCreating.value ? visible() && canCreateDelivery() : currentOrder.value
+        && order.value.permissions?.delivery_edit === true))
     const busy = computed(() => saving.value || savingDate.value)
     const dateDirty = computed(() => (editing.value ? form.delivery_date || '' : dateDraft.value || '') !== savedDate.value)
     const dirty = computed(() => (editing.value && (JSON.stringify(contentPayload()) !== savedContent.value
         || (canEditDelivery.value && dateDirty.value))) || (editingDate.value && dateDirty.value))
     const total = computed(() => form.items.reduce((sum, item) => sum + itemTotal(item), 0))
+    const totalsByCurrency = computed(() => form.items.reduce((totals, item) => {
+        if (!item.good_id) return totals
+        const currency = item.currency_code || 'RUB'
+        totals[currency] = roundPrice((totals[currency] || 0) + itemTotal(item))
+        return totals
+    }, {}))
+    const selectedEntity = computed(() => options.entities.find(entity => String(entity.id) === String(form.entity_id)))
+    const relatedBuildingIds = computed(() => new Set((selectedEntity.value?.building_ids || []).map(String)))
+    const sortedBuildings = computed(() => [...options.buildings].sort((left, right) =>
+        Number(relatedBuildingIds.value.has(String(right.id))) - Number(relatedBuildingIds.value.has(String(left.id)))))
     const weight = computed(() => form.items.reduce((sum, item) => {
         if (!item.good_id) return sum
         const value = quantityWeight(item.quantity, itemMeasurement(item))
@@ -99,6 +110,9 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
             measurement: source.measurement ?? null,
             quantity: source.quantity ?? 1,
             unit_price: Object.hasOwn(source, 'unit_price') ? source.unit_price : source.price_gross ?? null,
+            currency_code: source.currency_code || 'RUB',
+            _price_id: null,
+            _line_total: source.pricing_basis === 'total' ? source.line_total ?? null : null,
         }
     }
 
@@ -118,7 +132,7 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
             delivery_date: source.delivery_date || '',
             preferred_delivery_time: source.preferred_delivery_time || '',
             internal_comment: source.internal_comment || '',
-            items: (source.items || []).map(makeLine),
+            items: (source.items || []).map(item => makeLine({ ...item, currency_code: item.currency_code || source.currency_code || 'RUB' })),
         })
         savedContent.value = JSON.stringify(contentPayload())
         savedDate.value = source.delivery_date || ''
@@ -151,6 +165,8 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
                 measurement: itemMeasurement(item),
                 quantity: item.quantity,
                 unit_price: item.unit_price === '' ? null : item.unit_price,
+                currency_code: item.currency_code || 'RUB',
+                ...(item._line_total !== null ? { line_total: item._line_total } : {}),
             })),
         }
     }
@@ -166,10 +182,13 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     function context() {
         const token = generation
         const id = orderId()
+        const newOrder = isCreating.value
         return {
             id,
+            newOrder,
             isCurrent: () => !disposed && token === generation && visible()
-                && String(orderId()) === String(id) && String(order.value?.id) === String(id),
+                && newOrder === isCreating.value && String(orderId()) === String(id)
+                && (newOrder || String(order.value?.id) === String(id)),
         }
     }
 
@@ -193,6 +212,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
                 currency_codes: data.currency_codes?.length ? data.currency_codes : ['RUB'],
             })
             optionsReady.value = true
+            if (isCreating.value && !form.order_status_id) {
+                form.order_status_id = options.statuses.find(status => status.code === 'open')?.id || options.statuses[0]?.id || null
+                savedContent.value = JSON.stringify(contentPayload())
+            }
         } catch (failure) {
             if (!isCurrent() || axios.isCancel(failure)) return
             error.value = 'Не удалось загрузить поля заказа. Попробуйте ещё раз.'
@@ -207,7 +230,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     async function beginEdit() {
         if (disposed || !canEdit.value || busy.value || stale.value || editingDate.value) return
         clearMessages()
-        if (!editing.value) fillForm(order.value)
+        if (!editing.value) {
+            if (isCreating.value) fillForm({ submitted_at: new Date().toISOString(), items: [{}] })
+            else fillForm(order.value)
+        }
         editing.value = true
         await loadOptions()
     }
@@ -221,7 +247,7 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     }
 
     function beginDateEdit() {
-        if (disposed || !canEditDelivery.value || busy.value || stale.value || editing.value) return
+        if (disposed || isCreating.value || !canEditDelivery.value || busy.value || stale.value || editing.value) return
         clearMessages()
         savedDate.value = order.value.delivery_date || ''
         savedVersion = order.value.delivery_version
@@ -259,7 +285,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
                     version: savedVersion,
                     delivery_date: dateValue || null,
                 })
-                : await client.put(`/api/orders/${request.id}`, {
+                : request.newOrder ? await client.post('/api/orders', {
+                    ...contentPayload(),
+                    ...(canEditDelivery.value ? { delivery_date: form.delivery_date || null } : {}),
+                }) : await client.put(`/api/orders/${request.id}`, {
                     ...contentPayload(),
                     ...(canEditDelivery.value ? {
                         delivery_date: form.delivery_date || null,
@@ -268,12 +297,12 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
                 })
             if (!request.isCurrent()) return
             const savedOrder = response.data?.data
-            if (!savedOrder?.id || String(savedOrder.id) !== String(request.id)) throw new Error('Invalid saved order')
+            if (!savedOrder?.id || (!request.newOrder && String(savedOrder.id) !== String(request.id))) throw new Error('Invalid saved order')
             order.value = savedOrder
             fillForm(savedOrder)
             editing.value = false
             editingDate.value = false
-            success.value = dateOnly ? 'Дата доставки сохранена.' : 'Заказ сохранён.'
+            success.value = dateOnly ? 'Дата доставки сохранена.' : request.newOrder ? 'Заказ создан.' : 'Заказ сохранён.'
             onSaved(savedOrder)
         } catch (failure) {
             if (request.isCurrent()) saveFailure(failure, dateOnly)
@@ -284,11 +313,11 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
 
     async function saveOrder() {
         if (!editing.value || !canEdit.value || busy.value || loadingOptions.value || !optionsReady.value || stale.value || disposed) return
-        if (!dirty.value) {
+        if (!isCreating.value && !dirty.value) {
             cancelEdit()
             return
         }
-        if (canEditDelivery.value && dateDirty.value && JSON.stringify(contentPayload()) === savedContent.value) {
+        if (!isCreating.value && canEditDelivery.value && dateDirty.value && JSON.stringify(contentPayload()) === savedContent.value) {
             await persist(true, form.delivery_date)
             return
         }
@@ -317,9 +346,10 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     }
 
     function itemTotal(item) {
+        if (item._line_total !== null) return Number(item._line_total) || 0
         const quantity = Number(item.quantity)
         const price = Number(item.unit_price)
-        return Number.isFinite(quantity) && Number.isFinite(price) ? quantity * price : 0
+        return Number.isFinite(quantity) && Number.isFinite(price) ? roundPrice(quantity * roundPrice(price)) : 0
     }
 
     function itemMeasurement(item) {
@@ -331,11 +361,60 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
     }
 
     function selectItemGood(item) {
-        if (String(item.good_id) !== String(item._selected_good_id)) item.unit_price = null
+        if (String(item.good_id) !== String(item._selected_good_id)) {
+            item.unit_price = null
+            item._price_id = null
+            item._line_total = null
+        }
         item._selected_good_id = item.good_id
     }
 
-    const stopWatching = watch(() => [visible(), orderId()], reset, { flush: 'sync' })
+    function roundPrice(value) {
+        return Math.round((Number(value) + Number.EPSILON) * 10000) / 10000
+    }
+
+    function itemPrices(item) {
+        const measurement = itemMeasurement(item)
+        return (goodById(item.good_id)?.prices || []).filter(price =>
+            String(price.measure_id ?? measurement.measure_id) === String(measurement.measure_id))
+    }
+
+    function selectItemPrice(item, priceId) {
+        const price = itemPrices(item).find(candidate => String(candidate.id) === String(priceId))
+        if (!price) { item._price_id = null; return }
+        item._price_id = price.id
+        item.unit_price = price.unit_price ?? price.price_gross
+        item.currency_code = price.currency_code || 'RUB'
+        item._line_total = null
+    }
+
+    function changeItemPrice(item) {
+        item._price_id = null
+        item._line_total = null
+    }
+
+    function changeItemQuantity(item) {
+        item._line_total = null
+    }
+
+    function setItemTotal(item, value) {
+        const quantity = Number(item.quantity)
+        const amount = Number(value)
+        if (value === '' || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(quantity) || quantity <= 0) {
+            item._line_total = null
+            if (value === '') item.unit_price = null
+            return
+        }
+        item.unit_price = roundPrice(amount / quantity)
+        item._line_total = amount
+        item._price_id = null
+    }
+
+    function itemAmount(item) {
+        return item._line_total ?? (item.unit_price === null || item.unit_price === '' ? '' : Number(itemTotal(item).toFixed(2)))
+    }
+
+    const stopWatching = watch(() => [visible(), orderId(), creating()], reset, { flush: 'sync' })
 
     function dispose() {
         disposed = true
@@ -347,6 +426,8 @@ export function useOrderDialogEditor({ order, orderId, visible, editable, onSave
         editing, editingDate, form, options, optionsReady, loadingOptions, saving, savingDate, errors, error, success,
         stale, dirty, dateDirty, canEdit, canEditDelivery, dateDraft, beginEdit, cancelEdit, saveOrder,
         beginDateEdit, cancelDateEdit, saveDate, reset, dispose, addItem, removeItem, total, weight,
-        itemTotal, goodById, itemMeasurement, itemUnit, selectItemGood,
+        itemTotal, goodById, itemMeasurement, itemUnit, selectItemGood, isCreating, totalsByCurrency,
+        selectedEntity, relatedBuildingIds, sortedBuildings, itemPrices, selectItemPrice,
+        changeItemPrice, changeItemQuantity, setItemTotal, itemAmount,
     }
 }

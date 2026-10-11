@@ -111,6 +111,14 @@ class Order extends Model
         return $this->hasMany(OrderItem::class)->orderBy('id');
     }
 
+    /** Keep unlike currencies separate; no exchange rate is implied by an order. */
+    public function totalsByCurrency(): array
+    {
+        return $this->items->groupBy(fn (OrderItem $item) => $item->currency_code ?: $this->currency_code ?: 'RUB')
+            ->map(fn ($items) => round($items->sum('line_total'), 4))
+            ->all();
+    }
+
     public function goods(): BelongsToMany
     {
         return $this->belongsToMany(Good::class, 'order_items')

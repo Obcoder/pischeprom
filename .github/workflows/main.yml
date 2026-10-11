@@ -124,10 +124,12 @@ jobs:
             database/migrations/2026_07_25_130000_normalize_orders_architecture.php \
             database/migrations/2026_09_28_120000_create_apartments_and_building_selections.php \
             database/migrations/2026_09_28_121000_add_apartment_details_to_good_inquiries.php \
+            database/migrations/2026_10_11_130000_allow_orders_with_multiple_currencies.php \
             tests/Feature/BuildingApartmentManagementTest.php \
             tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/OrderInlineEditingTest.php \
+            tests/Feature/OrderEditorTest.php \
             tests/Feature/OrderResourcePermissionsTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/RegistrationTest.php \
@@ -614,6 +616,7 @@ jobs:
             tests/Feature/CommerceRealtimeTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/OrderInlineEditingTest.php \
+            tests/Feature/OrderEditorTest.php \
             tests/Feature/OrderResourcePermissionsTest.php \
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/Mobile \
