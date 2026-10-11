@@ -130,6 +130,26 @@ test('bulk selection rejects invalid amounts before changing the cart and retain
     assert.equal(h.emitted.at(-1)[1].kind, 'email')
 })
 
+test('priced products with unknown units use customer labels and cannot manufacture a cart order', t => {
+    const missingUnit = good(3, { public_purchase: { price: 300, currency_code: 'RUB', can_order: false, measurement: { measure_id: null, unit_label: null } } })
+    const h = harness(t, [missingUnit])
+    const price = findVNode(h.render(), node => hasClass(node, 'price-list__price'))
+    const label = findVNode(price, node => node.type === 'small')
+    assert.ok(label.children.some(node => typeof node.children === 'string' && node.children.includes('Единицу уточним')))
+    assert.equal(findVNode(h.render(), node => node.props?.['aria-label'] === 'Добавить Товар 3 в корзину'), null)
+    h.api.selectAll(true)
+    h.api.addSelected()
+    h.api.addOne(missingUnit)
+    h.api.inquire(missingUnit, 'order')
+    assert.equal(h.cart.length, 0)
+    assert.equal(h.emitted.length, 0)
+    const csv = priceList.buildPriceListExport([missingUnit], {}, { format: 'csv' })
+    assert.ok(csv.includes('"300";"RUB";"Уточняется";"";""'))
+    assert.ok(!csv.includes('единица не задана'))
+    assert.equal(priceList.priceListUnit(good(1)), 'кг')
+    assert.equal(priceList.priceListUnit(missingUnit), null)
+})
+
 test('new pages and sorting clear selection and edited quantities so stale goods cannot be ordered', async t => {
     const h = harness(t)
     h.api.toggleSelection('1', true)

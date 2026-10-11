@@ -39,6 +39,11 @@ export function priceListCanOrder(good) {
     return Boolean(offer.measurement?.measure_id && offer.measurement?.unit_label) && offer.can_order !== false
 }
 
+export function priceListUnit(good) {
+    const measurement = publicCatalogOffer(good).measurement
+    return measurement?.measure_id && measurement?.unit_label ? unitLabel(measurement) : null
+}
+
 export function priceListScope(goods, selected) {
     return selected.size ? goods.filter(good => selected.has(String(good.id))) : [...goods]
 }
@@ -70,7 +75,7 @@ export function buildPriceListExport(goods, quantities = {}, { format = 'tsv', n
         const decimal = value => value === null ? '' : String(value).replace('.', ',')
         rows.push([positions.get(String(good.id)) ?? '', good.name, sections.get(String(good.catalog_node_id)) || '', good.country?.name || '',
             priceListPack(good), catalogStatus(good).label, offer.price === null ? 'Цена по запросу' : decimal(offer.price), offer.currency_code,
-            unitLabel(offer.measurement), decimal(amount), decimal(total)])
+            priceListUnit(good) || 'Уточняется', decimal(amount), decimal(total)])
     }
     const delimiter = format === 'csv' ? ';' : '\t'
     const cell = value => format === 'csv' ? `"${spreadsheetText(value).replaceAll('"', '""')}"` : spreadsheetText(value)

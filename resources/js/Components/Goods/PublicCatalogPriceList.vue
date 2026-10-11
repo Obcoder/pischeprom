@@ -5,7 +5,7 @@ import { useOrderCart } from '@/Composables/useOrderCart'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { catalogImage, catalogMoney, catalogStatus, publicCatalogOffer } from '@/utils/publicCatalog'
 import { unitLabel } from '@/utils/goodMeasurement'
-import { buildPriceListExport, priceListCanOrder, priceListDefaultColumns, priceListPack, priceListQuantity, priceListScope, priceListTotal, readPriceListColumns, writePriceListColumns } from '@/utils/catalogPriceList'
+import { buildPriceListExport, priceListCanOrder, priceListDefaultColumns, priceListPack, priceListQuantity, priceListScope, priceListTotal, priceListUnit, readPriceListColumns, writePriceListColumns } from '@/utils/catalogPriceList'
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
 
 const props = defineProps({ goods: { type: Array, default: () => [] }, nodes: { type: Array, default: () => [] }, sort: { type: String, default: 'name' }, from: { type: Number, default: 1 } })
@@ -41,7 +41,7 @@ watch(() => [props.goods, props.from, props.sort], () => {
 const rows = computed(() => {
     const sections = new Map(props.nodes.map(node => [String(node.id), node.name]))
     return props.goods.map((good, index) => ({ good, id: String(good.id), number: props.from + index, offer: publicCatalogOffer(good),
-        status: catalogStatus(good), image: catalogImage(good), section: sections.get(String(good.catalog_node_id)), canOrder: priceListCanOrder(good) }))
+        status: catalogStatus(good), image: catalogImage(good), section: sections.get(String(good.catalog_node_id)), unit: priceListUnit(good), canOrder: priceListCanOrder(good) }))
 })
 const selectedGoods = computed(() => props.goods.filter(good => selected.value.has(String(good.id))))
 const selectedOrderable = computed(() => selectedGoods.value.filter(priceListCanOrder))
@@ -215,7 +215,7 @@ function downloadRows() {
                         <td v-if="columns.country" class="price-list__country">{{ row.good.country?.name || '—' }}</td>
                         <td v-if="columns.pack" class="price-list__pack">{{ priceListPack(row.good) }}</td>
                         <td v-if="columns.availability" class="price-list__availability"><span :class="{ 'price-list__in-stock': row.status.value === 'in_stock' }"><i />{{ row.status.label }}</span><GoodStockAlertButton v-if="row.status.value !== 'in_stock'" :good="row.good" compact label="Оповестить" /></td>
-                        <td class="price-list__numeric price-list__price"><strong :class="{ 'price-list__on-request': !row.offer.price }">{{ catalogMoney(row.good) }}</strong><small v-if="row.offer.price">/ {{ unitLabel(row.offer.measurement) }}<span v-if="row.offer.includes_vat"> · с НДС</span></small></td>
+                        <td class="price-list__numeric price-list__price"><strong :class="{ 'price-list__on-request': !row.offer.price }">{{ catalogMoney(row.good) }}</strong><small v-if="row.offer.price">{{ row.unit ? `/ ${row.unit}` : 'Единицу уточним' }}<span v-if="row.offer.includes_vat"> · с НДС</span></small></td>
                         <td class="price-list__quantity-cell"><div v-if="row.canOrder" class="price-list__quantity"><input data-price-quantity :value="quantities[row.id]" type="text" inputmode="decimal" maxlength="12" :aria-label="`Количество ${row.good.name}, ${unitLabel(row.offer.measurement)}`" :aria-invalid="Boolean(errors[row.id])" :aria-describedby="errors[row.id] ? `price-quantity-error-${row.id}` : undefined" @input="quantityChanged(row.id, $event.target.value)" @keydown="moveQuantity"><span>{{ unitLabel(row.offer.measurement) }}</span></div><span v-else class="price-list__unknown-unit">{{ row.offer.measurement?.measure_id ? 'Условия уточним' : 'Уточните единицу' }}</span><small v-if="errors[row.id]" :id="`price-quantity-error-${row.id}`" class="price-list__error" role="alert">{{ errors[row.id] }}</small></td>
                         <td class="price-list__numeric price-list__sum">{{ priceListTotal(row.good, quantities[row.id]) === null ? '—' : money(priceListTotal(row.good, quantities[row.id]), row.offer.currency_code) }}</td>
                         <td class="price-list__actions"><div class="price-list__action-line"><button v-if="row.canOrder" type="button" class="price-list__cart" :aria-label="`Добавить ${row.good.name} в корзину`" :title="`Добавить ${row.good.name} в корзину`" @click="addOne(row.good)"><v-icon icon="mdi-cart-plus" size="17" /></button><button v-if="row.canOrder" type="button" @click="inquire(row.good, 'order')">Заказать</button><Link v-else :href="row.good.public_url || goodPublicUrl(row.good)">Подробнее</Link><button v-if="row.canOrder" type="button" @click="inquire(row.good, 'bargain')">Торг</button><button type="button" :aria-label="`Задать вопрос о товаре ${row.good.name}`" @click="inquire(row.good, 'email')">Вопрос</button></div><GoodStockAlertButton v-if="!columns.availability && row.status.value !== 'in_stock'" :good="row.good" compact label="Оповестить" /></td>
