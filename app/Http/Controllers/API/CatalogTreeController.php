@@ -7,6 +7,7 @@ use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Services\Catalog\CatalogService;
+use App\Services\Catalog\CatalogTranslations;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\GoodTradeCodes;
 use Illuminate\Http\JsonResponse;
@@ -167,6 +168,19 @@ class CatalogTreeController extends Controller
     public function overview(CatalogNode $node): JsonResponse
     {
         return response()->json(['data' => $this->catalog->goodOverview($node)]);
+    }
+
+    public function translations(CatalogNode $node): JsonResponse
+    {
+        return response()->json(['data' => $this->catalog->nodePayload($node)]);
+    }
+
+    public function updateTranslations(Request $request, CatalogNode $node): JsonResponse
+    {
+        $data = $request->validate(app(CatalogTranslations::class)->rules());
+        $node = $this->catalog->saveTranslations($node, $data['translations']);
+
+        return response()->json(['data' => $this->catalog->nodePayload($node)]);
     }
 
     public function updateNode(Request $request, CatalogNode $node): JsonResponse

@@ -231,7 +231,7 @@ function goodCardHarness() {
     const node = { id: 7, entity_type: 'good', entity_id: 42, name: good.name, image: good.ava_image, is_published: true }
     const props = Vue.reactive({ modelValue: true, node, nodes: [], levels: [], initialParentId: null, initialLevelId: null, initialEntityType: 'custom' })
     const environment = {
-        ...Vue, ...tradeCodes, descendantIds, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: {}, CatalogProductOperations: {}, CatalogGoodOverview: {}, CatalogGoodSeo: {},
+        ...Vue, ...tradeCodes, descendantIds, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogTranslations: {}, CatalogGoodWarehouse: {}, CatalogProductOperations: {}, CatalogGoodOverview: {}, CatalogGoodSeo: {},
         CatalogGoodOperations: {}, CatalogRecordTabs: {}, CatalogLandingEditor: {}, CatalogSeoPreview: {}, CatalogBranchSlots: {}, GoodTradeCodeFields: {}, _mergeModels: Vue.mergeModels,
         _useModel: (source, key) => Vue.computed({ get: () => source[key], set: value => { source[key] = value } }),
         axios: {

@@ -39,9 +39,9 @@ test('stored tab order is deduplicated and new tabs are appended without losing 
     assert.equal(findVNode(h.render(), node => node.props?.role === 'tablist').props['aria-label'], 'Разделы карточки товара')
 })
 
-test('catalog records use their own two-tab order and goods retain every existing tool', async t => {
+test('catalog records append translations to saved orders and goods retain every existing tool', async t => {
     const h = harness(t, JSON.stringify(['media', 'landing', 'overview']), false, { good: false, modelValue: 'landing' })
-    assert.deepEqual(h.state.order.value, ['landing', 'overview'])
+    assert.deepEqual(h.state.order.value, ['landing', 'overview', 'translations'])
     assert.equal(findVNode(h.render(), node => node.props?.role === 'tablist').props['aria-label'], 'Разделы карточки записи')
     h.state.reorder('overview', 'landing')
     assert.equal(h.stored[0][0], 'ameise.catalog.record-tabs.v1')
@@ -56,7 +56,7 @@ test('drag and drop persists the tab order without changing the selected tab', t
     const transfers = []
     h.state.dragStart({ dataTransfer: { setData: (...args) => transfers.push(args) } }, 'seo')
     h.state.drop({ preventDefault() {} }, 'media')
-    assert.equal(h.state.order.value[7], 'seo')
+    assert.equal(h.state.order.value[goodRecordTabs.findIndex(tab => tab.id === 'media')], 'seo')
     assert.equal(h.props.modelValue, 'seo')
     assert.equal(h.emitted.length, 0)
     assert.deepEqual(JSON.parse(h.stored.at(-1)[1]), h.state.order.value)
@@ -111,7 +111,7 @@ test('legacy goods orders migrate merged tabs and products keep a separate compl
     assert.match(h.state.announcement.value, /Переводы/)
     h.props.product = false
     await Vue.nextTick()
-    assert.deepEqual(h.state.order.value, ['overview', 'landing'])
+    assert.deepEqual(h.state.order.value, ['overview', 'translations', 'landing'])
 })
 
 

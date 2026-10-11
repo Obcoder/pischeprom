@@ -32,7 +32,7 @@ class CatalogEntityConversion
 
         $mapped = match (true) {
             $source instanceof Category => ['name', 'slug', 'image', 'description', 'h1', 'meta_title', 'meta_description', 'is_published', 'is_featured', 'sort_order'],
-            $source instanceof Product => ['rus', 'category_id', 'is_published'],
+            $source instanceof Product => [...Product::TRANSLATION_COLUMNS, 'category_id', 'is_published'],
             $source instanceof Good => ['name', 'slug', 'ava_image', 'description', 'is_published'],
         };
         $defaults = match (true) {
@@ -83,7 +83,7 @@ class CatalogEntityConversion
                 || (array_key_exists($key, $defaults) && $value == $defaults[$key])) {
                 continue;
             }
-            $kind = $source instanceof Product ? 'переводы названия' : ($source instanceof Category ? 'дополнительные параметры категории' : ($source instanceof Good ? 'учётные параметры или отдельная миниатюра' : 'дополнительные настройки SEO'));
+            $kind = $source instanceof Product ? 'дополнительные параметры продукта' : ($source instanceof Category ? 'дополнительные параметры категории' : ($source instanceof Good ? 'учётные параметры или отдельная миниатюра' : 'дополнительные настройки SEO'));
             $this->reject('В карточке заполнены '.$kind.', которые нельзя перенести в выбранный тип. Сначала сохраните или очистите их.');
         }
     }

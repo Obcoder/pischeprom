@@ -424,6 +424,7 @@ jobs:
             app/Models/CatalogLanding.php \
             app/Models/CatalogLevel.php \
             app/Models/CatalogNode.php \
+            app/Models/CatalogNodeTranslation.php \
             app/Models/CatalogSiteDomain.php \
             app/Models/Component.php \
             app/Services/Catalog \
@@ -438,10 +439,12 @@ jobs:
             database/migrations/2026_10_10_130000_add_h1_to_catalog_nodes_table.php \
             database/migrations/2026_10_11_120000_create_catalog_site_domains_table.php \
             database/migrations/2026_10_11_120100_add_site_url_to_good_stock_alerts.php \
+            database/migrations/2026_10_11_130000_create_catalog_node_translations_table.php \
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogEntityConversionTest.php \
+            tests/Feature/CatalogTranslationsTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
             tests/Feature/GoodIncomingCodeTest.php \
@@ -630,6 +633,7 @@ jobs:
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
             tests/Feature/CatalogEntityConversionTest.php \
+            tests/Feature/CatalogTranslationsTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
             tests/Feature/GoodIncomingCodeTest.php \

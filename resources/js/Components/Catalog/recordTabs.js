@@ -1,5 +1,6 @@
 export const goodRecordTabs = [
     { id: 'overview', label: 'Основное', icon: 'mdi-package-variant-closed' },
+    { id: 'translations', label: 'Переводы', icon: 'mdi-translate' },
     { id: 'seo', label: 'SEO', icon: 'mdi-magnify' },
     { id: 'warehouse', label: 'Склад', icon: 'mdi-warehouse' },
     { id: 'market', label: 'Маркет', icon: 'mdi-storefront-outline' },
@@ -11,7 +12,7 @@ export const goodRecordTabs = [
     { id: 'landing', label: 'Лендинг', icon: 'mdi-web' },
 ]
 
-export const catalogRecordTabs = goodRecordTabs.filter(tab => ['overview', 'landing'].includes(tab.id))
+export const catalogRecordTabs = goodRecordTabs.filter(tab => ['overview', 'translations', 'landing'].includes(tab.id))
 
 export const productRecordTabs = [
     { id: 'overview', label: 'Основное', icon: 'mdi-shape-outline' },

@@ -144,8 +144,9 @@ class CatalogEntityConversionTest extends TestCase
         $product = $this->createNode('product');
         Product::findOrFail($product['entity_id'])->update(['eng' => 'Trout']);
         $this->patchJson('/api/catalog/nodes/'.$product['id'], ['entity_type' => 'custom'])
-            ->assertUnprocessable()->assertJsonValidationErrors('entity_type');
-        $this->assertDatabaseHas('products', ['id' => $product['entity_id'], 'eng' => 'Trout']);
+            ->assertOk()->assertJsonPath('data.entity_type', null)->assertJsonPath('data.translations.en', 'Trout');
+        $this->assertDatabaseMissing('products', ['id' => $product['entity_id']]);
+        $this->assertDatabaseHas('catalog_node_translations', ['node_id' => $product['id'], 'locale' => 'en', 'name' => 'Trout']);
     }
 
     public function test_unrelated_foreign_keys_do_not_block_conversion_but_legacy_unconstrained_references_do(): void

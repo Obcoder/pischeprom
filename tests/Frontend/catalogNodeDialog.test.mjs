@@ -34,7 +34,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const reads = []
     const environment = {
         ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: 'CatalogGoodWarehouse', CatalogProductOperations: 'CatalogProductOperations', CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
-        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', CatalogSeoPreview: 'CatalogSeoPreview', CatalogBranchSlots: 'CatalogBranchSlots', _mergeModels: Vue.mergeModels,
+        CatalogTranslations: 'CatalogTranslations', CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', CatalogSeoPreview: 'CatalogSeoPreview', CatalogBranchSlots: 'CatalogBranchSlots', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
         _useModel: (props, name) => Vue.computed({
@@ -1003,6 +1003,80 @@ test('saved product translations update a clean name without overwriting another
     assert.equal(h.api.dirty.value, true)
 })
 
+test('every entity kind and classification uses the shared node translations editor', async t => {
+    for (const entity_type of ['custom', 'category', 'product', 'good']) {
+        for (const level_id of [null, 1, 2, 3]) {
+            const node = sourceNode({ entity_type, level_id })
+            const h = harness(t, { node, initialTab: 'translations' })
+            await h.ready()
+            const editor = findVNode(h.render(), vnode => vnode.type === 'CatalogTranslations')
+            assert.equal(editor.props.node.id, node.id)
+            assert.equal(editor.props.active, true)
+            assert.equal(h.api.productVisited.value, false)
+            assert.equal(h.api.operationsVisited.value, false)
+            assert.equal(findVNode(h.render(), vnode => vnode.type === 'CatalogProductOperations'), null)
+            h.api.selectTab('overview')
+            assert.equal(findVNode(h.render(), vnode => vnode.type === 'CatalogTranslations').props.active, false)
+        }
+    }
+})
+
+test('shared translation drafts block card writes, conversion and silent close, and reset cleanly', async t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'category' }), initialTab: 'translations' })
+    const editor = findVNode(h.render(), node => node.type === 'CatalogTranslations')
+    editor.props.onState({ dirty: true, busy: false, ready: true, error: '' })
+    h.api.selectTab('overview')
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'Вид записи').props.disabled, true)
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.activeTab.value, 'translations')
+    assert.match(h.api.error.value, /Переводы/)
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, true)
+    h.api.discardOpen.value = false
+    editor.props.onState({ dirty: true, busy: true, ready: true, error: '' })
+    h.api.requestClose()
+    assert.equal(h.api.discardOpen.value, false)
+    let resets = 0
+    h.api.translationsEditor.value = { reset() { resets++; h.api.updateTranslationsState({ dirty: false, busy: false, ready: true, error: '' }) } }
+    h.api.confirmReset()
+    assert.equal(resets, 1)
+    assert.equal(h.api.dirty.value, false)
+    assert.equal(h.api.error.value, '')
+})
+
+test('saved shared translations refresh Russian names while retaining a separate card draft', t => {
+    const h = harness(t, { node: sourceNode({ entity_type: 'custom' }), initialTab: 'translations' })
+    const saved = sourceNode({ entity_type: 'custom', name: 'Новое название', translations: { ru: 'Новое название', en: 'Flour' } })
+    h.api.translationsSaved(saved)
+    assert.equal(h.api.form.name, saved.name)
+    assert.equal(h.api.record.value.translations.en, 'Flour')
+    assert.equal(h.api.dirty.value, false)
+    h.api.form.name = 'Мой черновик'
+    h.api.translationsSaved({ ...saved, name: 'Сохранённое название' })
+    assert.equal(h.api.form.name, 'Мой черновик')
+    assert.equal(JSON.parse(h.api.baseline.value).name, 'Сохранённое название')
+    assert.equal(h.api.dirty.value, true)
+    h.api.translationsSaved({ ...saved, id: 999, name: 'Другая запись' })
+    assert.equal(h.api.record.value.name, 'Сохранённое название')
+    assert.equal(h.emitted.filter(event => event[0] === 'changed').length, 2)
+})
+
+test('product conversion retains the shared translations tab with the same node identity', async t => {
+    const original = sourceNode({ entity_type: 'product', translations: { ru: 'Мука', en: 'Flour' } })
+    const h = harness(t, { node: original, initialTab: 'translations' })
+    h.api.selectTab('overview')
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'category')
+    const pending = h.api.save('translations')
+    h.requests[0].resolve({ ...original, entity_type: 'category', entity_id: 81 })
+    await pending
+    const editor = findVNode(h.render(), node => node.type === 'CatalogTranslations')
+    assert.equal(editor.props.node.id, original.id)
+    assert.equal(editor.props.node.translations.en, 'Flour')
+    assert.equal(h.api.activeTab.value, 'translations')
+    assert.equal(h.api.dirty.value, false)
+})
+
 test('old goods deep links resolve to their combined tabs without exposing product tools on custom records', async t => {
     for (const [initialTab, expected] of [['quotations', 'market'], ['purchases', 'warehouse'], ['recommendations', 'sales']]) {
         const h = harness(t, { node: sourceNode(), initialTab })
@@ -1010,14 +1084,15 @@ test('old goods deep links resolve to their combined tabs without exposing produ
         assert.equal(h.api.activeTab.value, expected)
     }
     const custom = harness(t, { node: sourceNode({ entity_type: 'custom', level_id: 2 }), initialTab: 'translations' })
-    assert.deepEqual(custom.api.recordTabs.value.map(tab => tab.id), ['overview', 'landing'])
-    assert.equal(custom.api.activeTab.value, 'overview')
+    assert.deepEqual(custom.api.recordTabs.value.map(tab => tab.id), ['overview', 'translations', 'landing'])
+    assert.equal(custom.api.activeTab.value, 'translations')
+    assert.equal(findVNode(custom.render(), node => node.type === 'CatalogProductOperations'), null)
 })
 
 test('confirmed product names reach the translations editor before a partial avatar failure', async t => {
     const h = harness(t, { node: sourceNode({ entity_type: 'product' }), initialTab: 'translations' })
     const synced = []
-    h.api.productOperations.value = { syncName: name => synced.push(name) }
+    h.api.translationsEditor.value = { syncName: name => synced.push(name) }
     h.api.selectTab('overview')
     h.api.form.name = 'Новое название продукта'
     h.api.imageFile.value = new Blob(['image'], { type: 'image/png' })

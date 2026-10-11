@@ -34,6 +34,11 @@ class CatalogNode extends Model
         return $this->hasMany(CatalogSiteDomain::class, 'catalog_node_id')->orderBy('id');
     }
 
+    public function translations(): HasMany
+    {
+        return $this->hasMany(CatalogNodeTranslation::class, 'node_id');
+    }
+
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('sort_order')->orderBy('name');

@@ -43,7 +43,7 @@ class CatalogService
     /** Read-only, with one source query per entity type rather than per node. */
     public function nodes(): Collection
     {
-        $nodes = CatalogNode::with('siteDomains')->orderBy('sort_order')->orderBy('name')->orderBy('id')->get();
+        $nodes = CatalogNode::with(['siteDomains', 'translations'])->orderBy('sort_order')->orderBy('name')->orderBy('id')->get();
         $sources = [
             'category' => Category::whereIn('id', $nodes->where('entity_type', 'category')->pluck('entity_id'))->get()->keyBy('id'),
             'product' => Product::without(['category', 'manufacturers'])->whereIn('id', $nodes->where('entity_type', 'product')->pluck('entity_id'))->get()->keyBy('id'),
@@ -131,6 +131,7 @@ class CatalogService
                 $data['meta_description'] = $source->seo?->meta_description;
             }
         }
+        $data['translations'] = app(CatalogTranslations::class)->payload($node, $data['name'], $source instanceof Product ? $source : null);
         $data['thumbnail_url'] = $source instanceof Good
             ? app(GoodAvatarImages::class)->url($source)
             : $data['image'];
@@ -175,7 +176,7 @@ class CatalogService
                     }
                 }
             }
-            $allNodes = CatalogNode::get()->keyBy('id');
+            $allNodes = CatalogNode::with('translations')->get()->keyBy('id');
             $nodes = $allNodes->whereNotNull('import_key')->keyBy('import_key');
             foreach ($categories as $source) {
                 $key = 'category:'.$source->id;
@@ -186,6 +187,7 @@ class CatalogService
                 $key = 'product:'.$source->id;
                 $parentId = $nodes['category:'.$source->category_id]->id ?? null;
                 $nodes[$key] ??= $this->importNode($levels['product'] ?? null, 'product', $source, $parentId, $key);
+                app(CatalogTranslations::class)->syncProduct($nodes[$key], $source);
                 $allNodes[$nodes[$key]->id] = $nodes[$key];
                 if ($this->ancestorFromMap($nodes[$key], 'category', $allNodes)?->entity_id !== $source->category_id) {
                     $this->placeImported($nodes[$key], $parentId);
@@ -311,6 +313,10 @@ class CatalogService
             $convertedSeo = [];
             if ($typeChanged) {
                 app(CatalogEntityConversion::class)->validate($node, $previousSource, $type);
+                if ($previousSource instanceof Product) {
+                    // Capture legacy edits in the same transaction before replacing Product.
+                    app(CatalogTranslations::class)->syncProduct($node, $previousSource);
+                }
                 // Imports intentionally keep only a small copy of source fields.
                 // Resolve their current values before replacing the backing record.
                 $current = $this->nodePayload($node, $previousSource, true);
@@ -373,7 +379,10 @@ class CatalogService
                 $node->sort_order ??= 0;
                 $source = match ($type) {
                     'category' => Category::create(['name' => $node->name, 'is_published' => $node->is_published]),
-                    'product' => Product::create(['rus' => $node->name, 'is_published' => $node->is_published]),
+                    'product' => Product::create([
+                        ...($node->exists ? app(CatalogTranslations::class)->productAttributes($node) : []),
+                        'rus' => $node->name, 'is_published' => $node->is_published,
+                    ]),
                     'good' => Good::create(['name' => $node->name, 'is_published' => $node->is_published, ...($typeChanged ? ['slug' => $node->slug] : [])]),
                     default => null,
                 };
@@ -398,6 +407,44 @@ class CatalogService
             }
             if ($goodData !== null) {
                 $node = $this->saveGoodOverview($node, $goodData, $parentChanged);
+            }
+
+            return $node->fresh();
+        }, 3);
+    }
+
+    public function saveTranslations(CatalogNode $node, array $translations): CatalogNode
+    {
+        $names = app(CatalogTranslations::class);
+        Validator::make(['translations' => $translations], $names->rules())->validate();
+
+        return DB::transaction(function () use ($node, $translations, $names): CatalogNode {
+            // Use the same lock order as structural edits and imports so names
+            // cannot be saved to the entity being replaced by a concurrent edit.
+            CatalogLevel::orderBy('id')->lockForUpdate()->get(['id']);
+            CatalogNode::orderBy('id')->lockForUpdate()->get(['id']);
+            $node = CatalogNode::lockForUpdate()->findOrFail($node->id);
+            $source = $this->source($node, true);
+            abort_if($node->entity_type && ! $source, 409, 'Исходная сущность удалена. Обновите дерево.');
+
+            if (array_key_exists('ru', $translations)) {
+                $node->name = trim($translations['ru']);
+                $node->save();
+                if ($source) {
+                    $source->{$source instanceof Product ? 'rus' : 'name'} = $node->name;
+                }
+            }
+            if ($source instanceof Product) {
+                foreach ($translations as $locale => $name) {
+                    $source->{CatalogTranslations::PRODUCT_COLUMNS[$locale]} = $names->normalize($name);
+                }
+                $source->save();
+                $names->syncProduct($node, $source);
+            } else {
+                if ($source?->isDirty()) {
+                    $source->save();
+                }
+                $names->saveVariants($node, $translations);
             }
 
             return $node->fresh();
