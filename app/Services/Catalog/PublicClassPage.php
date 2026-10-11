@@ -237,7 +237,11 @@ class PublicClassPage
     {
         $items = [['name' => 'Главная', 'url' => route('home')]];
         foreach ([...$page['breadcrumbs'], $page['node']] as $node) {
-            $items[] = ['name' => $node['name'], 'url' => $node['public_url']];
+            $items[] = [
+                'name' => $node['name'], 'url' => $node['public_url'],
+                'entity_type' => $node['entity_type'] ?? null,
+                'image' => $node['image'] ?? null, 'thumbnail_url' => $node['thumbnail_url'] ?? $node['image'] ?? null,
+            ];
         }
 
         return $items;

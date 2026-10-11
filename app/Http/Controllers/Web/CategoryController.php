@@ -7,6 +7,7 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Good;
+use App\Services\Catalog\CatalogAvatars;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicCatalogService;
 use App\Services\Catalog\PublicClassPage;
@@ -141,6 +142,7 @@ class CategoryController extends Controller
             ->get();
 
         $stock->appendAvailability($goods);
+        app(CatalogAvatars::class)->appendProducts($category->products->concat($goods->flatMap->products), public: true);
 
         $relatedCategories = app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
             ->published()

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
 import { buildCatalogView } from '../../resources/js/Components/Catalog/presentation.js'
 
 // API ordering may differ from toolbar ordering when levels share sort_order.
@@ -33,7 +34,7 @@ function harness(t) {
     const requests = []
     const environment = {
         ...Vue, buildCatalogView, onMounted() {},
-        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {}, CatalogAvatar: {}, CatalogGalleryDialog: {}, CatalogGoodPricing: {},
+        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {}, CatalogAvatar: {}, CatalogNodeAvatar: 'CatalogNodeAvatar', CatalogGalleryDialog: {}, CatalogGoodPricing: {},
         axios: { async get(url) { requests.push(url); return { data: structuredClone(payload) } } },
     }
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -41,7 +42,7 @@ function harness(t) {
     const scope = Vue.effectScope()
     const state = scope.run(() => component.setup({}, { expose() {} }))
     t.after(() => scope.stop())
-    return { state, requests, setPayload(value) { payload = value } }
+    return { state, requests, render: templateRenderer(template, state, {}), setPayload(value) { payload = value } }
 }
 
 test('lower toolbar changes preserve preceding selections in rendered order when API levels tie', async t => {
@@ -156,6 +157,23 @@ test('opening an avatar keeps original photos and classification context separat
     assert.ok(state.galleryNode.value.path_label.includes('Группа над сортом'))
     assert.equal(state.editorOpen.value, false)
     assert.equal(state.selectedBranchId.value, 30)
+})
+
+test('classification avatars accompany domain tabs, level tabs, tree icons, and the selected path', async t => {
+    const h = harness(t)
+    h.setPayload({ levels, nodes: nodes.map(node => ({ ...node, image: `/storage/${node.id}.png`, thumbnail_url: `/storage/${node.id}-thumb.png` })) })
+    await h.state.load()
+    const root = h.render()
+    for (const id of [1, 10, 20, 30]) {
+        const avatar = findVNode(root, node => node.type === 'CatalogNodeAvatar' && node.props.node.id === id)
+        assert.equal(avatar?.props.node.thumbnail_url, `/storage/${id}-thumb.png`)
+    }
+    const tree = findVNode(root, node => node.props?.role === 'treeitem')
+    assert.ok(findVNode(tree, node => node.type === 'v-icon' && node.props.icon === 'mdi-file-tree-outline'))
+    assert.ok(findVNode(tree, node => node.type === 'CatalogNodeAvatar'))
+    h.state.selectBranch(h.state.nodes.value.find(node => node.id === 30))
+    const path = findVNode(h.render(), node => node.props?.['aria-label'] === 'Текущий раздел')
+    for (const id of [1, 10, 30]) assert.ok(findVNode(path, node => node.type === 'CatalogNodeAvatar' && node.props.node.id === id))
 })
 
 test('trout fillet remains inside the left trout class while its goods appear in the right table', async t => {

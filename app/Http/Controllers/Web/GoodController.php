@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Good;
 use App\Models\GoodUrlAlias;
+use App\Services\Catalog\CatalogAvatars;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicGoodsCatalog;
 use App\Services\Goods\GoodStockService;
@@ -96,6 +97,7 @@ class GoodController extends Controller
         ]);
 
         // Only the public, currently valid offer may reach the landing or its metadata.
+        app(CatalogAvatars::class)->appendProducts($good->products, public: true);
         $good->setRelation('priceTypeValues', $offers->pricesFor($good));
         $purchase = $offers->for($good);
 

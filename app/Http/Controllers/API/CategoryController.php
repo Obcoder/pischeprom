@@ -7,9 +7,10 @@ use App\Http\Requests\CategoryFormRequest;
 use App\Http\Resources\CategoryResource;
 use App\Models\Category;
 use App\Models\Product;
+use App\Services\Catalog\CatalogAvatars;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -19,30 +20,30 @@ class CategoryController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $request->merge([
-                            'sortDesc' => $request->has('sortDesc')
-                                ? filter_var($request->input('sortDesc'), FILTER_VALIDATE_BOOLEAN)
-                                : null,
-                            'published' => $request->has('published')
-                                ? filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN)
-                                : null,
-                            'featured' => $request->has('featured')
-                                ? filter_var($request->input('featured'), FILTER_VALIDATE_BOOLEAN)
-                                : null,
-                        ]);
+            'sortDesc' => $request->has('sortDesc')
+                ? filter_var($request->input('sortDesc'), FILTER_VALIDATE_BOOLEAN)
+                : null,
+            'published' => $request->has('published')
+                ? filter_var($request->input('published'), FILTER_VALIDATE_BOOLEAN)
+                : null,
+            'featured' => $request->has('featured')
+                ? filter_var($request->input('featured'), FILTER_VALIDATE_BOOLEAN)
+                : null,
+        ]);
 
         $validated = $request->validate([
-                                            'search' => ['nullable', 'string'],
-                                            'published' => ['nullable', 'boolean'],
-                                            'featured' => ['nullable', 'boolean'],
-                                            'sortBy' => ['nullable', 'string', 'in:id,name,slug,field_id,sort_order,updated_at,products_count,goods_count'],
-                                            'sortDesc' => ['nullable', 'boolean'],
-                                            'page' => ['nullable', 'integer', 'min:1'],
-                                            'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
-                                        ]);
+            'search' => ['nullable', 'string'],
+            'published' => ['nullable', 'boolean'],
+            'featured' => ['nullable', 'boolean'],
+            'sortBy' => ['nullable', 'string', 'in:id,name,slug,field_id,sort_order,updated_at,products_count,goods_count'],
+            'sortDesc' => ['nullable', 'boolean'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
 
         $perPage = $validated['per_page'] ?? 50;
         $sortBy = $validated['sortBy'] ?? 'sort_order';
-        $sortDirection = !empty($validated['sortDesc']) ? 'desc' : 'asc';
+        $sortDirection = ! empty($validated['sortDesc']) ? 'desc' : 'asc';
 
         $categories = Category::query()
             ->with('field:id,title')
@@ -79,6 +80,7 @@ class CategoryController extends Controller
                 'products' => fn ($query) => $query->withCount('goods'),
             ])
             ->loadCount(['products', 'goods']);
+        app(CatalogAvatars::class)->appendProducts($category->products);
 
         return new CategoryResource($category);
     }
@@ -96,8 +98,8 @@ class CategoryController extends Controller
     {
         if (Product::query()->where('category_id', $category->id)->exists()) {
             return response()->json([
-                                        'message' => 'Category has linked products and cannot be deleted safely.',
-                                    ], 409);
+                'message' => 'Category has linked products and cannot be deleted safely.',
+            ], 409);
         }
 
         $this->deleteLocalAvatar($category->image);
@@ -105,8 +107,8 @@ class CategoryController extends Controller
         $category->delete();
 
         return response()->json([
-                                    'message' => 'Category deleted',
-                                ]);
+            'message' => 'Category deleted',
+        ]);
     }
 
     private function categoryPayload(CategoryFormRequest $request, ?Category $category = null): array
@@ -150,7 +152,7 @@ class CategoryController extends Controller
             $data['robots'] = 'index,follow';
         }
 
-        if (!$category && !array_key_exists('h1', $data) && !empty($data['name'])) {
+        if (! $category && ! array_key_exists('h1', $data) && ! empty($data['name'])) {
             $data['h1'] = $data['name'];
         }
 
@@ -159,7 +161,7 @@ class CategoryController extends Controller
 
     private function deleteLocalAvatar(?string $url): void
     {
-        if (!$url) {
+        if (! $url) {
             return;
         }
 

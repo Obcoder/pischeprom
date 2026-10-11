@@ -205,6 +205,8 @@ class PublicGoodsCatalog
         return $sections->map(fn (array $node): array => [
             'id' => $node['id'], 'parent_id' => $sections->has($node['parent_id']) ? $node['parent_id'] : null,
             'name' => $node['name'], 'public_url' => $node['public_url'],
+            'entity_type' => $node['entity_type'], 'level_id' => $node['level_id'],
+            'image' => $node['image'], 'thumbnail_url' => $node['thumbnail_url'],
             'goods_count' => count($counts[$node['id']] ?? []),
         ])->values()->all();
     }
@@ -216,7 +218,11 @@ class PublicGoodsCatalog
         while ($id && $sections->has($id) && ! isset($seen[$id])) {
             $node = $sections->get($id);
             $seen[$id] = true;
-            array_unshift($breadcrumbs, ['id' => $id, 'name' => $node['name'], 'public_url' => '/g?node_id='.$id]);
+            array_unshift($breadcrumbs, [
+                'id' => $id, 'name' => $node['name'], 'public_url' => '/g?node_id='.$id,
+                'entity_type' => $node['entity_type'], 'level_id' => $node['level_id'],
+                'image' => $node['image'], 'thumbnail_url' => $node['thumbnail_url'],
+            ]);
             $id = $node['parent_id'];
         }
 

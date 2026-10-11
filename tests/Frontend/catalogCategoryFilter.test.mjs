@@ -23,7 +23,7 @@ function harness(t, extra = {}) {
     assert.deepEqual(template.errors, [])
     const emitted = []
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
-    const component = new Function('env', `with(env){${script}}`)({ ...Vue, ...categories })
+    const component = new Function('env', `with(env){${script}}`)({ ...Vue, ...categories, CatalogNodeAvatar: 'CatalogNodeAvatar' })
     const props = Vue.reactive({ nodes, selectedId: '', ...extra })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...args) => emitted.push(args) }))
@@ -132,4 +132,16 @@ test('selected row scrolls only its panel on mount and selection changes, preser
     h.props.selectedId = 20
     await Vue.nextTick()
     assert.equal(h.api.list.value.scrollTop, 10)
+})
+
+test('category avatars belong to selection buttons while expansion and selection keep separate behavior', t => {
+    const category = { id: 41, name: 'Мука', image: '/catalog/flour.png', thumbnail_url: '/catalog/flour-thumb.png' }
+    const h = harness(t, { nodes: [category, { id: 42, parent_id: 41, name: 'Пшеничная' }] })
+    const button = findVNode(h.render(), node => hasClass(node, 'catalog-category-filter__select'))
+    const avatar = findVNode(button, node => node.type === 'CatalogNodeAvatar')
+    assert.equal(avatar.props.node, h.props.nodes[0])
+    assert.equal(avatar.props.size, 22)
+    assert.ok(findVNode(h.render(), node => hasClass(node, 'catalog-category-filter__expand')))
+    button.props.onClick()
+    assert.deepEqual(h.emitted, [['select', 41]])
 })

@@ -4,6 +4,7 @@ import { Head, Link } from '@inertiajs/vue3'
 import { useHead } from '@unhead/vue'
 
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
@@ -74,6 +75,7 @@ const productFilterItems = computed(() => [
     ...products.value.map((product) => ({
         title: product.rus || product.name || `Product #${product.id}`,
         value: product.id,
+        node: product,
     })),
 ])
 
@@ -289,7 +291,12 @@ function clickCategoryPhone() {
                             label="Продукт"
                             variant="outlined"
                             density="comfortable"
-                        />
+                        >
+                            <template #item="{ props: itemProps, item }">
+                                <v-list-item v-bind="itemProps"><template #prepend><CatalogNodeAvatar v-if="item.raw.node" :node="item.raw.node" :size="28" class="mr-2" /></template></v-list-item>
+                            </template>
+                            <template #selection="{ item }"><CatalogNodeAvatar v-if="item.raw.node" :node="item.raw.node" :size="24" class="mr-2" />{{ item.title }}</template>
+                        </v-select>
 
                         <v-select
                             v-model="sortMode"
@@ -317,7 +324,7 @@ function clickCategoryPhone() {
                                 :class="{ 'category-product-chip--active': selectedProductId === product.id }"
                                 @click="selectedProductId = selectedProductId === product.id ? null : product.id"
                             >
-                                <span>{{ productTitle(product) }}</span>
+                                <CatalogNodeAvatar :node="product" :size="26" /><span class="category-product-chip__name">{{ productTitle(product) }}</span>
                                 <small>{{ product.goods_count ?? 0 }}</small>
                             </button>
                         </div>
@@ -626,6 +633,7 @@ function clickCategoryPhone() {
     color: var(--category-accent);
     font-weight: 800;
 }
+.category-product-chip__name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
 .category-good-card,
 .related-category-card {

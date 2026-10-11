@@ -5,6 +5,7 @@ import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
 import CatalogSchemaDialog from './CatalogSchemaDialog.vue'
 import CatalogNodeDialog from './CatalogNodeDialog.vue'
 import CatalogAvatar from './CatalogAvatar.vue'
+import CatalogNodeAvatar from './CatalogNodeAvatar.vue'
 import CatalogGalleryDialog from './CatalogGalleryDialog.vue'
 import CatalogGoodPricing from './CatalogGoodPricing.vue'
 import { buildCatalogView } from './presentation.js'
@@ -174,7 +175,7 @@ onMounted(load)
             <span class="classification-row__label"><v-icon icon="mdi-earth" size="15" />Домены</span>
             <div class="classification-row__tabs" role="tablist" aria-label="Домены">
                 <button v-for="domain in view.domainTabs" :key="domain.id ?? 'all'" type="button" role="tab" :aria-selected="domainId === domain.id" :class="['classification-tab', { 'is-selected': domainId === domain.id }]" @click="selectDomain(domain.id)">
-                    {{ domain.name }}<span class="classification-tab__count">{{ domain.count }}</span>
+                    <CatalogNodeAvatar :node="domain" :size="24" />{{ domain.name }}<span class="classification-tab__count">{{ domain.count }}</span>
                 </button>
             </div>
             <v-btn v-if="nodeMap.has(domainId)" icon="mdi-pencil-outline" variant="text" size="x-small" aria-label="Изменить выбранный домен" @click="openEditor(nodeMap.get(domainId))" />
@@ -185,7 +186,7 @@ onMounted(load)
             <div class="classification-row__tabs" role="tablist" :aria-label="row.name">
                 <button type="button" role="tab" :aria-selected="!selections[row.levelId]" :class="['classification-tab', { 'is-selected': !selections[row.levelId] }]" @click="selectTab(row.levelId, null)">Все</button>
                 <button v-for="item in row.items" :key="item.id" type="button" role="tab" :aria-selected="selections[row.levelId] === item.id" :title="pathTo(item).map(node => node.name).join(' / ')" :class="['classification-tab', { 'is-selected': selections[row.levelId] === item.id }]" @click="selectTab(row.levelId, item.id)">
-                    <span v-if="!item.is_published" class="catalog-status-dot" title="Черновик" />{{ item.name }}<span class="classification-tab__count">{{ item.count }}</span>
+                    <span v-if="!item.is_published" class="catalog-status-dot" title="Черновик" /><CatalogNodeAvatar :node="item" :size="24" />{{ item.name }}<span class="classification-tab__count">{{ item.count }}</span>
                 </button>
                 <span v-if="!row.items.length" class="classification-row__empty">В выбранной ветке нет записей этого уровня</span>
             </div>
@@ -205,6 +206,7 @@ onMounted(load)
                          @click="selectBranch(node)" @keydown.enter.prevent="selectBranch(node)" @keydown.space.prevent="selectBranch(node)" @keydown.right.prevent="!node.expanded && toggle(node)" @keydown.left.prevent="node.expanded && toggle(node)" @dblclick="openEditor(node)">
                         <button v-if="node.hasTreeChildren" type="button" class="catalog-tree__toggle" :aria-label="`${node.expanded ? 'Свернуть' : 'Развернуть'} ${node.name}`" @click.stop="toggle(node)"><v-icon :icon="node.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" /></button><span v-else class="catalog-tree__spacer" />
                         <v-icon :icon="iconFor(node)" size="18" color="#84738f" />
+                        <CatalogNodeAvatar :node="node" />
                         <div class="catalog-tree__name"><span>{{ node.name }}</span><small>{{ levelName(node) }}<span v-if="!node.is_published"> · Черновик</span></small></div>
                         <span class="catalog-tree__count" title="Объектов в ветке">{{ node.count }}</span>
                         <v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="x-small" variant="text" :aria-label="`Действия: ${node.name}`" @click.stop /></template><v-list density="compact">
@@ -218,7 +220,7 @@ onMounted(load)
                 <div class="catalog-tree-footer"><v-icon icon="mdi-information-outline" size="14" />Уровни можно пропускать в любой ветке</div>
             </aside>
             <section class="catalog-items-panel" aria-label="Конечные объекты каталога">
-                <div class="catalog-items-heading"><div class="catalog-items-heading__text"><nav v-if="contextPath.length" aria-label="Текущий раздел" class="catalog-path"><span v-for="(node, index) in contextPath" :key="node.id"><span v-if="index" class="catalog-path__separator">/</span>{{ node.name }}</span></nav><h2>{{ currentTitle }}<span>{{ tableItems.length }}</span></h2><p>Конечные записи всех вложенных веток</p></div>
+                <div class="catalog-items-heading"><div class="catalog-items-heading__text"><nav v-if="contextPath.length" aria-label="Текущий раздел" class="catalog-path"><span v-for="(node, index) in contextPath" :key="node.id" class="catalog-path__node"><span v-if="index" class="catalog-path__separator">/</span><CatalogNodeAvatar :node="node" :size="18" />{{ node.name }}</span></nav><h2><CatalogNodeAvatar v-if="contextNode" :node="contextNode" :size="32" />{{ currentTitle }}<span>{{ tableItems.length }}</span></h2><p>Конечные записи всех вложенных веток</p></div>
                     <div class="catalog-items-heading__actions"><v-btn v-if="contextNode" prepend-icon="mdi-pencil-outline" size="small" variant="text" @click="openEditor(contextNode)">Изменить раздел</v-btn><v-btn prepend-icon="mdi-plus" size="small" variant="tonal" @click="create()">Объект</v-btn></div>
                 </div>
                 <v-data-table v-model:page="page" :items="tableItems" :headers="headers" :items-per-page="50" :items-per-page-options="[25, 50, 100]" :loading="loading" item-value="id" density="compact" fixed-header hover class="catalog-items-table" items-per-page-text="На странице" loading-text="Загрузка каталога…">
@@ -278,6 +280,7 @@ onMounted(load)
 .catalog-items-heading { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 75px; padding: 11px 16px; border-bottom: 1px solid #e5dfea; }
 .catalog-items-heading__text { min-width: 0; }.catalog-items-heading h2 { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 650; line-height: 1.5; }.catalog-items-heading h2 > span { font-size: 11px; font-weight: 500; padding: 1px 6px; color: #907e9e; background: #f0eaf5; }.catalog-items-heading p { font-size: 10px; margin-top: 3px; color: #a095a9; }.catalog-items-heading__actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; }
 .catalog-path { display: flex; flex-wrap: wrap; gap: 5px; font-size: 10px; color: #998ca3; margin-bottom: 3px; }.catalog-path__separator { margin-right: 5px; color: #c2b8ca; }
+.catalog-path__node { display: inline-flex; align-items: center; gap: 4px; }
 .catalog-items-table { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }.catalog-items-table :deep(.v-table__wrapper) { flex: 1 1 auto; min-height: 0; }.catalog-items-table :deep(.v-data-table__td) { height: 68px !important; border-bottom: 1px solid #f0edf3 !important; }.catalog-items-table :deep(.v-data-table__td:first-child) { padding: 0 !important; }.catalog-items-table :deep(.v-data-table-footer) { flex-shrink: 0; }
 .catalog-item-name { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 0; }.catalog-item-name__button { display: flex; min-width: 0; flex-direction: column; text-align: left; gap: 4px; }.catalog-item-name__button strong { color: #4c3a59; font-size: 12px; line-height: 1.5; font-weight: 550; }.catalog-item-name__button:hover strong { text-decoration: underline; }.catalog-item-name__button small { font-size: 10px; color: #a092aa; line-height: 1.4; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-level-label { padding: 3px 6px; font-size: 10px; color: #7b638e; background: #f3eef8; text-align: left; }.catalog-level-label.is-unassigned { background: #f4f4f4; color: #aaa; }.catalog-level-label:hover { background: #e8dff1; }.catalog-item-path { display: block; color: #9a8ba5; font-size: 11px; line-height: 1.5; max-width: 300px; }.catalog-item-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 11px; color: #8c7c96; }.catalog-status-dot { display: inline-block; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: #c5bdcd; }.catalog-status-dot.is-published { background: #559c79; }.catalog-status-dot.is-hidden { background: #c59954; }.catalog-item-actions { display: flex; gap: 2px; }

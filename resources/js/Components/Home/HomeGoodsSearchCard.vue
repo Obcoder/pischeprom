@@ -6,6 +6,7 @@ import { logo } from "@/Pages/Helpers/consts.js";
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl';
 import { useAppRoute } from "@/Composables/useAppRoute";
 import { usePhoneCallRegistration } from "@/Composables/usePhoneCallRegistration";
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue';
 
 const { route } = useAppRoute();
 
@@ -136,6 +137,8 @@ const groupedGoods = computed(() => {
                     id: product?.id || null,
                     title: product?.rus || product?.name || product?.title || "Без Product",
                     category: product?.category?.name || null,
+                    node: product,
+                    categoryNode: product?.category,
                     goods: [],
                 });
             }
@@ -250,6 +253,7 @@ function clickHomePhone() {
                     <div class="product-group__header">
                         <div>
                             <div class="product-group__title">
+                                <CatalogNodeAvatar v-if="group.node" :node="group.node" :size="26" />
                                 {{ group.title }}
                             </div>
 
@@ -257,6 +261,7 @@ function clickHomePhone() {
                                 v-if="group.category"
                                 class="product-group__category"
                             >
+                                <CatalogNodeAvatar v-if="group.categoryNode" :node="group.categoryNode" :size="20" />
                                 {{ group.category }}
                             </div>
                         </div>
@@ -349,6 +354,7 @@ function clickHomePhone() {
 </template>
 
 <style scoped>
+.product-group__title, .product-group__category { display: flex; align-items: center; gap: 7px; }
 .goods-search-card {
     overflow: hidden;
     background: #ffffff;

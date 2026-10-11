@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import CitySelector from '@/Components/Location/CitySelector.vue'
 import OrderCartStrip from '@/Components/Orders/OrderCartStrip.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { publicCategoryUrl } from '@/utils/publicCategoryUrl.js'
 
@@ -75,6 +76,7 @@ const quickLinks = computed(() => {
         return {
             label: item.label,
             href: categoryUrl(category || { id: item.id }),
+            node: category,
         }
     })
 })
@@ -325,7 +327,7 @@ onBeforeUnmount(() => {
                                         <v-list-item
                                             :title="category.name"
                                             prepend-icon="mdi-shape-outline"
-                                        />
+                                        ><template #title><span class="d-inline-flex align-center ga-2"><CatalogNodeAvatar :node="category" :size="26" />{{ category.name }}</span></template></v-list-item>
                                     </Link>
                                 </v-list>
 
@@ -345,7 +347,7 @@ onBeforeUnmount(() => {
                                 :href="item.href"
                                 class="app-header__quick-link"
                             >
-                                {{ item.label }}
+                                <CatalogNodeAvatar v-if="item.node" :node="item.node" :size="20" class="mr-1" />{{ item.label }}
                             </Link>
                         </div>
                     </nav>
@@ -515,6 +517,7 @@ onBeforeUnmount(() => {
                                     @click="closeDrawer"
                                 >
                                     <v-icon icon="mdi-shape-outline" size="20" />
+                                    <CatalogNodeAvatar :node="category" :size="26" />
                                     <span>{{ category.name }}</span>
                                 </Link>
                             </div>

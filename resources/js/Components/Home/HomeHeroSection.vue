@@ -1,4 +1,5 @@
 <script setup>
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import { computed, ref } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
@@ -111,6 +112,7 @@ const resolvedHeroCategories = computed(() => {
     return heroCategoryTargets.map((item) => ({
         ...item,
         href: categoryHref(item),
+        node: findCategory(item),
     }))
 })
 
@@ -361,6 +363,7 @@ function applyQuickQuery(query) {
                                     </v-icon>
                                 </div>
 
+                                <CatalogNodeAvatar v-if="item.node" :node="item.node" :size="36" />
                                 <div>
                                     <div class="hero-v2__category-title">
                                         {{ item.title }}

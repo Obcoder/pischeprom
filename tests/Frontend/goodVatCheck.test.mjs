@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { catalogAvatarSources } from '../../resources/js/Components/Catalog/catalogAvatarSources.js'
 import * as tradeCodes from '../../resources/js/utils/goodTradeCodes.js'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
 import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from '../../resources/js/Components/Catalog/recordTabs.js'
@@ -231,7 +232,7 @@ function goodCardHarness() {
     const node = { id: 7, entity_type: 'good', entity_id: 42, name: good.name, image: good.ava_image, is_published: true }
     const props = Vue.reactive({ modelValue: true, node, nodes: [], levels: [], initialParentId: null, initialLevelId: null, initialEntityType: 'custom' })
     const environment = {
-        ...Vue, ...tradeCodes, descendantIds, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogTranslations: {}, CatalogGoodWarehouse: {}, CatalogProductOperations: {}, CatalogGoodOverview: {}, CatalogGoodSeo: {},
+        ...Vue, ...tradeCodes, catalogAvatarSources, CatalogNodeAvatar: {}, descendantIds, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogTranslations: {}, CatalogGoodWarehouse: {}, CatalogProductOperations: {}, CatalogGoodOverview: {}, CatalogGoodSeo: {},
         CatalogGoodOperations: {}, CatalogRecordTabs: {}, CatalogLandingEditor: {}, CatalogSeoPreview: {}, CatalogBranchSlots: {}, GoodTradeCodeFields: {}, _mergeModels: Vue.mergeModels,
         _useModel: (source, key) => Vue.computed({ get: () => source[key], set: value => { source[key] = value } }),
         axios: {

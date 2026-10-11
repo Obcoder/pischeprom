@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { catalogAvatarSources } from '../../resources/js/Components/Catalog/catalogAvatarSources.js'
 import { descendantIds } from '../../resources/js/Components/Catalog/tree.js'
 import { goodTradeCodeFields, goodTradeCodeValues } from '../../resources/js/utils/goodTradeCodes.js'
 import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from '../../resources/js/Components/Catalog/recordTabs.js'
@@ -33,7 +34,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const requests = []
     const reads = []
     const environment = {
-        ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: 'CatalogGoodWarehouse', CatalogProductOperations: 'CatalogProductOperations', CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
+        ...Vue, catalogAvatarSources, CatalogNodeAvatar: 'CatalogNodeAvatar', descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: 'CatalogGoodWarehouse', CatalogProductOperations: 'CatalogProductOperations', CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
         CatalogTranslations: 'CatalogTranslations', CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', CatalogSeoPreview: 'CatalogSeoPreview', CatalogBranchSlots: 'CatalogBranchSlots', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
@@ -73,6 +74,59 @@ function updateModel(vnode, value) {
 function chooseLevel(h, id) {
     updateModel(findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Уровень классификации'), id)
 }
+
+for (const [entityType, levelId] of [['custom', 3], ['custom', 2], ['custom', null], ['category', 1], ['product', 2]]) {
+    test(`avatar can be edited and cleared for ${entityType} at level ${levelId}`, async t => {
+        const original = sourceNode({ entity_type: entityType, level_id: levelId, image: '/storage/original.png' })
+        const h = harness(t, { node: original })
+        const field = findVNode(h.render(), node => node.props?.label === 'Аватар: URL / CDN')
+        assert.ok(field)
+        updateModel(field, 'https://cdn.example.test/new.png')
+        assert.equal(h.api.avatarPreviewSource.value, 'https://cdn.example.test/new.png')
+        assert.equal(h.api.cardDirty.value, true)
+        const clear = findVNode(h.render(), node => node.props?.onClick === h.api.clearAvatar)
+        assert.ok(clear)
+        clear.props.onClick()
+        assert.equal(h.api.form.image, '')
+        assert.equal(h.api.avatarPreviewSource.value, undefined)
+        const pending = h.api.save()
+        assert.equal(h.requests[0].data.image, '')
+        h.requests[0].resolve({ ...original, image: null, thumbnail_url: null })
+        await pending
+        assert.equal(h.api.cardDirty.value, false)
+    })
+}
+
+test('avatar upload previews the chosen file and releases the preview when cleared', async t => {
+    const created = t.mock.method(URL, 'createObjectURL', () => 'blob:catalog-preview')
+    const revoked = t.mock.method(URL, 'revokeObjectURL', () => {})
+    const h = harness(t, { node: sourceNode({ entity_type: 'category', image: '/storage/old.png' }) })
+    h.api.imageFile.value = new Blob(['image'], { type: 'image/png' })
+    await Vue.nextTick()
+    assert.equal(created.mock.callCount(), 1)
+    assert.equal(h.api.avatarPreviewSource.value, 'blob:catalog-preview')
+    assert.equal(findVNode(h.render(), node => node.props?.label === 'Аватар: URL / CDN').props.disabled, true)
+    h.api.clearAvatar()
+    await Vue.nextTick()
+    assert.equal(revoked.mock.calls[0].arguments[0], 'blob:catalog-preview')
+    assert.equal(h.api.filePreview.value, '')
+    assert.equal(h.api.imageFile.value, null)
+})
+
+test('parent choices retain avatars and hierarchy icons without admitting terminal goods', t => {
+    const parent = { id: 5, name: 'Категория', entity_type: 'category', image: '/storage/category.png', thumbnail_url: '/storage/category-thumb.png' }
+    const h = harness(t, { node: sourceNode({ entity_type: 'custom' }), nodes: [parent, sourceNode()] })
+    const picker = findVNode(h.render(), node => node.props?.label === 'Расположение в каталоге')
+    const option = h.api.parentOptions.value.find(node => node.id === 5)
+    assert.equal(option.thumbnail_url, parent.thumbnail_url)
+    assert.equal(h.api.parentOptions.value.some(node => node.entity_type === 'good'), false)
+    const item = picker.children.item({ props: { title: option.name }, item: { raw: option } })[0]
+    const prepend = item.children.prepend()
+    assert.ok(findVNode(prepend, node => node.type === 'v-icon' && node.props.icon === 'mdi-folder-outline'))
+    assert.equal(findVNode(prepend, node => node.type === 'CatalogNodeAvatar').props.node.image, parent.image)
+    const selected = picker.children.selection({ item: { raw: option, title: option.name } })
+    assert.equal(findVNode(selected, node => node.type === 'CatalogNodeAvatar').props.node.image, parent.image)
+})
 
 test('existing entity kind is editable, resets, and changes operational tabs only after a successful save', async t => {
     const original = sourceNode({ entity_type: 'product' })
@@ -920,7 +974,7 @@ test('reset confirms unsaved good data and restores saved overview without flagg
 test('non-goods never load commerce defaults and retain direct image editing', async t => {
     const h = harness(t, { node: sourceNode({ entity_type: 'product' }) })
     assert.equal(h.reads.length, 0)
-    assert.ok(findVNode(h.render(), node => node.type === 'v-text-field' && node.props.label === 'Ссылка на изображение'))
+    assert.ok(findVNode(h.render(), node => node.type === 'v-text-field' && node.props.label === 'Аватар: URL / CDN'))
     h.api.form.image = '/storage/product.png'
     const save = h.api.save()
     assert.equal(h.requests[0].data.image, '/storage/product.png')

@@ -7,6 +7,7 @@ import ProductMarketPanel from '@/Components/ProductMarketPanel.vue'
 import ProductEntityConsumptionsCard from '@/Components/ProductEntityConsumptionsCard.vue'
 import ProductUnitConsumersCard from '@/Components/ProductUnitConsumersCard.vue'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import {
     emptyProductTranslationForm,
     productTranslationFields,
@@ -212,6 +213,7 @@ onMounted(loadProduct)
                         Назад
                     </v-btn>
 
+                    <CatalogNodeAvatar v-if="product" :node="product" :size="44" />
                     <div class="min-w-0">
                         <div class="text-h5 font-weight-bold text-truncate">
                             {{ productTitle }}
@@ -225,6 +227,7 @@ onMounted(loadProduct)
                 <div v-if="product" class="d-flex align-center ga-2 flex-wrap">
                     <v-chip size="small" variant="outlined">ID: {{ product.id }}</v-chip>
                     <v-chip size="small" variant="outlined">
+                        <CatalogNodeAvatar v-if="product.category" :node="product.category" :size="20" class="mr-2" />
                         {{ product.category?.rus || product.category?.name || 'Без категории' }}
                     </v-chip>
                 </div>

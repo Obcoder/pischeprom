@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Action;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Services\Catalog\CatalogAvatars;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -27,7 +28,10 @@ class ProductController extends Controller
             $query->category($request->category_id);
         }
 
-        return $query->get();
+        $products = $query->get();
+        app(CatalogAvatars::class)->appendProducts($products);
+
+        return $products;
     }
 
     /**
@@ -39,10 +43,13 @@ class ProductController extends Controller
 
         $product = Product::create($data);
 
-        return Product::with([
+        $product = Product::with([
             'category',
             'manufacturers',
         ])->findOrFail($product->id);
+        app(CatalogAvatars::class)->appendProducts(collect([$product]));
+
+        return $product;
     }
 
     /**
@@ -76,6 +83,8 @@ class ProductController extends Controller
                 ->orderByDesc('date')
                 ->get()
         );
+
+        app(CatalogAvatars::class)->appendProducts(collect([$product]));
 
         return $product;
     }

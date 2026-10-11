@@ -24,6 +24,7 @@ function productFormHarness() {
         onBeforeUnmount: callback => disposal.push(callback),
         Link: {},
         CatalogToolbar: {},
+        CatalogNodeAvatar: {},
         route: () => '',
         axios: {
             post(url, body, options = {}) {

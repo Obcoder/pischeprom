@@ -3,6 +3,7 @@ import { Head, Link } from '@inertiajs/vue3'
 import { computed, h } from 'vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import PublicCatalogCards from '@/Components/Catalog/PublicCatalogCards.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import ClassLanding from '@/Components/Products/ClassPage/ClassLanding.vue'
 import CatalogLanding from '@/Components/Catalog/Landing/CatalogLanding.vue'
 import { resolveClassGuide } from '@/Components/Products/ClassPage/guides.js'
@@ -48,10 +49,10 @@ function displayValue(property) {
             <Link href="/">Главная</Link>
             <template v-for="ancestor in breadcrumbs" :key="ancestor.id">
                 <span aria-hidden="true">/</span>
-                <Link :href="ancestor.public_url">{{ ancestor.name }}</Link>
+                <Link :href="ancestor.public_url"><CatalogNodeAvatar :node="ancestor" :size="20" />{{ ancestor.name }}</Link>
             </template>
             <span aria-hidden="true">/</span>
-            <span aria-current="page">{{ node.name }}</span>
+            <span aria-current="page"><CatalogNodeAvatar :node="node" :size="20" />{{ node.name }}</span>
         </nav>
 
         <header class="catalog-public__header">
@@ -88,6 +89,7 @@ function displayValue(property) {
 .catalog-public { max-width: 1280px; color: #173e32; }
 .catalog-public__breadcrumbs { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; font-size: 13px; color: #6f7e77; margin-bottom: 35px; }
 .catalog-public__breadcrumbs a { color: #39715a; text-decoration: none; }
+.catalog-public__breadcrumbs a, .catalog-public__breadcrumbs [aria-current] { display: inline-flex; align-items: center; gap: 6px; }
 .catalog-public__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; padding-bottom: 34px; }
 .catalog-public__header h1 { margin: 8px 0 18px; font-size: clamp(28px, 4vw, 46px); font-weight: 650; line-height: 1.15; overflow-wrap: anywhere; }
 .catalog-public__kicker { color: #698875; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }

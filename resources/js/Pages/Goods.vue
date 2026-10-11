@@ -7,6 +7,7 @@ import PublicCatalogTree from '@/Components/Goods/PublicCatalogTree.vue'
 import PublicCatalogPriceList from '@/Components/Goods/PublicCatalogPriceList.vue'
 import PublicCatalogCategoryFilter from '@/Components/Goods/PublicCatalogCategoryFilter.vue'
 import GoodInquiryDialog from '@/Components/Goods/GoodInquiryDialog.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { catalogDefaults, normalizeCatalogFilters, catalogQuery, catalogPages } from '@/utils/publicCatalog'
 
@@ -109,12 +110,12 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
         <div class="catalog-page__inner">
             <nav class="catalog-breadcrumbs" aria-label="Навигационная цепочка">
                 <Link href="/">Главная</Link><v-icon icon="mdi-chevron-right" size="13" />
-                <button v-if="form.node_id" type="button" @click="selectNode('')">Каталог</button><span v-else aria-current="page">Каталог</span>
-                <template v-for="(crumb, index) in breadcrumbs" :key="crumb.id"><v-icon icon="mdi-chevron-right" size="13" /><span v-if="index === breadcrumbs.length - 1" aria-current="page">{{ crumb.name }}</span><button v-else type="button" @click="selectNode(crumb.id)">{{ crumb.name }}</button></template>
+                <button v-if="form.node_id" type="button" @click="selectNode('')"><CatalogNodeAvatar v-if="site" :node="site" :size="18" />Каталог</button><span v-else aria-current="page"><CatalogNodeAvatar v-if="site" :node="site" :size="18" />Каталог</span>
+                <template v-for="(crumb, index) in breadcrumbs" :key="crumb.id"><v-icon icon="mdi-chevron-right" size="13" /><span v-if="index === breadcrumbs.length - 1" aria-current="page"><CatalogNodeAvatar :node="crumb" :size="18" />{{ crumb.name }}</span><button v-else type="button" @click="selectNode(crumb.id)"><CatalogNodeAvatar :node="crumb" :size="18" />{{ crumb.name }}</button></template>
                 <template v-if="field"><v-icon icon="mdi-chevron-right" size="13" /><span aria-current="page">{{ field.title || field.name }}</span></template>
             </nav>
             <header class="catalog-hero">
-                <h1>{{ pageH1 }}</h1>
+                <h1><CatalogNodeAvatar v-if="selectedNode" :node="selectedNode" :size="36" />{{ pageH1 }}</h1>
                 <p v-if="field?.description">{{ field.description }}</p>
             </header>
             <section class="catalog-workspace" aria-label="Подбор товаров">
@@ -125,7 +126,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
                     <button type="button" class="catalog-filter-toggle" :class="{ 'is-active': form.show_filters }" :aria-expanded="form.show_filters" aria-controls="catalog-filters" @click="toggleFilters"><v-icon icon="mdi-tune-variant" size="18" />Фильтры<span v-if="activeFilters.length">{{ activeFilters.length }}</span><v-icon :icon="form.show_filters ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="15" /></button>
                     <div class="catalog-view-switch" role="group" aria-label="Вид каталога"><button type="button" :aria-pressed="form.view === 'cards'" :class="{ 'is-active': form.view === 'cards' }" @click="setView('cards')"><v-icon icon="mdi-view-grid-outline" size="18" /><span>Карточки</span></button><button type="button" :aria-pressed="form.view === 'tree'" :class="{ 'is-active': form.view === 'tree' }" @click="setView('tree')"><v-icon icon="mdi-file-tree-outline" size="18" /><span>Дерево</span></button><button type="button" :aria-pressed="form.view === 'pricelist'" :class="{ 'is-active': form.view === 'pricelist' }" @click="setView('pricelist')"><v-icon icon="mdi-table-large" size="18" /><span>Прайс-лист</span></button></div>
                 </div>
-                <div v-if="!form.show_filters && (visibleCategories.length || form.node_id)" class="catalog-categories" aria-label="Категории товаров"><button v-if="form.node_id" type="button" class="catalog-categories__back" @click="selectNode(selectedNode?.parent_id)"><v-icon icon="mdi-arrow-left" size="14" />На уровень выше</button><button v-for="node in visibleCategories" :key="node.id" type="button" @click="selectNode(node.id)">{{ node.name }}<span>{{ node.goods_count || 0 }}</span></button></div>
+                <div v-if="!form.show_filters && (visibleCategories.length || form.node_id)" class="catalog-categories" aria-label="Категории товаров"><button v-if="form.node_id" type="button" class="catalog-categories__back" @click="selectNode(selectedNode?.parent_id)"><v-icon icon="mdi-arrow-left" size="14" />На уровень выше</button><button v-for="node in visibleCategories" :key="node.id" type="button" @click="selectNode(node.id)"><CatalogNodeAvatar :node="node" :size="22" />{{ node.name }}<span>{{ node.goods_count || 0 }}</span></button></div>
                 <div v-if="activeFilters.length" class="catalog-active-filters"><button v-for="filter in activeFilters" :key="filter.key" type="button" :aria-label="`Убрать фильтр ${filter.label}`" @click="clearFilter(filter.key)">{{ filter.label }}<v-icon icon="mdi-close" size="13" /></button><button type="button" class="catalog-reset" @click="resetFilters">Сбросить всё</button></div>
                 <div class="catalog-layout" :class="{ 'catalog-layout--filters': form.show_filters }">
                     <aside v-if="form.show_filters" id="catalog-filters" class="catalog-filters" aria-label="Фильтры каталога">
@@ -162,9 +163,10 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .catalog-page__inner { max-width: 1640px; margin: 0 auto; }
 .catalog-breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 5px; color: #929389; font-size: 10px; line-height: 16px; }
 .catalog-breadcrumbs a, .catalog-breadcrumbs button { color: #84877b; text-decoration: none; }
+.catalog-breadcrumbs > span, .catalog-breadcrumbs button { display: inline-flex; align-items: center; gap: 5px; }
 .catalog-breadcrumbs [aria-current] { color: #4c5145; }
 .catalog-hero { margin-bottom: 10px; }
-.catalog-hero h1 { margin: 0; color: #30362b; font-size: clamp(22px, 2.1vw, 28px); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.catalog-hero h1 { display: flex; align-items: center; gap: 10px; margin: 0; color: #30362b; font-size: clamp(22px, 2.1vw, 28px); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; }
 .catalog-hero p { max-width: 900px; margin: 5px 0 0; color: #7b8072; font-size: 12px; line-height: 1.45; }
 .catalog-workspace { padding: 12px; border: 1px solid #e7e7df; border-radius: 10px; background: #fffefa; }
 .catalog-searchbar { display: flex; gap: 8px; }

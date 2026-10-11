@@ -195,8 +195,8 @@ class PublicClassPageTest extends TestCase
             ->assertJsonPath('props.seo.jsonLd.1.itemListElement.2.name', 'Скумбрия')
             ->assertJsonPath('props.classPage.breadcrumbs', [
                 ['name' => 'Главная', 'url' => route('home')],
-                ['name' => 'Рыба', 'url' => url('/catalog/ryba')],
-                ['name' => 'Скумбрия', 'url' => $this->classUrl()],
+                ['name' => 'Рыба', 'url' => url('/catalog/ryba'), 'entity_type' => 'category', 'image' => null, 'thumbnail_url' => null],
+                ['name' => 'Скумбрия', 'url' => $this->classUrl(), 'entity_type' => 'product', 'image' => null, 'thumbnail_url' => null],
             ]);
         $this->assertStringNotContainsString('Offer', json_encode($response->json('props.seo.jsonLd')));
 

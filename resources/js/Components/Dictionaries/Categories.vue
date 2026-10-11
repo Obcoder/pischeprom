@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import CatalogToolbar from './CatalogToolbar.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 
 const categories = ref([])
 const fields = ref([])
@@ -1076,7 +1077,7 @@ onBeforeUnmount(() => {
                                                     :key="product.id"
                                                     :title="product.rus || product.name"
                                                     :subtitle="`${product.goods_count ?? 0} товаров`"
-                                                />
+                                                ><template #prepend><CatalogNodeAvatar :node="product" :size="28" class="mr-2" /></template></v-list-item>
                                             </v-list>
 
                                             <div v-else class="text-body-2 text-medium-emphasis">

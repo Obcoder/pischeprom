@@ -16,7 +16,7 @@ class CategoryResource extends JsonResource
             'local_code' => $this->local_code,
             'field_id' => $this->field_id,
             'field' => $this->whenLoaded('field', function () {
-                if (!$this->field) {
+                if (! $this->field) {
                     return null;
                 }
 
@@ -59,6 +59,7 @@ class CategoryResource extends JsonResource
                         'rus' => $product->rus,
                         'name' => $product->name ?? null,
                         'image' => $product->image ?? null,
+                        'thumbnail_url' => $product->thumbnail_url ?? $product->image ?? null,
                         'goods_count' => $product->goods_count ?? null,
                     ];
                 });

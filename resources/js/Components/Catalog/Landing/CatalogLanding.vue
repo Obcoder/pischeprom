@@ -6,6 +6,7 @@ import LandingBlock from './LandingBlock.vue'
 import LandingText from './LandingText.vue'
 import { blockTypes } from './schema.js'
 import { safeLandingUrl } from './links.js'
+import CatalogNodeAvatar from '../CatalogNodeAvatar.vue'
 import '../../Products/ClassPage/classPage.css'
 import './landing.css'
 
@@ -86,7 +87,7 @@ onUnmounted(() => cleanup())
         <a class="skip-link" href="#class-main">Перейти к содержимому</a>
         <div v-if="page.preview" class="wrap landing-preview" role="status">Предпросмотр черновика. Изменения появятся на сайте после публикации.</div>
         <div id="class-main">
-            <nav class="wrap breadcrumbs" aria-label="Хлебные крошки"><template v-for="(item, index) in page.breadcrumbs" :key="index"><span v-if="index" aria-hidden="true">/</span><a v-if="item.url && index < page.breadcrumbs.length - 1" :href="item.url">{{ item.name }}</a><span v-else :aria-current="index === page.breadcrumbs.length - 1 ? 'page' : undefined">{{ item.name }}</span></template></nav>
+            <nav class="wrap breadcrumbs" aria-label="Хлебные крошки"><template v-for="(item, index) in page.breadcrumbs" :key="index"><span v-if="index" aria-hidden="true">/</span><a v-if="item.url && index < page.breadcrumbs.length - 1" :href="item.url"><CatalogNodeAvatar :node="item" :size="22" />{{ item.name }}</a><span v-else :aria-current="index === page.breadcrumbs.length - 1 ? 'page' : undefined"><CatalogNodeAvatar :node="item" :size="22" />{{ item.name }}</span></template></nav>
             <section class="hero wrap" :class="{ 'landing-no-image': !safeLandingUrl(hero.image) }" aria-labelledby="hero-title">
                 <div class="hero-copy">
                     <div v-if="hero.eyebrow" class="eyebrow light"><span class="small-line" /> {{ hero.eyebrow }}</div>
@@ -100,7 +101,7 @@ onUnmounted(() => cleanup())
             </section>
             <div v-if="navigation.length" class="section-nav"><nav class="wrap" aria-label="Разделы страницы"><a v-for="(item, index) in navigation" :key="item.id" :href="`#${item.id}`" :class="{ active: activeSection === item.id }" :aria-current="activeSection === item.id ? 'location' : undefined"><span>{{ String(index + 1).padStart(2, '0') }}</span> {{ item.title }}</a></nav></div>
             <ClassGoods v-if="hasCatalog" :title="content.catalog?.title || 'Каталог'" :goods="page.goods" :copy="content.catalog" :help-url="firstBlockUrl" />
-            <nav v-if="hasCatalog && page.children?.length" class="wrap landing-branches" aria-label="Разделы каталога"><a v-for="child in page.children" :key="child.id" :href="child.public_url || child.url"><img v-if="child.image" :src="child.image" :alt="child.name" loading="lazy"><span>{{ child.name }}</span></a></nav>
+            <nav v-if="hasCatalog && page.children?.length" class="wrap landing-branches" aria-label="Разделы каталога"><a v-for="child in page.children" :key="child.id" :href="child.public_url || child.url"><CatalogNodeAvatar :node="child" :size="60" /><span>{{ child.name }}</span></a></nav>
             <div :data-guide-article="page.guide || content.template"><LandingBlock v-for="block in blocks" :key="block.id" :block="block" :goods="inlineGoods" :anchors="availableAnchors" /></div>
             <section v-if="contact.enabled" id="contact" class="contact-section wrap"><div><div v-if="contact.eyebrow" class="eyebrow light">{{ contact.eyebrow }}</div><h2 class="landing-lines">{{ contact.title }}</h2><p class="landing-lines"><LandingText :text="contact.description" :goods="inlineGoods" :anchors="availableAnchors" /></p></div><div class="contact-actions"><a v-if="contact.action && actionUrl(contact.actionUrl)" class="button lime" :href="actionUrl(contact.actionUrl)">{{ contact.action }}</a><p v-if="contact.note" class="landing-lines">{{ contact.note }}</p></div></section>
             <section v-if="sources.enabled" id="sources" class="wrap sources-section"><details><summary>{{ sources.title || 'Источники и фотографии' }}<span v-if="sources.verifiedOn">Проверено {{ sources.verifiedOn }}</span><b aria-hidden="true">+</b></summary><div class="sources-body">

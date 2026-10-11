@@ -5,6 +5,7 @@ import { Link } from '@inertiajs/vue3'
 import { logo } from '@/Pages/Helpers/consts.js'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { useAppRoute } from '@/Composables/useAppRoute'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 
 const { route } = useAppRoute()
 const { goodPublicUrl } = usePublicGoodUrl()
@@ -88,6 +89,8 @@ const groupedGoods = computed(() => {
                     id: product?.id || null,
                     title: product?.rus || product?.name || product?.title || 'Без Product',
                     category: product?.category?.name || null,
+                    node: product,
+                    categoryNode: product?.category,
                     goods: [],
                 })
             }
@@ -298,10 +301,12 @@ function catalogueSectionHref(section) {
                         <div class="product-group__header">
                             <div>
                                 <div class="product-group__title">
+                                    <CatalogNodeAvatar v-if="group.node" :node="group.node" :size="26" />
                                     {{ group.title }}
                                 </div>
 
                                 <div v-if="group.category" class="product-group__category">
+                                    <CatalogNodeAvatar v-if="group.categoryNode" :node="group.categoryNode" :size="20" />
                                     {{ group.category }}
                                 </div>
                             </div>
@@ -355,6 +360,7 @@ function catalogueSectionHref(section) {
 
                     <section v-for="section in filteredTableOfContents" :key="section.id" class="book-toc__section">
                         <Link :href="catalogueSectionHref(section)" class="book-toc__section-title">
+                            <CatalogNodeAvatar :node="section" :size="28" />
                             <span>{{ section.title }}</span>
                             <b>{{ section.page }}</b>
                         </Link>
@@ -365,6 +371,7 @@ function catalogueSectionHref(section) {
                             :href="catalogueEntryHref(entry)"
                             class="book-toc__entry"
                         >
+                            <CatalogNodeAvatar :node="entry" :size="22" />
                             <span>{{ entry.title }}</span>
                             <i />
                             <b>{{ entry.page }}</b>
@@ -382,6 +389,7 @@ function catalogueSectionHref(section) {
 </template>
 
 <style scoped>
+.product-group__title, .product-group__category { display: flex; align-items: center; gap: 7px; }
 .goods-book-card {
     position: relative;
     overflow: hidden;
@@ -626,7 +634,7 @@ function catalogueSectionHref(section) {
 .book-toc__section-title,
 .book-toc__entry {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
     color: inherit;
     text-decoration: none;

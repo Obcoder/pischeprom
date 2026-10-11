@@ -4,6 +4,7 @@ import ClassHero from './ClassHero.vue'
 import ClassGoods from './ClassGoods.vue'
 import ClassGuide from './ClassGuide.vue'
 import ClassSources from './ClassSources.vue'
+import CatalogNodeAvatar from '../../Catalog/CatalogNodeAvatar.vue'
 import { currentClassSection, revealClassAnchor } from './anchors.js'
 import './classPage.css'
 
@@ -69,8 +70,8 @@ onUnmounted(() => cleanup())
             <nav class="wrap breadcrumbs" aria-label="Хлебные крошки">
                 <template v-for="(item, index) in page.breadcrumbs" :key="`${item.name}-${index}`">
                     <span v-if="index" aria-hidden="true">/</span>
-                    <a v-if="item.url && index < page.breadcrumbs.length - 1" :href="item.url">{{ item.name }}</a>
-                    <span v-else :aria-current="index === page.breadcrumbs.length - 1 ? 'page' : undefined">{{ item.name }}</span>
+                    <a v-if="item.url && index < page.breadcrumbs.length - 1" :href="item.url"><CatalogNodeAvatar :node="item" :size="22" />{{ item.name }}</a>
+                    <span v-else :aria-current="index === page.breadcrumbs.length - 1 ? 'page' : undefined"><CatalogNodeAvatar :node="item" :size="22" />{{ item.name }}</span>
                 </template>
             </nav>
             <ClassHero :title="page.seo.h1" :hero="guide.hero" />

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { compileScript, compileTemplate, parse } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
+import { catalogAvatarSources } from '../../resources/js/Components/Catalog/catalogAvatarSources.js'
 
 function harness(t, node) {
     const filename = 'resources/js/Components/Catalog/CatalogAvatar.vue'
@@ -11,7 +12,7 @@ function harness(t, node) {
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'catalog-avatar-test', compilerOptions: { bindingMetadata: script.bindings } })
     assert.deepEqual(template.errors, [])
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
-    const component = new Function('env', `with(env){${code}}`)(Vue)
+    const component = new Function('env', `with(env){${code}}`)({ ...Vue, catalogAvatarSources })
     const props = Vue.reactive({ node, icon: 'mdi-tag-outline' })
     const scope = Vue.effectScope()
     const state = scope.run(() => component.setup(props, { expose() {}, emit() {} }))

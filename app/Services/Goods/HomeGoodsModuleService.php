@@ -5,6 +5,7 @@ namespace App\Services\Goods;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\User;
+use App\Services\Catalog\CatalogAvatars;
 use App\Services\Catalog\CatalogSiteContext;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -32,6 +33,7 @@ class HomeGoodsModuleService
         $orderedGoods = $this->orderedGoods($entityIds);
         $orderedGoodIds = $orderedGoods->pluck('id')->all();
         $recommendedGoods = $this->recommendedGoods($industryIds, $orderedGoodIds);
+        app(CatalogAvatars::class)->appendProducts($orderedGoods->concat($recommendedGoods)->flatMap->products, public: true);
 
         return [
             'authenticated' => true,
@@ -73,6 +75,7 @@ class HomeGoodsModuleService
         $categories = $categoriesQuery
             ->limit(10)
             ->get();
+        app(CatalogAvatars::class)->appendProducts($categories->flatMap->products, public: true);
 
         $page = 5;
 
@@ -87,6 +90,8 @@ class HomeGoodsModuleService
                         return [
                             'id' => $product->id,
                             'title' => $product->rus ?: $product->eng ?: "Product #{$product->id}",
+                            'image' => $product->image,
+                            'thumbnail_url' => $product->thumbnail_url,
                             'page' => $currentPage,
                             'goods_count' => (int) ($product->published_goods_count ?? 0),
                         ];
@@ -97,6 +102,8 @@ class HomeGoodsModuleService
                     'id' => $category->id,
                     'title' => $category->name,
                     'slug' => $category->slug,
+                    'image' => app(CatalogAvatars::class)->url($category->image),
+                    'thumbnail_url' => app(CatalogAvatars::class)->url($category->image),
                     'page' => $entries->first()['page'] ?? $page,
                     'entries' => $entries->all(),
                 ];

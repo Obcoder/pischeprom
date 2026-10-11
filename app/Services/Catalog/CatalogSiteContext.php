@@ -8,6 +8,7 @@ use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
+use App\Services\Goods\GoodAvatarImages;
 use App\Services\Seo\GoodSeoService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -51,7 +52,18 @@ class CatalogSiteContext
             return null;
         }
 
-        return ['id' => $node->id, 'name' => $node->name, 'hostname' => $host];
+        $source = match ($node->entity_type) {
+            'category' => Category::query()->find($node->entity_id),
+            'good' => Good::without('measure')->find($node->entity_id),
+            default => null,
+        };
+        $image = $source instanceof Good
+            ? ($source->ava_image ?: $source->ava_thumb)
+            : ($source instanceof Category ? $source->image : $node->image);
+        $image = app(CatalogAvatars::class)->url($image);
+        $thumbnail = $source instanceof Good ? app(CatalogAvatars::class)->url(app(GoodAvatarImages::class)->url($source)) : $image;
+
+        return ['id' => $node->id, 'name' => $node->name, 'hostname' => $host, 'image' => $image, 'thumbnail_url' => $thumbnail];
     }
 
     public function domainNodeId(): ?int
@@ -133,6 +145,7 @@ class CatalogSiteContext
             'good' => Good::without('measure')->with('seo:id,good_id,slug_override,is_active')->whereIn('id', $nodes->where('entity_type', 'good')->pluck('entity_id'))->get(['id', 'name', 'slug', 'ava_image', 'ava_thumb', 'is_published'])->keyBy('id'),
         ];
         $nodes = $nodes->map(function (array $node) use ($sources): array {
+            $source = null;
             if ($node['entity_type']) {
                 $source = $sources[$node['entity_type']][$node['entity_id']] ?? null;
                 $node['is_published'] = (bool) $source?->is_published;
@@ -150,6 +163,10 @@ class CatalogSiteContext
                     }
                 }
             }
+            $node['image'] = app(CatalogAvatars::class)->url($node['image']);
+            $node['thumbnail_url'] = $source instanceof Good
+                ? app(CatalogAvatars::class)->url(app(GoodAvatarImages::class)->url($source))
+                : $node['image'];
 
             return $node;
         });

@@ -21,7 +21,7 @@ function harness(t, goods = [good(1), good(2)]) {
     const emitted = []
     const cart = []
     const mounted = []
-    const environment = { ...Vue, ...catalog, ...priceList, unitLabel, Link: 'Link', GoodStockAlertButton: 'GoodStockAlertButton',
+    const environment = { ...Vue, ...catalog, ...priceList, CatalogNodeAvatar: 'CatalogNodeAvatar', unitLabel, Link: 'Link', GoodStockAlertButton: 'GoodStockAlertButton',
         onMounted: handler => mounted.push(handler), usePublicGoodUrl: () => ({ goodPublicUrl: good => `/g/${good.id}` }),
         useOrderCart: () => ({ addGood: (...args) => { cart.push(args); return true }, cartError: Vue.ref('') }) }
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -208,4 +208,14 @@ test('quantity keyboard navigation moves between editable rows without changing 
     assert.equal(prevented, 2)
     assert.deepEqual(calls, [['focus', 1], ['select', 1], ['focus', 0], ['select', 0]])
     assert.deepEqual(h.api.quantities.value, { 1: '1', 2: '1' })
+})
+
+test('price list shows the catalog section avatar separately from the existing good thumbnail', t => {
+    const h = harness(t, [good(1, { ava_thumb: '/good-thumb.png' })])
+    h.props.nodes = [{ id: 4, name: 'Рыба', image: '/fish.png', thumbnail_url: '/fish-thumb.png' }]
+    const row = findVNode(h.render(), node => hasClass(node, 'price-list__product-link'))
+    assert.equal(findVNode(row, node => node.type === 'img').props.src, '/good-thumb.png')
+    assert.equal(findVNode(row, node => node.type === 'CatalogNodeAvatar').props.node.thumbnail_url, '/fish-thumb.png')
+    h.props.nodes = []
+    assert.equal(findVNode(findVNode(h.render(), node => hasClass(node, 'price-list__product-link')), node => node.type === 'CatalogNodeAvatar'), null)
 })

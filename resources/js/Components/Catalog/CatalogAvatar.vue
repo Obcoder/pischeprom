@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { catalogAvatarSources } from './catalogAvatarSources.js'
 
 const props = defineProps({
     node: { type: Object, required: true },
@@ -7,8 +8,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['open'])
 const failed = ref(new Set())
-const sources = computed(() => [...new Set([props.node.thumbnail_url, props.node.image]
-    .filter(url => typeof url === 'string' && /^(https?:\/\/|\/(?!\/))/i.test(url)))])
+const sources = computed(() => catalogAvatarSources(props.node))
 const source = computed(() => sources.value.find(url => !failed.value.has(url)))
 function imageFailed(event) {
     const url = event.target.getAttribute('src')

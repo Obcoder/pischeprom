@@ -19,7 +19,7 @@ function harness(t, filename, initial) {
     const emitted = []
     const cart = { succeeds: true, cartError: Vue.ref(''), addGood: (...args) => { cartCalls.push(args); return cart.succeeds } }
     const env = {
-        ...Vue, measurementForGood, quantityWeight, unitLabel,
+        ...Vue, CatalogNodeAvatar: 'CatalogNodeAvatar', measurementForGood, quantityWeight, unitLabel,
         Head: {}, Link: {}, LayoutProduct: {}, GoodInquiryDialog: {}, PublicGoodGallery: {}, MobileGoodPurchase: {}, GoodStockAlertButton: {}, DeliveryApartmentFields: {},
         useOrderCart: () => cart,
         usePage: () => ({ props: {} }), onMounted: () => {},
@@ -166,4 +166,11 @@ test('the customer product code block contains only TN VED EAEU, OKPD2 and HS', 
     assert.ok(findVNode(codes, node => node.type === 'dd' && node.children === '0303541000'))
     page.props.good.hs_code = null
     assert.ok(findVNode(page.render(), node => node.type === 'dd' && node.children === 'Не указан'))
+})
+
+test('good breadcrumb keeps the related product avatar and its existing public destination', t => {
+    const h = harness(t, 'resources/js/Pages/Goods/Show.vue', { good: { id: 7, name: 'Партия', products: [{ id: 9, rus: 'Скумбрия', image: '/mackerel.png', thumbnail_url: '/mackerel-thumb.png' }] }, publicPurchase: offer(kilogram), seo: {}, availability: {}, relatedGoods: [] })
+    const link = findVNode(h.render(), node => node.props?.href === '/p/9')
+    assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.thumbnail_url, '/mackerel-thumb.png')
+    assert.equal(h.api.products.value[0].name, 'Скумбрия')
 })

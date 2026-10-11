@@ -14,6 +14,7 @@ use App\Models\Industry;
 use App\Models\Measure;
 use App\Models\Product;
 use App\Models\VatRate;
+use App\Services\Catalog\CatalogAvatars;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Goods\GoodAvatarImages;
 use App\Services\Goods\GoodMeasurement;
@@ -121,7 +122,7 @@ class GoodController extends Controller
 
     public function indexPublished()
     {
-        return app(CatalogSiteContext::class)->scopeGoods(Good::query())
+        $goods = app(CatalogSiteContext::class)->scopeGoods(Good::query())
             ->with([
                 'vatRate',
                 'country:id,name,flag',
@@ -135,11 +136,13 @@ class GoodController extends Controller
             ])
             ->published(true)
             ->inRandomOrder()
-            ->get()
-            ->makeHidden([
-                'incoming_code',
-                ...array_diff(GoodTradeCodes::FIELDS, GoodTradeCodes::PUBLIC_FIELDS),
-            ]);
+            ->get();
+        app(CatalogAvatars::class)->appendProducts($goods->flatMap->products, public: true);
+
+        return $goods->makeHidden([
+            'incoming_code',
+            ...array_diff(GoodTradeCodes::FIELDS, GoodTradeCodes::PUBLIC_FIELDS),
+        ]);
     }
 
     public function store(StoreGoodRequest $request)

@@ -414,6 +414,9 @@ jobs:
           vendor/bin/pint --test \
             app/Http/Controllers/API/CatalogLandingController.php \
             app/Http/Controllers/API/CatalogTreeController.php \
+            app/Http/Controllers/API/CategoryController.php \
+            app/Http/Resources/CategoryResource.php \
+            app/Services/Goods/HomeGoodsModuleService.php \
             app/Http/Controllers/API/ComponentController.php \
             app/Http/Controllers/Web/CatalogController.php \
             app/Http/Controllers/Web/CatalogLandingPreviewController.php \
@@ -443,6 +446,7 @@ jobs:
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogAvatarTest.php \
             tests/Feature/CatalogEntityConversionTest.php \
             tests/Feature/CatalogTranslationsTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
@@ -632,6 +636,7 @@ jobs:
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogAvatarTest.php \
             tests/Feature/CatalogEntityConversionTest.php \
             tests/Feature/CatalogTranslationsTest.php \
             tests/Feature/CatalogGoodSeoTest.php \

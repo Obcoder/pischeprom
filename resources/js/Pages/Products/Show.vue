@@ -6,6 +6,7 @@ import { route } from "ziggy-js";
 import GoodStockAlertButton from "@/Components/Goods/GoodStockAlertButton.vue";
 import { canSubscribeToGoodStock } from "@/Pages/Helpers/goodAvailability";
 import ClassLanding from '@/Components/Products/ClassPage/ClassLanding.vue';
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue';
 import { resolveClassGuide } from '@/Components/Products/ClassPage/guides.js';
 
 defineOptions({
@@ -65,7 +66,8 @@ function canSubscribeToStock(good) {
                     Product
                 </div>
 
-                <h1 class="text-h3 font-weight-bold mb-3">
+                <h1 class="text-h3 font-weight-bold mb-3 d-flex align-center ga-3">
+                    <CatalogNodeAvatar :node="product" :size="52" />
                     {{ pageSeo.h1 || productTitle }}
                 </h1>
 
@@ -77,6 +79,7 @@ function canSubscribeToStock(good) {
                         color="teal"
                         variant="tonal"
                     >
+                        <CatalogNodeAvatar :node="product.category" :size="22" class="mr-2" />
                         {{ product.category.name }}
                     </v-chip>
                 </div>

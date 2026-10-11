@@ -39,7 +39,7 @@ test('SSR uses the resolved SEO H1 over the hero title without changing breadcru
     const html = await render(data)
     assert.match(html, /<h1 id="hero-title">Скумбрия &lt;оптом&gt;<\/h1>/)
     assert.equal((html.match(/<h1\b/g) || []).length, 1)
-    assert.match(html, /aria-current="page">Скумбрия<\/span>/)
+    assert.equal(text(html.match(/<span aria-current="page">([^]*?)<\/span>/)[1]), 'Скумбрия')
     assert.equal(data.content.hero.title, 'Скумбрия')
     const fallback = await render(page({ seo: { h1: ' ' } }))
     assert.match(fallback, /<h1 id="hero-title">Скумбрия<\/h1>/)
@@ -101,4 +101,17 @@ test('safe token parsing preserves brackets and rejects ambiguous or dangerous U
     ])
     for (const value of ['javascript:alert(1)', 'data:image/svg+xml,evil', '//evil.example', '/\\evil.example', 'https:\\evil.example', '/path\nwith-control']) assert.equal(safeLandingUrl(value), null)
     for (const value of ['/storage/photo.jpg', '#source-reg', 'https://example.org/page']) assert.equal(safeLandingUrl(value), value)
+})
+
+test('published landing navigation renders catalog thumbnails while retaining the editorial hero image', async () => {
+    const html = await render(page({
+        breadcrumbs: [{ name: 'Рыба', url: '/catalog/fish', image: '/fish.png', thumbnail_url: '/fish-thumb.png' }, { name: 'Скумбрия', image: '/mackerel.png' }],
+        children: [{ id: 90, name: 'Атлантическая', public_url: '/catalog/fish/atlantic', image: '/atlantic.png', thumbnail_url: '/atlantic-thumb.png' }],
+    }))
+    assert.match(html, /src="\/fish-thumb.png"/)
+    assert.match(html, /src="\/mackerel.png"/)
+    assert.match(html, /src="\/atlantic-thumb.png"/)
+    assert.match(html, /href="\/catalog\/fish\/atlantic"/)
+    assert.match(html, /src="\/class-assets\/mackerel\/mackerel-hero.jpg"/)
+    assert.doesNotMatch(html, /alt="Рыба"|alt="Атлантическая"/)
 })

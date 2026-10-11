@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { catalogCategoryIndex, catalogCategoryAncestors, catalogCategorySearch, catalogCategoryRows } from '@/utils/catalogCategoryFilter'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 
 const props = defineProps({ nodes: { type: Array, default: () => [] }, selectedId: { type: [Number, String], default: '' } })
 defineEmits(['select'])
@@ -69,7 +70,7 @@ function countLabel(node) {
             <div v-for="row in rows" :key="row.key" class="catalog-category-filter__row" :class="{ 'is-selected': selectedKey === row.key, 'is-match': row.matched }" :style="{ '--category-depth': Math.min(row.depth, 4) }">
                 <button v-if="row.hasChildren" type="button" class="catalog-category-filter__expand" :aria-expanded="expanded.has(row.key)" :aria-label="`${expanded.has(row.key) ? 'Свернуть' : 'Раскрыть'} категорию ${row.node.name}`" @click="toggle(row.key)"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg></button>
                 <span v-else class="catalog-category-filter__leaf" aria-hidden="true"><span /></span>
-                <button type="button" class="catalog-category-filter__select" :aria-pressed="selectedKey === row.key" :title="row.node.name" @click="$emit('select', row.node.id)"><span class="catalog-category-filter__name">{{ row.node.name }}</span><span class="catalog-category-filter__count" :aria-label="`Товаров: ${countLabel(row.node)}`">{{ countLabel(row.node) }}</span></button>
+                <button type="button" class="catalog-category-filter__select" :aria-pressed="selectedKey === row.key" :title="row.node.name" @click="$emit('select', row.node.id)"><CatalogNodeAvatar :node="row.node" :size="22" /><span class="catalog-category-filter__name">{{ row.node.name }}</span><span class="catalog-category-filter__count" :aria-label="`Товаров: ${countLabel(row.node)}`">{{ countLabel(row.node) }}</span></button>
             </div>
             <p v-if="!rows.length" class="catalog-category-filter__empty" role="status">{{ search ? 'Категории не найдены' : 'Категорий пока нет' }}</p>
         </div>

@@ -6,6 +6,7 @@ import GoodInquiryDialog from '@/Components/Goods/GoodInquiryDialog.vue'
 import PublicGoodGallery from '@/Components/Goods/PublicGoodGallery.vue'
 import MobileGoodPurchase from '@/Components/Goods/MobileGoodPurchase.vue'
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import { useYandexMetrica } from '@/Composables/useYandexMetrica'
 import { usePublicGoodUrl } from '@/Composables/usePublicGoodUrl'
 import { useOrderCart } from '@/Composables/useOrderCart'
@@ -47,7 +48,7 @@ const status = computed(() => goodAvailabilityStatus(props.good, props.availabil
 const statusText = computed(() => ({ in_stock: 'В наличии', out_of_stock: 'Ожидаем поступление', preorder: 'Под заказ', on_request: 'Наличие уточним' }[status.value] || 'Наличие уточним'))
 const subscribeAvailable = computed(() => canSubscribeToGoodStock(props.good, props.availability))
 const country = computed(() => props.good.country?.name)
-const products = computed(() => (props.good.products || []).map(p => ({ id: p.id, name: p.rus || p.name || p.eng })).filter(p => p.name))
+const products = computed(() => (props.good.products || []).map(p => ({ ...p, name: p.rus || p.name || p.eng })).filter(p => p.name))
 const pageTitle = computed(() => props.seo.title || `${props.good.name} — Пищепром-сервер`)
 const description = computed(() => props.seo.description || props.good.description || `Закажите ${props.good.name}. Обсудим объём, цену и условия поставки.`)
 const pageH1 = computed(() => props.seo.h1 || props.good.name)
@@ -124,7 +125,7 @@ onMounted(trackView)
     <div class="good-landing">
         <nav class="breadcrumbs" aria-label="Хлебные крошки">
             <Link href="/">Главная</Link><span>/</span><Link href="/g">Каталог</Link>
-            <template v-if="products[0]"><span>/</span><Link :href="`/p/${products[0].id}`">{{ products[0].name }}</Link></template>
+            <template v-if="products[0]"><span>/</span><Link :href="`/p/${products[0].id}`"><CatalogNodeAvatar :node="products[0]" :size="22" />{{ products[0].name }}</Link></template>
             <span>/</span><span class="breadcrumbs__current">{{ good.name }}</span>
         </nav>
 
@@ -205,7 +206,7 @@ onMounted(trackView)
 <style scoped>
 .good-landing { --brand: #800000; --ink: #302323; --muted: #887573; --line: #e9ddda; max-width: 1320px; padding: 0 32px; margin: auto; color: var(--ink); }
 .breadcrumbs { display: flex; align-items: center; gap: 10px; font-size: 11px; color: #a08c89; padding: 25px 0; white-space: nowrap; overflow: hidden; }
-.breadcrumbs a { color: #87716e; text-decoration: none; }.breadcrumbs__current { overflow: hidden; text-overflow: ellipsis; }
+.breadcrumbs a { display: inline-flex; align-items: center; gap: 6px; color: #87716e; text-decoration: none; }.breadcrumbs__current { overflow: hidden; text-overflow: ellipsis; }
 .product-hero { display: grid; grid-template-columns: 1.05fr 1fr; grid-template-areas: "gallery intro" "gallery purchase" "gallery stock"; column-gap: 48px; row-gap: 0; align-items: start; grid-template-rows: auto auto 1fr; }
 .product-intro { grid-area: intro; min-width: 0; }.product-summary { grid-area: purchase; min-width: 0; }.stock-subscription { grid-area: stock; }.product-gallery { grid-area: gallery; }.mobile-product-purchase { grid-area: mobile; }
 .product-gallery { min-width: 0; }

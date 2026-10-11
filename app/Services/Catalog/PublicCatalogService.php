@@ -147,7 +147,7 @@ class PublicCatalogService
                 'title' => $node['meta_title'] ?: $node['name'].' — ПИЩЕПРОМ-СЕРВЕР',
                 'description' => $node['meta_description'] ?: mb_substr(strip_tags($node['description'] ?: $node['name']), 0, 240),
                 'canonical' => $node['public_url'],
-                'image' => $this->image($node['image']),
+                'image' => app(CatalogAvatars::class)->url($node['image']),
                 ...($node['public_seo'] ?? []),
             ],
         ];
@@ -167,17 +167,11 @@ class PublicCatalogService
         return [
             'id' => $node['id'],
             'name' => $node['name'],
-            'image' => $this->image($node['image']),
+            'entity_type' => $node['entity_type'],
+            'level_id' => $node['level_id'],
+            'image' => app(CatalogAvatars::class)->url($node['image']),
+            'thumbnail_url' => app(CatalogAvatars::class)->url($node['thumbnail_url'] ?? $node['image']),
             'public_url' => $node['public_url'],
         ];
-    }
-
-    private function image(?string $value): ?string
-    {
-        if (! $value || ! preg_match('~^(https?://|/(?!/))~i', $value)) {
-            return null;
-        }
-
-        return $value;
     }
 }

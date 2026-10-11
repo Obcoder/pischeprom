@@ -25,6 +25,7 @@
 .class-landing .skip-link:focus{top:12px}
 .class-landing .breadcrumbs{display:flex;align-items:center;gap:13px;color:var(--muted);font-size:.75rem;margin-block:1px 19px}
 .class-landing .breadcrumbs a:hover{color:var(--blue)}
+.class-landing .breadcrumbs a,.class-landing .breadcrumbs [aria-current]{display:inline-flex;align-items:center;gap:7px}
 
 .class-landing .hero{display:grid;grid-template-columns:1fr 1fr;min-height:452px;border-radius:var(--radius);overflow:hidden}
 .class-landing .hero-copy{background:var(--ink);padding:34px 42px 27px;color:white;display:flex;flex-direction:column;align-items:flex-start}

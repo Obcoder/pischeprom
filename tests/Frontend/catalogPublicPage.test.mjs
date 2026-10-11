@@ -12,7 +12,7 @@ function harness(t, filename, initial) {
     const template = compileTemplate({ source: descriptor.template.content, filename, id: 'PublicCatalogPage', compilerOptions: { bindingMetadata: compiled.bindings } })
     assert.deepEqual(template.errors, [])
     const guide = { article: {}, catalogTitle: 'Скумбрия в каталоге' }
-    const environment = { ...Vue, Head: 'Head', Link: 'Link', LayoutDefault: {}, PublicCatalogCards: 'PublicCatalogCards', ClassLanding: 'ClassLanding', CatalogLanding: 'CatalogLanding',
+    const environment = { ...Vue, CatalogNodeAvatar: 'CatalogNodeAvatar', Head: 'Head', Link: 'Link', LayoutDefault: {}, PublicCatalogCards: 'PublicCatalogCards', ClassLanding: 'ClassLanding', CatalogLanding: 'CatalogLanding',
         GoodStockAlertButton: 'GoodStockAlertButton', canSubscribeToGoodStock: () => false,
         route: (name, params) => `/g/${params.good}`, resolveClassGuide: key => key === 'mackerel' ? guide : null }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
@@ -68,7 +68,7 @@ test('a catalog SEO H1 changes only the visible heading and falls back to the re
     const h = harness(t, 'resources/js/Pages/Catalog/Show.vue', catalogProps())
     h.props.seo.h1 = 'Скумбрия оптом для магазинов'
     assert.equal(findVNode(h.render(), node => node.type === 'h1').children, h.props.seo.h1)
-    assert.equal(findVNode(h.render(), node => node.props?.['aria-current'] === 'page').children, 'Скумбрия')
+    assert.equal(findVNode(h.render(), node => node.props?.['aria-current'] === 'page').children.at(-1).children, 'Скумбрия')
     assert.equal(findVNode(h.render(), node => node.props?.rel === 'canonical').props.href, h.props.seo.canonical)
     assert.equal(h.props.node.name, 'Скумбрия')
     h.props.seo.h1 = '   '
@@ -100,7 +100,25 @@ test('ordinary Product pages continue to render their original goods grid', t =>
     const h = harness(t, 'resources/js/Pages/Products/Show.vue', { product: { id: 201, rus: 'Скумбрия замороженная' },
         goods: [{ id: 75, name: 'Партия скумбрии', slug: 'current-good', ava_image: '/fish.jpg' }], seo: { canonical: 'https://example.test/p/201' }, classPage: null })
     assert.equal(findVNode(h.render(), node => node.type === 'ClassLanding'), null)
-    assert.equal(findVNode(h.render(), node => node.type === 'h1').children, 'Скумбрия замороженная')
+    assert.equal(findVNode(h.render(), node => node.type === 'h1').children.at(-1).children.trim(), 'Скумбрия замороженная')
     assert.equal(findVNode(h.render(), node => hasClass(node, 'product-good-card__link')).props.href, '/g/current-good')
     assert.equal(findVNode(h.render(), node => node.type === 'v-img').props.src, '/fish.jpg')
+})
+
+test('generic catalog breadcrumbs carry each ancestor avatar without changing canonical navigation', t => {
+    const ancestor = { id: 1, name: 'Сырьё', public_url: '/catalog/raw', image: '/raw.png' }
+    const h = harness(t, 'resources/js/Pages/Catalog/Show.vue', catalogProps({ breadcrumbs: [ancestor], node: { id: 2, name: 'Мука', image: '/flour.png' } }))
+    const crumbs = findVNode(h.render(), node => hasClass(node, 'catalog-public__breadcrumbs'))
+    const link = findVNode(crumbs, node => node.props?.href === '/catalog/raw')
+    assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.image, '/raw.png')
+    const current = findVNode(crumbs, node => node.props?.['aria-current'] === 'page')
+    assert.equal(findVNode(current, node => node.type === 'CatalogNodeAvatar').props.node.image, '/flour.png')
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'catalog-public__avatar')).props.src, '/flour.png')
+})
+
+test('legacy Product heading and category chip receive their separate avatars', t => {
+    const product = { id: 201, rus: 'Скумбрия', image: '/mackerel.png', category: { id: 25, name: 'Рыба', image: '/fish.png' } }
+    const h = harness(t, 'resources/js/Pages/Products/Show.vue', { product, goods: [], seo: {}, classPage: null })
+    assert.equal(findVNode(findVNode(h.render(), node => node.type === 'h1'), node => node.type === 'CatalogNodeAvatar').props.node.image, '/mackerel.png')
+    assert.equal(findVNode(findVNode(h.render(), node => node.type === 'v-chip'), node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
 })

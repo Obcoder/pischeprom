@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Link } from '@inertiajs/vue3'
 import { route } from 'ziggy-js'
 import CatalogToolbar from './CatalogToolbar.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 import {
     emptyProductTranslationForm,
     productLanguageFields,
@@ -137,6 +138,8 @@ const categoryItems = computed(() =>
     categories.value.map(c => ({
         value: c.id,
         title: c.name,
+        image: c.image,
+        thumbnail_url: c.thumbnail_url,
     }))
 )
 
@@ -297,7 +300,10 @@ onMounted(loadAll)
                     density="compact"
                     hide-details
                     clearable
-                />
+                >
+                    <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps"><template #prepend><CatalogNodeAvatar :node="item.raw" :size="24" class="mr-2" /></template></v-list-item></template>
+                    <template #selection="{ item }"><span class="d-inline-flex align-center ga-2"><CatalogNodeAvatar :node="item.raw" :size="20" />{{ item.title }}</span></template>
+                </v-autocomplete>
 
                 <template #actions>
                     <v-btn
@@ -325,7 +331,8 @@ onMounted(loadAll)
                     hover
                 >
                     <template #item.category="{ item }">
-                        <div class="text-body-2 text-truncate">
+                        <div class="d-flex align-center ga-2 text-body-2 text-truncate">
+                            <CatalogNodeAvatar v-if="item.category" :node="item.category" :size="24" />
                             {{ item?.category?.rus ?? item?.category?.name ?? '—' }}
                         </div>
                     </template>
@@ -335,8 +342,8 @@ onMounted(loadAll)
                             :href="route('product.show', item.id)"
                             class="product-link text-decoration-none"
                         >
-                            <span class="font-weight-bold text-truncate">{{ item.rus || '—' }}</span>
-                            <small v-if="item.eng" class="text-medium-emphasis text-truncate">{{ item.eng }}</small>
+                            <CatalogNodeAvatar :node="item" :size="32" />
+                            <span class="product-link__text"><span class="font-weight-bold text-truncate">{{ item.rus || '—' }}</span><small v-if="item.eng" class="text-medium-emphasis text-truncate">{{ item.eng }}</small></span>
                         </Link>
                     </template>
 
@@ -425,7 +432,10 @@ onMounted(loadAll)
                                     density="compact"
                                     clearable
                                     hide-details="auto"
-                                />
+                                >
+                                    <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps"><template #prepend><CatalogNodeAvatar :node="item.raw" :size="24" class="mr-2" /></template></v-list-item></template>
+                                    <template #selection="{ item }"><span class="d-inline-flex align-center ga-2"><CatalogNodeAvatar :node="item.raw" :size="20" />{{ item.title }}</span></template>
+                                </v-autocomplete>
                             </v-col>
 
                             <v-col cols="12" md="2">
@@ -575,11 +585,14 @@ onMounted(loadAll)
 }
 
 .product-link {
-    display: grid;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     max-width: 360px;
     color: rgb(var(--v-theme-primary));
     line-height: 1.2;
 }
+.product-link__text { display: grid; min-width: 0; }
 
 .product-link small {
     margin-top: 2px;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Services\Catalog\CatalogAvatars;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Catalog\PublicClassPage;
 use App\Services\Goods\GoodStockService;
@@ -64,6 +65,7 @@ class ProductController extends Controller
             ->get();
 
         $stock->appendAvailability($goods);
+        app(CatalogAvatars::class)->appendProducts(collect([$product]), public: true);
         $classPage = $classPages->for($product);
 
         return Inertia::render('Products/Show', [

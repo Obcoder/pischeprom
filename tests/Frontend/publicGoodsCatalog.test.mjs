@@ -16,7 +16,7 @@ function harness(t, filename, initial, extras = {}) {
     const calls = [], emitted = [], mounted = [], cartCalls = []
     const cart = { succeeds: true, cartError: Vue.ref('Ошибка корзины'), addGood: (...args) => { cartCalls.push(args); return cart.succeeds } }
     const environment = {
-        ...Vue, ...catalog, unitLabel, Head: 'Head', Link: 'Link', LayoutDefault: {},
+        ...Vue, ...catalog, unitLabel, CatalogNodeAvatar: 'CatalogNodeAvatar', Head: 'Head', Link: 'Link', LayoutDefault: {},
         PublicCatalogGoodCard: 'PublicCatalogGoodCard', PublicCatalogTree: 'PublicCatalogTree', PublicCatalogPriceList: 'PublicCatalogPriceList', PublicCatalogCategoryFilter: 'PublicCatalogCategoryFilter', PublicCatalogGoodActions: 'PublicCatalogGoodActions', GoodInquiryDialog: 'GoodInquiryDialog', GoodStockAlertButton: 'GoodStockAlertButton',
         useAppRoute: () => ({ route: (name, id) => name === 'public.fields.show' ? `/fields/${id}` : '/g' }),
         usePublicGoodUrl: () => ({ goodPublicUrl: good => `/g/${good.slug || good.id}` }),
@@ -219,4 +219,40 @@ test('custom category filter resets pagination and retains current view, search 
     assert.equal(h.calls.at(-1)[1].node_id, undefined)
     assert.equal(h.calls.at(-1)[1].search, 'мука')
     assert.equal(h.calls.at(-1)[1].view, 'pricelist')
+})
+
+test('catalog avatars follow current branch payload in breadcrumbs, heading and child navigation', t => {
+    const parent = { id: 80, name: 'Ингредиенты', image: '/ingredients.png' }
+    const child = { id: 81, parent_id: 80, name: 'Мука', thumbnail_url: '/flour-thumb.png' }
+    const h = harness(t, goodsPage, defaults({ catalogTree: [parent, child], breadcrumbs: [parent], filters: { node_id: 80, show_filters: false } }))
+    const heading = findVNode(h.render(), node => node.type === 'h1')
+    assert.equal(findVNode(heading, node => node.type === 'CatalogNodeAvatar').props.node.image, parent.image)
+    const crumbs = findVNode(h.render(), node => hasClass(node, 'catalog-breadcrumbs'))
+    const current = findVNode(crumbs, node => node.props?.['aria-current'] === 'page')
+    assert.equal(findVNode(current, node => node.type === 'CatalogNodeAvatar').props.node.id, 80)
+    const navigation = findVNode(h.render(), node => hasClass(node, 'catalog-categories'))
+    const avatar = findVNode(navigation, node => node.type === 'CatalogNodeAvatar')
+    assert.equal(avatar.props.node.thumbnail_url, child.thumbnail_url)
+    const childButton = findVNode(navigation, node => node.type === 'button' && findVNode(node, item => item.type === 'CatalogNodeAvatar'))
+    childButton.props.onClick()
+    assert.equal(h.calls.at(-1)[1].node_id, 81)
+})
+
+test('tree avatars retain folder icons, expand controls and category selection', t => {
+    const category = { id: 91, name: 'Сырьё', image: '/raw.png' }
+    const h = harness(t, 'resources/js/Components/Goods/PublicCatalogTree.vue', { nodes: [category], goods: [{ ...good, catalog_node_id: 91 }], selectedId: 91 })
+    const branch = findVNode(h.render(), node => hasClass(node, 'catalog-tree__branch'))
+    assert.ok(findVNode(branch, node => node.props?.icon === 'mdi-folder-open-outline'))
+    const button = findVNode(branch, node => hasClass(node, 'catalog-tree__category'))
+    assert.equal(findVNode(button, node => node.type === 'CatalogNodeAvatar').props.node.id, 91)
+    button.props.onClick()
+    assert.deepEqual(h.emitted, [['select', 91]])
+})
+
+test('catalog root without a domain site renders no null avatar', t => {
+    const h = harness(t, goodsPage, defaults({ site: null, catalogTree: [], goods: [], breadcrumbs: [] }))
+    const crumbs = findVNode(h.render(), node => hasClass(node, 'catalog-breadcrumbs'))
+    assert.equal(findVNode(crumbs, node => node.type === 'CatalogNodeAvatar'), null)
+    h.api.form.node_id = 10
+    assert.equal(findVNode(findVNode(h.render(), node => hasClass(node, 'catalog-breadcrumbs')), node => node.type === 'CatalogNodeAvatar'), null)
 })

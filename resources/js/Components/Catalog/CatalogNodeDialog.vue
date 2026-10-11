@@ -13,6 +13,8 @@ import CatalogLandingEditor from './CatalogLandingEditor.vue'
 import CatalogSeoPreview from './CatalogSeoPreview.vue'
 import CatalogBranchSlots from './CatalogBranchSlots.vue'
 import CatalogTranslations from './CatalogTranslations.vue'
+import CatalogNodeAvatar from './CatalogNodeAvatar.vue'
+import { catalogAvatarSources } from './catalogAvatarSources.js'
 import GoodTradeCodeFields from '../Goods/GoodTradeCodeFields.vue'
 import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from './recordTabs.js'
 
@@ -33,6 +35,7 @@ const saving = ref(false)
 const error = ref('')
 const errors = ref({})
 const imageFile = ref(null)
+const filePreview = ref('')
 const baseline = ref('')
 const discardOpen = ref(false)
 const deleteOpen = ref(false)
@@ -120,6 +123,16 @@ const dirty = computed(() => cardDirty.value || landingState.value.dirty)
 const canSave = computed(() => !busy.value && (!isGood.value || goodReady.value))
 const goodErrors = computed(() => Object.fromEntries(Object.entries(errors.value).filter(([key]) => key.startsWith('good.')).map(([key, value]) => [key.slice(5), value])))
 const selectedFile = computed(() => Array.isArray(imageFile.value) ? imageFile.value[0] : imageFile.value)
+const avatarPreviewSource = computed(() => filePreview.value || catalogAvatarSources({ image: form.image })[0])
+watch(selectedFile, file => {
+    if (filePreview.value) URL.revokeObjectURL(filePreview.value)
+    filePreview.value = file instanceof Blob ? URL.createObjectURL(file) : ''
+})
+onScopeDispose(() => { if (filePreview.value) URL.revokeObjectURL(filePreview.value) })
+function clearAvatar() {
+    imageFile.value = null
+    form.image = ''
+}
 const blockedParents = computed(() => record.value ? descendantIds(props.nodes, record.value.id) : new Set())
 const byId = computed(() => new Map(props.nodes.map(node => [node.id, node])))
 const pathFor = id => {
@@ -135,9 +148,11 @@ const pathFor = id => {
 }
 const parentOptions = computed(() => [{ id: null, name: 'Корень каталога' }, ...props.nodes
     .filter(node => node.entity_type !== 'good' && !blockedParents.value.has(node.id))
-    .map(node => ({ id: node.id, name: pathFor(node.id) }))
+    .map(node => ({ ...node, name: pathFor(node.id) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))])
 const parentPath = computed(() => pathFor(form.parent_id))
+const selectedParent = computed(() => byId.value.get(form.parent_id))
+const parentIcon = node => !node.id ? 'mdi-home-outline' : props.levels.find(level => level.id === node.level_id)?.is_domain ? 'mdi-earth' : ({ category: 'mdi-folder-outline', product: 'mdi-package-variant-closed' }[node.entity_type] || 'mdi-file-tree-outline')
 const fieldErrors = key => errors.value[key] || []
 const clone = value => JSON.parse(JSON.stringify(value && !Array.isArray(value) ? value : {}))
 const draftKey = id => id == null ? 'unclassified' : String(id)
@@ -619,6 +634,7 @@ async function remove() {
     <v-dialog :model-value="open" :max-width="isGood || isProduct ? 1640 : 1380" :content-class="isGood || isProduct ? 'catalog-node-dialog-overlay--good' : undefined" scrollable :persistent="busy" @update:model-value="value => { if (!value) requestClose() }">
         <v-card class="catalog-node-dialog" :class="{ 'catalog-node-dialog--good': isGood || isProduct }">
             <v-card-title class="catalog-node-dialog__heading">
+                <CatalogNodeAvatar v-if="record" :node="record" :size="40" />
                 <div class="catalog-node-dialog__title"><span>{{ isGood ? 'Карточка товара' : isProduct ? 'Карточка продукта' : record ? 'Карточка записи' : 'Новая запись' }}</span><h2>{{ record?.name || 'Добавление в каталог' }}</h2></div>
                 <v-chip v-if="dirty" size="small" variant="tonal" class="catalog-node-dialog__dirty">Не сохранено</v-chip>
                 <v-btn icon="mdi-close" variant="text" :disabled="busy" aria-label="Закрыть карточку" @click="requestClose" />
@@ -639,8 +655,11 @@ async function remove() {
                             </div>
                             <v-alert v-if="entityTypeChanged" type="info" variant="tonal" density="compact" class="mb-4">Вид записи и набор вкладок изменятся после сохранения. Связанные операции могут ограничивать смену вида.</v-alert>
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
-                            <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent" />
-                            <p v-if="parentPath" class="catalog-node-dialog__path">{{ parentPath }}</p>
+                            <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent">
+                                <template #item="{ props: itemProps, item }"><v-list-item v-bind="itemProps"><template #prepend><span class="catalog-node-dialog__parent-visual"><v-icon :icon="parentIcon(item.raw)" size="18" /><CatalogNodeAvatar :node="item.raw" :size="26" /></span></template></v-list-item></template>
+                                <template #selection="{ item }"><span class="catalog-node-dialog__parent-selection"><CatalogNodeAvatar :node="item.raw" :size="22" /><span>{{ item.title }}</span></span></template>
+                            </v-autocomplete>
+                            <p v-if="parentPath" class="catalog-node-dialog__path"><CatalogNodeAvatar v-if="selectedParent" :node="selectedParent" :size="20" />{{ parentPath }}</p>
                             <v-combobox v-if="currentLevel?.is_domain" v-model="form.domain_hosts" label="Интернет-адреса этого Домена" multiple chips closable-chips variant="outlined" density="compact" :disabled="saving" :error-messages="Object.entries(errors).filter(([key]) => key === 'domain_hosts' || key.startsWith('domain_hosts.')).flatMap(([, value]) => value)" hint="Например: пищепром-сервер.рф и www.пищепром-сервер.рф. Введите каждый адрес и нажмите Enter." persistent-hint class="mb-3" />
                             <v-alert v-if="currentLevel?.is_domain" type="info" variant="tonal" density="compact" class="mb-4">На каждом сайте доступны только опубликованные товары его Домена. Каталог и навигация начинаются с вложенных категорий. Для нового сайта также настройте DNS, HTTPS и подключение сайта на сервере.</v-alert>
                             <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" min="0" max="1000000" variant="outlined" density="compact" :error-messages="fieldErrors('sort_order')" />
@@ -657,15 +676,15 @@ async function remove() {
                             <h3><v-icon icon="mdi-text-box-outline" size="18" /> Содержание</h3>
                             <v-textarea v-model="form.description" label="Описание" variant="outlined" density="compact" :rows="isGood ? 3 : 5" :error-messages="fieldErrors('description')" />
                             <div class="catalog-node-dialog__avatar">
-                                <v-img v-if="form.image" :src="form.image" width="88" height="88" cover rounded="lg" />
+                                <v-img v-if="avatarPreviewSource" :src="avatarPreviewSource" width="88" height="88" cover rounded="lg" />
                                 <div v-else class="catalog-node-dialog__avatar-empty"><v-icon icon="mdi-image-outline" size="30" /></div>
-                                <p>Аватар записи<small>Для каталога и витрины</small></p>
+                                <p>Аватар записи<small>Графическое обозначение в каталоге и на витрине</small><v-btn v-if="!isGood && (form.image || selectedFile)" size="small" variant="text" prepend-icon="mdi-close" :disabled="busy" @click="clearAvatar">Убрать аватар</v-btn></p>
                             </div>
                             <template v-if="isGood">
                                 <v-text-field :model-value="goodForm.avatar_source_url" label="Аватар: URL / CDN" type="url" variant="outlined" density="compact" clearable :disabled="!goodReady || saving || Boolean(selectedFile) || goodForm.remove_ava" :error-messages="goodErrors.avatar_source_url" @update:model-value="updateGoodAvatar" />
                                 <v-text-field v-model="goodForm.avatar_thumb_source_url" label="Миниатюра: URL / CDN" type="url" variant="outlined" density="compact" clearable :disabled="!goodReady || saving || Boolean(selectedFile) || goodForm.remove_ava" :error-messages="goodErrors.avatar_thumb_source_url" />
                             </template>
-                            <v-text-field v-else v-model="form.image" label="Ссылка на изображение" variant="outlined" density="compact" clearable :error-messages="fieldErrors('image')" />
+                            <v-text-field v-else v-model="form.image" label="Аватар: URL / CDN" variant="outlined" density="compact" clearable :disabled="saving || Boolean(selectedFile)" :error-messages="fieldErrors('image')" />
                             <v-file-input v-model="imageFile" label="Загрузить аватар" accept="image/jpeg,image/png,image/webp,image/gif" variant="outlined" density="compact" :error-messages="fieldErrors('image')" hint="JPG, PNG, WebP или GIF до 5 МБ" persistent-hint :disabled="saving || (isGood && !goodReady)" />
                             <v-checkbox v-if="isGood" :model-value="goodForm.remove_ava" label="Удалить аватар" color="error" density="compact" hide-details :disabled="!goodReady || saving" :error-messages="goodErrors.remove_ava" @update:model-value="removeGoodAvatar" />
                         </section>
@@ -754,7 +773,10 @@ async function remove() {
 .catalog-node-dialog__identity > :first-child { flex: 1; min-width: 0; }
 .catalog-node-dialog__entity-id { flex: 0 0 auto; padding-top: 11px; color: #8c8294; white-space: nowrap; }
 .catalog-node-dialog__seo { border: 1px solid #e4dbea; border-top: 3px solid #a58ab7; border-radius: 12px; padding: 20px; background: #f8f5fb; }
-.catalog-node-dialog__path { margin: -12px 0 16px; color: #8c8294; font-size: 11px; overflow-wrap: anywhere; }
+.catalog-node-dialog__path { display: flex; align-items: center; gap: 6px; margin: -12px 0 16px; color: #8c8294; font-size: 11px; overflow-wrap: anywhere; }
+.catalog-node-dialog__parent-visual { display: inline-flex; align-items: center; gap: 8px; margin-right: 12px; }
+.catalog-node-dialog__parent-selection { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.catalog-node-dialog__parent-selection > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-node-dialog__trade-codes { margin-bottom: 14px; }
 .catalog-node-dialog__publication { border: 1px solid #e6e0eb; border-radius: 10px; background: #f8f5fb; padding: 16px; }
 .catalog-node-dialog__publication h3 { margin-bottom: 0; }

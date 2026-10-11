@@ -7,6 +7,7 @@ import { catalogImage, catalogMoney, catalogStatus, publicCatalogOffer } from '@
 import { unitLabel } from '@/utils/goodMeasurement'
 import { buildPriceListExport, priceListCanOrder, priceListDefaultColumns, priceListPack, priceListQuantity, priceListScope, priceListTotal, priceListUnit, readPriceListColumns, writePriceListColumns } from '@/utils/catalogPriceList'
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 
 const props = defineProps({ goods: { type: Array, default: () => [] }, nodes: { type: Array, default: () => [] }, sort: { type: String, default: 'name' }, from: { type: Number, default: 1 } })
 const emit = defineEmits(['sort', 'inquiry', 'notice'])
@@ -39,9 +40,9 @@ watch(() => [props.goods, props.from, props.sort], () => {
 }, { immediate: true })
 
 const rows = computed(() => {
-    const sections = new Map(props.nodes.map(node => [String(node.id), node.name]))
+    const sections = new Map(props.nodes.map(node => [String(node.id), node]))
     return props.goods.map((good, index) => ({ good, id: String(good.id), number: props.from + index, offer: publicCatalogOffer(good),
-        status: catalogStatus(good), image: catalogImage(good), section: sections.get(String(good.catalog_node_id)), unit: priceListUnit(good), canOrder: priceListCanOrder(good) }))
+        status: catalogStatus(good), image: catalogImage(good), section: sections.get(String(good.catalog_node_id))?.name, sectionNode: sections.get(String(good.catalog_node_id)), unit: priceListUnit(good), canOrder: priceListCanOrder(good) }))
 })
 const selectedGoods = computed(() => props.goods.filter(good => selected.value.has(String(good.id))))
 const selectedOrderable = computed(() => selectedGoods.value.filter(priceListCanOrder))
@@ -211,7 +212,7 @@ function downloadRows() {
                     <tr v-for="row in rows" :key="row.id" :class="{ 'price-list__row--selected': selected.has(row.id) }">
                         <td class="price-list__check"><input type="checkbox" :checked="selected.has(row.id)" :aria-label="`Выбрать ${row.good.name}`" @change="toggleSelection(row.id, $event.target.checked)"></td>
                         <td class="price-list__number">{{ row.number }}</td>
-                        <th scope="row" class="price-list__product"><Link :href="row.good.public_url || goodPublicUrl(row.good)" class="price-list__product-link"><span class="price-list__avatar"><img v-if="row.image && !failedImages.has(row.id)" :src="row.image" alt="" width="32" height="32" loading="lazy" @error="failedImages.add(row.id)"><v-icon v-else icon="mdi-package-variant-closed" size="18" /></span><span class="price-list__product-text"><span class="price-list__name">{{ row.good.name }}</span><small v-if="row.section">{{ row.section }}</small></span></Link></th>
+                        <th scope="row" class="price-list__product"><Link :href="row.good.public_url || goodPublicUrl(row.good)" class="price-list__product-link"><span class="price-list__avatar"><img v-if="row.image && !failedImages.has(row.id)" :src="row.image" alt="" width="32" height="32" loading="lazy" @error="failedImages.add(row.id)"><v-icon v-else icon="mdi-package-variant-closed" size="18" /></span><span class="price-list__product-text"><span class="price-list__name">{{ row.good.name }}</span><small v-if="row.section"><CatalogNodeAvatar :node="row.sectionNode" :size="16" />{{ row.section }}</small></span></Link></th>
                         <td v-if="columns.country" class="price-list__country">{{ row.good.country?.name || '—' }}</td>
                         <td v-if="columns.pack" class="price-list__pack">{{ priceListPack(row.good) }}</td>
                         <td v-if="columns.availability" class="price-list__availability"><span :class="{ 'price-list__in-stock': row.status.value === 'in_stock' }"><i />{{ row.status.label }}</span><GoodStockAlertButton v-if="row.status.value !== 'in_stock'" :good="row.good" compact label="Оповестить" /></td>
@@ -274,7 +275,7 @@ thead .price-list__product { z-index: 4; }
 .price-list__avatar img { width: 32px; height: 32px; object-fit: contain; }
 .price-list__product-text { min-width: 0; }
 .price-list__name { display: block; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
-.price-list__product-text small { display: block; padding-top: 2px; color: #929787; font-size: 9px; font-weight: 400; }
+.price-list__product-text small { display: flex; align-items: center; gap: 4px; padding-top: 2px; color: #929787; font-size: 9px; font-weight: 400; }
 .price-list__country { min-width: 85px; color: #727b69; }
 .price-list__pack { color: #727b69; white-space: nowrap; font-size: 10px; }
 .price-list__availability { min-width: 118px; }

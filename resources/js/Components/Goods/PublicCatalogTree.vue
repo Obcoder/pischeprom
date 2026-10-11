@@ -6,6 +6,7 @@ import { catalogTreeRows, expandProductBranches, catalogMoney, catalogStatus, pu
 import { unitLabel } from '@/utils/goodMeasurement'
 import PublicCatalogGoodActions from '@/Components/Goods/PublicCatalogGoodActions.vue'
 import GoodStockAlertButton from '@/Components/Goods/GoodStockAlertButton.vue'
+import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
 
 const props = defineProps({ nodes: { type: Array, default: () => [] }, goods: { type: Array, default: () => [] }, selectedId: [String, Number] })
 defineEmits(['select', 'inquiry', 'notice'])
@@ -41,7 +42,7 @@ function toggle(id) {
                                     <button v-if="row.expandable" type="button" class="catalog-tree__toggle" :aria-expanded="expanded.has(String(row.node.id))" :aria-label="`${expanded.has(String(row.node.id)) ? 'Свернуть' : 'Развернуть'} ${row.node.name}`" @click="toggle(row.node.id)"><v-icon :icon="expanded.has(String(row.node.id)) ? 'mdi-minus-box-outline' : 'mdi-plus-box-outline'" size="15" /></button>
                                     <span v-else class="catalog-tree__toggle" />
                                     <v-icon :icon="expanded.has(String(row.node.id)) ? 'mdi-folder-open-outline' : 'mdi-folder-outline'" size="16" />
-                                    <button type="button" class="catalog-tree__category" @click="$emit('select', row.node.id)">{{ row.node.name }}</button>
+                                    <button type="button" class="catalog-tree__category" @click="$emit('select', row.node.id)"><CatalogNodeAvatar :node="row.node" :size="24" />{{ row.node.name }}</button>
                                     <span class="catalog-tree__count">{{ row.node.goods_count || 0 }}</span>
                                     <button type="button" class="catalog-tree__show" @click="$emit('select', row.node.id)">Все товары <v-icon icon="mdi-arrow-right" size="12" /></button>
                                 </div>
@@ -79,7 +80,7 @@ th:last-child, td:last-child { border-right: 0; }
 .catalog-tree__branch td { padding-block: 3px; }
 .catalog-tree__branch-content { display: flex; gap: 6px; align-items: center; color: #77784c; min-height: 23px; }
 .catalog-tree__toggle { display: inline-grid; place-items: center; flex: 0 0 18px; width: 18px; height: 22px; }
-.catalog-tree__category { color: #444b36; text-align: left; font-size: 12px; font-weight: 700; }
+.catalog-tree__category { display: inline-flex; align-items: center; gap: 6px; color: #444b36; text-align: left; font-size: 12px; font-weight: 700; }
 .catalog-tree__category:hover { color: #800000; text-decoration: underline; }
 .catalog-tree__count { color: #939582; font-size: 10px; }
 .catalog-tree__show { margin-left: auto; color: #878870; font-size: 10px; }

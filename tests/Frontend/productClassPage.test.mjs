@@ -99,3 +99,10 @@ test('prototype CSS is confined to the class landing and does not load outside f
     })
     assert.doesNotMatch(css, /@import|@font-face|url\(/)
 })
+
+test('guide breadcrumbs display the current catalog avatar without replacing the guide photograph', async () => {
+    const html = await render(page({ breadcrumbs: [{ name: 'Главная', url: '/' }, { name: 'Скумбрия', image: '/catalog/mackerel.png', thumbnail_url: '/catalog/mackerel-thumb.png' }] }))
+    assert.match(html, /src="\/catalog\/mackerel-thumb.png"/)
+    assert.match(html, /src="\/class-assets\/mackerel\/mackerel-hero.jpg"/)
+    assert.match(html, /aria-current="page"/)
+})
