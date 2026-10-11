@@ -31,12 +31,12 @@ class PublicGoodsCatalog
             'field_id' => ['nullable', 'integer', 'min:1'],
             'node_id' => ['nullable', 'integer', 'min:1'],
             'availability' => ['nullable', Rule::in(['all', 'in_stock', 'on_request', 'out_of_stock', 'preorder'])],
-            'sort' => ['nullable', Rule::in(['name', 'newest', 'price_asc', 'price_desc'])],
+            'sort' => ['nullable', Rule::in(['name', 'name_desc', 'newest', 'price_asc', 'price_desc'])],
             'price_min' => ['nullable', 'numeric', 'min:0', 'max:1000000000000'],
             'price_max' => ['nullable', 'numeric', 'min:0', 'max:1000000000000', Rule::when($request->filled('price_min'), 'gte:price_min')],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1', 'max:1000000'],
-            'view' => ['nullable', Rule::in(['cards', 'tree'])],
+            'view' => ['nullable', Rule::in(['cards', 'tree', 'pricelist'])],
             'show_filters' => ['nullable', 'boolean'],
         ]);
         $filters = [
@@ -111,7 +111,7 @@ class PublicGoodsCatalog
         } elseif ($filters['sort'] === 'newest') {
             $query->orderByDesc('goods.created_at');
         }
-        $query->orderBy('goods.name')->orderBy('goods.id');
+        $query->orderBy('goods.name', $filters['sort'] === 'name_desc' ? 'desc' : 'asc')->orderBy('goods.id');
         $goods = $query->paginate($filters['per_page'])->withQueryString();
         if ($goods->currentPage() > $goods->lastPage()) {
             $goods = $query->paginate($filters['per_page'], ['*'], 'page', $goods->lastPage())->withQueryString();

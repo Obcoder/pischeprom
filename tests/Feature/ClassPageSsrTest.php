@@ -47,7 +47,7 @@ class ClassPageSsrTest extends TestCase
         Http::allowStrayRequests(['http://127.0.0.1:13714/*']);
     }
 
-    public function test_catalog_server_html_renders_both_views_and_server_pagination(): void
+    public function test_catalog_server_html_renders_all_views_and_server_pagination(): void
     {
         for ($i = 1; $i <= 12; $i++) {
             Good::create(['name' => sprintf('Каталог SSR %02d', $i), 'is_published' => true]);
@@ -58,6 +58,9 @@ class ClassPageSsrTest extends TestCase
         $this->assertSame(10, $xpath->query('//body//*[contains(concat(" ", normalize-space(@class), " "), " catalog-card ")]')->length);
         $this->rawPage('/g?per_page=10&page=2&view=tree&show_filters=0')->assertSee('Каталог SSR 11')
             ->assertDontSee('Каталог SSR 01')->assertSee('catalog-tree__good', false)->assertDontSee('id="catalog-filters"', false);
+        $this->rawPage('/g?per_page=10&view=pricelist&sort=name_desc')->assertSee('Каталог SSR 12')
+            ->assertSee('catalog-price-list', false)->assertSee('Прайс-лист')
+            ->assertDontSee('Каталог SSR 01');
     }
 
     public function test_real_raw_html_contains_article_current_catalog_and_metadata(): void

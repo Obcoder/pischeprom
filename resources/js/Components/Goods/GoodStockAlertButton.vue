@@ -81,6 +81,7 @@ async function subscribe() {
         class="good-stock-alert-action"
         :class="{ 'good-stock-alert-action--compact': compact }"
     >
+        <slot name="trigger" :subscribe="subscribe" :loading="loading" :label="label">
         <v-btn
             color="warning"
             variant="flat"
@@ -93,6 +94,7 @@ async function subscribe() {
         >
             {{ label }}
         </v-btn>
+        </slot>
 
         <div
             v-if="errorMessage"

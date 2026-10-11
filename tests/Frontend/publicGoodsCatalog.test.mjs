@@ -17,7 +17,7 @@ function harness(t, filename, initial, extras = {}) {
     const cart = { succeeds: true, cartError: Vue.ref('Ошибка корзины'), addGood: (...args) => { cartCalls.push(args); return cart.succeeds } }
     const environment = {
         ...Vue, ...catalog, unitLabel, Head: 'Head', Link: 'Link', LayoutDefault: {},
-        PublicCatalogGoodCard: 'PublicCatalogGoodCard', PublicCatalogTree: 'PublicCatalogTree', PublicCatalogGoodActions: 'PublicCatalogGoodActions', GoodInquiryDialog: 'GoodInquiryDialog', GoodStockAlertButton: 'GoodStockAlertButton',
+        PublicCatalogGoodCard: 'PublicCatalogGoodCard', PublicCatalogTree: 'PublicCatalogTree', PublicCatalogPriceList: 'PublicCatalogPriceList', PublicCatalogGoodActions: 'PublicCatalogGoodActions', GoodInquiryDialog: 'GoodInquiryDialog', GoodStockAlertButton: 'GoodStockAlertButton',
         useAppRoute: () => ({ route: (name, id) => name === 'public.fields.show' ? `/fields/${id}` : '/g' }),
         usePublicGoodUrl: () => ({ goodPublicUrl: good => `/g/${good.slug || good.id}` }),
         router: { get: (...args) => calls.push(args) },
@@ -170,4 +170,34 @@ test('catalog metadata renders through the shared Inertia head on server and cli
     const tree = h.render()
     assert.equal(findVNode(tree, vnode => vnode.type === 'Head').props.title, 'Мука — Магазин')
     assert.equal(findVNode(tree, vnode => vnode.props?.name === 'description').props.content, h.api.pageDescription.value)
+})
+
+test('price list is an independent persisted server view and column sorting resets pagination', t => {
+    const h = harness(t, goodsPage, defaults({ filters: { view: 'pricelist', search: 'мука', per_page: 50 } }))
+    const list = findVNode(h.render(), vnode => vnode.type === 'PublicCatalogPriceList')
+    assert.ok(list)
+    assert.equal(findVNode(h.render(), vnode => vnode.type === 'PublicCatalogTree'), null)
+    assert.equal(list.props.goods, h.api.productList.value)
+    assert.equal(list.props.from, 25)
+    list.props.onSort('name_desc')
+    assert.equal(h.calls.at(-1)[1].sort, 'name_desc')
+    assert.equal(h.calls.at(-1)[1].view, 'pricelist')
+    assert.equal(h.calls.at(-1)[1].page, 1)
+    assert.equal(h.calls.at(-1)[1].search, 'мука')
+    assert.equal(h.calls.at(-1)[1].per_page, 50)
+    h.api.setView('cards')
+    assert.ok(findVNode(h.render(), vnode => vnode.type === 'PublicCatalogGoodCard'))
+    h.api.setView('pricelist')
+    assert.equal(h.calls.at(-1)[1].view, 'pricelist')
+    assert.equal(h.calls.at(-1)[1].page, 2)
+})
+
+test('price list preferences restore only when the URL does not explicitly pick another view', t => {
+    const browser = { location: { href: 'https://food.test/g', origin: 'https://food.test' }, localStorage: { getItem: () => JSON.stringify({ view: 'pricelist', per_page: 100 }), setItem() {} } }
+    const h = harness(t, goodsPage, defaults(), { window: browser })
+    h.mounted[0]()
+    assert.equal(h.api.form.view, 'pricelist')
+    assert.equal(h.calls.at(-1)[1].view, 'pricelist')
+    assert.equal(h.calls.at(-1)[1].per_page, 100)
+    assert.equal(catalog.normalizeCatalogFilters({ view: 'unknown' }).view, 'cards')
 })

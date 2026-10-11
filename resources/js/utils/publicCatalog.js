@@ -4,7 +4,7 @@ export const catalogDefaults = Object.freeze({ search: '', country_id: '', field
 
 export function normalizeCatalogFilters(values = {}) {
     const result = { ...catalogDefaults, ...values }
-    result.view = result.view === 'tree' ? 'tree' : 'cards'
+    result.view = ['cards', 'tree', 'pricelist'].includes(result.view) ? result.view : 'cards'
     result.show_filters = ![false, 0, '0', 'false'].includes(result.show_filters)
     result.per_page = Math.min(100, Math.max(10, Math.trunc(Number(result.per_page) || 24)))
     for (const key of ['search', 'country_id', 'field_id', 'node_id', 'price_min', 'price_max']) result[key] = result[key] ?? ''

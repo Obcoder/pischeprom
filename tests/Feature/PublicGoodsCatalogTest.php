@@ -100,6 +100,21 @@ class PublicGoodsCatalogTest extends TestCase
         $this->page(['price_max' => 150])->assertOk()->assertJsonPath('props.goods.total', 1)->assertJsonPath('props.goods.data.0.id', $b->id);
     }
 
+    public function test_price_list_uses_server_pagination_and_bidirectional_name_sort(): void
+    {
+        for ($i = 1; $i <= 12; $i++) {
+            $this->good(sprintf('Товар %02d', $i));
+        }
+        $this->page(['view' => 'pricelist', 'sort' => 'name_desc', 'per_page' => 10, 'page' => 2])
+            ->assertOk()->assertJsonPath('props.filters.view', 'pricelist')
+            ->assertJsonPath('props.filters.sort', 'name_desc')
+            ->assertJsonPath('props.goods.total', 12)->assertJsonCount(2, 'props.goods.data')
+            ->assertJsonPath('props.goods.data.0.name', 'Товар 02')
+            ->assertJsonPath('props.goods.data.1.name', 'Товар 01');
+        $this->page(['view' => 'pricelist', 'sort' => 'name', 'per_page' => 10])
+            ->assertOk()->assertJsonPath('props.goods.data.0.name', 'Товар 01');
+    }
+
     public function test_empty_results_keep_pagination_and_filters_usable(): void
     {
         $this->page(['search' => 'нет таких товаров', 'page' => 5])->assertOk()
