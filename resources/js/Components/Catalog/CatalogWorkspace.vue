@@ -114,6 +114,13 @@ function openGallery(node) {
     galleryNode.value = node; galleryOpen.value = true
 }
 function create({ parentId = contextNode.value?.id ?? null, levelId = null, entityType = 'custom' } = {}) {
+    // Creating beside a selected good uses its containing branch.
+    const seen = new Set()
+    while (nodeMap.value.get(parentId)?.entity_type === 'good') {
+        if (seen.has(parentId)) { parentId = null; break }
+        seen.add(parentId)
+        parentId = nodeMap.value.get(parentId).parent_id ?? null
+    }
     editorNode.value = null
     Object.assign(editorContext, { parentId, levelId, entityType })
     editorOpen.value = true

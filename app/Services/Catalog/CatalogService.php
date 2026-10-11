@@ -306,8 +306,24 @@ class CatalogService
             $type = array_key_exists('entity_type', $data)
                 ? ($data['entity_type'] === 'custom' ? null : $data['entity_type'])
                 : ($creating ? ($level?->entity_type === 'custom' ? null : $level?->entity_type) : $node->entity_type);
-            if (! $creating && $type !== $node->entity_type) {
-                throw ValidationException::withMessages(['entity_type' => 'Тип учётной сущности менять нельзя; уровень классификации можно назначить любой.']);
+            $typeChanged = ! $creating && $type !== $node->entity_type;
+            $previousSource = $typeChanged ? $this->source($node, true) : null;
+            $convertedSeo = [];
+            if ($typeChanged) {
+                app(CatalogEntityConversion::class)->validate($node, $previousSource, $type);
+                // Imports intentionally keep only a small copy of source fields.
+                // Resolve their current values before replacing the backing record.
+                $current = $this->nodePayload($node, $previousSource, true);
+                if ($previousSource instanceof Good) {
+                    $current['h1'] = $previousSource->seo?->h1;
+                }
+                $data = array_replace(array_intersect_key($current, array_flip([
+                    'name', 'slug', 'image', 'description', 'h1', 'meta_title', 'meta_description',
+                    'is_published', 'is_featured', 'sort_order',
+                ])), $data);
+                if ($type === 'good') {
+                    $convertedSeo = array_intersect_key($data, array_flip(['h1', 'meta_title', 'meta_description']));
+                }
             }
             if ($goodData !== null && $type !== 'good') {
                 throw ValidationException::withMessages(['good' => 'Дополнительные параметры доступны только для товара.']);
@@ -329,9 +345,7 @@ class CatalogService
             if ($level?->is_domain && $parentId !== null && ($creating || $levelChanged || $node->parent_id !== $parentId)) {
                 throw ValidationException::withMessages(['parent_id' => 'Домен должен находиться в корне классификации.']);
             }
-            if (array_key_exists('parent_id', $data)) {
-                $this->validateParent($node, $data['parent_id']);
-            }
+            $this->validateParent($node, $parentId);
             if ($creating || array_key_exists('properties', $data) || array_key_exists('level_id', $data)) {
                 $archive = $node->properties_by_level ?? [];
                 if ($levelChanged && $node->level_id !== null) {
@@ -353,17 +367,21 @@ class CatalogService
             if (! $node->slug) {
                 $node->slug = Str::slug($node->name) ?: 'catalog';
             }
-            if ($creating) {
+            if ($creating || $typeChanged) {
                 $node->is_published ??= false;
                 $node->is_featured ??= false;
                 $node->sort_order ??= 0;
                 $source = match ($type) {
                     'category' => Category::create(['name' => $node->name, 'is_published' => $node->is_published]),
                     'product' => Product::create(['rus' => $node->name, 'is_published' => $node->is_published]),
-                    'good' => Good::create(['name' => $node->name, 'is_published' => $node->is_published]),
+                    'good' => Good::create(['name' => $node->name, 'is_published' => $node->is_published, ...($typeChanged ? ['slug' => $node->slug] : [])]),
                     default => null,
                 };
                 $node->entity_id = $source?->id;
+                $node->import_key = null;
+                if ($source instanceof Good && array_filter($convertedSeo, fn ($value) => filled($value))) {
+                    $source->seo()->create($convertedSeo);
+                }
             }
             $node->save();
             if ($domainHosts !== null) {
@@ -372,6 +390,11 @@ class CatalogService
             $this->syncSource($node, $data);
             foreach ($this->subtree($node) as $item) {
                 $this->syncRelationships($item, $oldParents[$item->id] ?? null);
+            }
+            if ($previousSource) {
+                // Check after moving tree-derived links, before any cascading delete.
+                // An unrelated reference rolls back the entire conversion.
+                app(CatalogEntityConversion::class)->retire($previousSource, $oldParents[$node->id] ?? null);
             }
             if ($goodData !== null) {
                 $node = $this->saveGoodOverview($node, $goodData, $parentChanged);
@@ -628,7 +651,11 @@ class CatalogService
                 throw ValidationException::withMessages(['parent_id' => 'Нельзя переместить элемент внутрь собственной ветки.']);
             }
             $seen[$parentId] = true;
-            $parentId = CatalogNode::findOrFail($parentId)->parent_id;
+            $parent = CatalogNode::findOrFail($parentId);
+            if ($parent->entity_type === 'good') {
+                throw ValidationException::withMessages(['parent_id' => 'Товар — конечный уровень каталога. Выберите раздел выше товара.']);
+            }
+            $parentId = $parent->parent_id;
         }
     }
 

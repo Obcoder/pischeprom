@@ -10,6 +10,8 @@ import CatalogGoodWarehouse from './CatalogGoodWarehouse.vue'
 import CatalogProductOperations from './CatalogProductOperations.vue'
 import CatalogRecordTabs from './CatalogRecordTabs.vue'
 import CatalogLandingEditor from './CatalogLandingEditor.vue'
+import CatalogSeoPreview from './CatalogSeoPreview.vue'
+import CatalogBranchSlots from './CatalogBranchSlots.vue'
 import GoodTradeCodeFields from '../Goods/GoodTradeCodeFields.vue'
 import { goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab } from './recordTabs.js'
 
@@ -75,8 +77,13 @@ const entityTypes = [
 ]
 const currentLevel = computed(() => props.levels.find(level => level.id === form.level_id))
 const levelOptions = computed(() => [{ id: null, name: 'Без уровня' }, ...props.levels])
-const isGood = computed(() => form.entity_type === 'good')
-const isProduct = computed(() => form.entity_type === 'product')
+// Until a conversion is saved, operational tabs still belong to the saved entity.
+const activeEntityType = computed(() => record.value ? record.value.entity_type || 'custom' : form.entity_type)
+const isGood = computed(() => activeEntityType.value === 'good')
+const isProduct = computed(() => activeEntityType.value === 'product')
+const entityTypeChanged = computed(() => Boolean(record.value) && form.entity_type !== activeEntityType.value)
+const goodDetailsDirty = computed(() => isGood.value && (JSON.stringify(goodForm) !== goodBaseline.value || seoState.value.dirty))
+const entityTypeLocked = computed(() => busy.value || (!entityTypeChanged.value && (goodDetailsDirty.value || operationsState.value.dirty || warehouseState.value.dirty || productState.value.dirty || landingState.value.dirty)))
 const busy = computed(() => saving.value || seoState.value.busy || operationsState.value.busy || warehouseState.value.busy || productState.value.busy || landingState.value.busy)
 const mainTab = computed(() => activeTab.value === 'overview')
 const warehouseTab = computed(() => isGood.value && activeTab.value === 'warehouse')
@@ -120,7 +127,7 @@ const pathFor = id => {
     return result.join(' / ')
 }
 const parentOptions = computed(() => [{ id: null, name: 'Корень каталога' }, ...props.nodes
-    .filter(node => !blockedParents.value.has(node.id))
+    .filter(node => node.entity_type !== 'good' && !blockedParents.value.has(node.id))
     .map(node => ({ id: node.id, name: pathFor(node.id) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))])
 const parentPath = computed(() => pathFor(form.parent_id))
@@ -249,6 +256,13 @@ function changeParent() {
     else if (productId && !goodForm.products.includes(productId)) goodForm.products.push(productId)
     inferredProductId = productId
 }
+function changeEntityType() {
+    errors.value = {}
+    if (!record.value) {
+        selectTab('overview')
+        loadGoodOverview()
+    }
+}
 function updateGoodForm(values) {
     if (!same(goodForm.products, values.products)) productsEdited = true
     Object.assign(goodForm, values)
@@ -365,16 +379,19 @@ function reset(node = props.node, resetTabs = true) {
     discardOpen.value = false; deleteOpen.value = false; resetOpen.value = false
     baseline.value = JSON.stringify(form)
     if (resetTabs) {
-        editorSession.value++
-        seoVisited.value = false; operationsVisited.value = false; landingVisited.value = false
-        warehouseVisited.value = false; productVisited.value = false
-        warehouseState.value = { dirty: false, busy: false }; productState.value = { dirty: false, busy: false }
-        landingState.value = { dirty: false, busy: false }
-        seoState.value = { dirty: false, busy: false, ready: false, error: '' }
-        operationsState.value = { dirty: false, busy: false }
+        resetTools()
         selectTab(recordTabs.value.some(tab => tab.id === normalizeRecordTab(props.initialTab)) ? props.initialTab : 'overview')
     }
     loadGoodOverview()
+}
+function resetTools() {
+    editorSession.value++
+    seoVisited.value = false; operationsVisited.value = false; landingVisited.value = false
+    warehouseVisited.value = false; productVisited.value = false
+    warehouseState.value = { dirty: false, busy: false }; productState.value = { dirty: false, busy: false }
+    landingState.value = { dirty: false, busy: false }
+    seoState.value = { dirty: false, busy: false, ready: false, error: '' }
+    operationsState.value = { dirty: false, busy: false }
 }
 watch(open, value => { if (value) reset(); else cancelGoodOverview() }, { immediate: true, flush: 'sync' })
 watch(() => props.node?.id, (id, previous) => { if (open.value && id !== previous) reset() }, { flush: 'sync' })
@@ -463,20 +480,31 @@ async function save(nextTab = null) {
         selectTab(warehouseState.value.dirty ? 'warehouse' : productState.value.dirtyTab || 'translations')
         return
     }
+    if (entityTypeChanged.value && goodDetailsDirty.value) {
+        error.value = 'Сначала сохраните или сбросьте изменения параметров и SEO товара, затем измените вид записи.'
+        selectTab(seoState.value.dirty ? 'seo' : 'overview')
+        return
+    }
     if (isGood.value && seoState.value.dirty && !seoEditor.value?.validate()) { selectTab('seo'); return }
     saving.value = true; error.value = ''; errors.value = {}; partialErrorPhase.value = null
     let saved = null
     let phase = 'record'
+    const converting = entityTypeChanged.value
     try {
         const payload = { ...form, h1: form.h1?.trim() || null, properties: {} }
         if (!currentLevel.value?.is_domain) delete payload.domain_hosts
-        if (record.value) delete payload.entity_type
+        if (record.value && !converting) delete payload.entity_type
+        // Good SEO is edited independently and the generic form can be stale.
+        // During conversion the server carries its current values to the new kind.
         if (isGood.value) {
-            delete payload.image
             delete payload.h1
             delete payload.meta_title
             delete payload.meta_description
-            const extras = goodPayload()
+        }
+        if (form.entity_type === 'good') {
+            // Generic SEO and avatar edits become the new good's initial values.
+            if (!converting) delete payload.image
+            const extras = isGood.value ? goodPayload() : {}
             if (Object.keys(extras).length) payload.good = extras
         }
         for (const field of currentLevel.value?.fields || []) {
@@ -489,6 +517,14 @@ async function save(nextTab = null) {
             : await axios.post('/api/catalog/nodes', payload)
         saved = data.data
         record.value = saved
+        if (converting) {
+            form.entity_type = saved.entity_type || 'custom'
+            form.meta_title = saved.meta_title || ''
+            form.meta_description = saved.meta_description || ''
+            resetTools()
+            selectTab('overview')
+            await loadGoodOverview()
+        }
         if (isProduct.value && typeof saved.name === 'string') productOperations.value?.syncName(saved.name)
         // Relationship edits can relocate this placement on the server. Keep
         // the confirmed parent for retries if the subsequent avatar upload fails.
@@ -513,7 +549,7 @@ async function save(nextTab = null) {
         }
         if (operationsVisited.value) operations.value?.refresh()
         if (typeof nextTab === 'string' && recordTabs.value.some(tab => tab.id === nextTab)) {
-            await loadGoodOverview()
+            if (!converting) await loadGoodOverview()
             selectTab(nextTab)
         } else open.value = false
         emit('saved', saved)
@@ -563,14 +599,18 @@ async function remove() {
                             <h3><v-icon icon="mdi-file-tree-outline" size="18" /> Название и классификация</h3>
                             <v-text-field v-model="form.name" label="Название *" variant="outlined" density="compact" :error-messages="fieldErrors('name')" required maxlength="255" />
                             <v-text-field v-if="isGood" v-model="form.slug" label="Основной адрес товара" prefix="/g/" variant="outlined" density="compact" maxlength="255" :error-messages="fieldErrors('slug')" hint="Задайте вручную. SEO-адрес и Canonical формируются из него." persistent-hint class="mb-2" />
-                            <v-select v-if="!record" v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :error-messages="fieldErrors('entity_type')" hint="Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект." persistent-hint class="mb-3" @update:model-value="loadGoodOverview" />
-                            <div v-else class="catalog-node-dialog__identity"><v-chip size="small" variant="tonal">{{ entityTypes.find(type => type.value === (record.entity_type || 'custom'))?.title }}</v-chip><span v-if="record.entity_id">№ {{ record.entity_id }}</span></div>
+                            <div class="catalog-node-dialog__identity">
+                                <v-select v-model="form.entity_type" :items="entityTypes" label="Вид записи" variant="outlined" density="compact" :disabled="entityTypeLocked" :error-messages="fieldErrors('entity_type')" :hint="entityTypeLocked && !busy ? 'Сначала сохраните или сбросьте изменения в рабочих разделах.' : 'Товар и продукт доступны в учёте. Для своей классификации выберите произвольный объект.'" persistent-hint @update:model-value="changeEntityType" />
+                                <span v-if="record?.entity_id" class="catalog-node-dialog__entity-id" title="Идентификатор записи в учёте">№ {{ record.entity_id }}</span>
+                            </div>
+                            <v-alert v-if="entityTypeChanged" type="info" variant="tonal" density="compact" class="mb-4">Вид записи и набор вкладок изменятся после сохранения. Связанные операции могут ограничивать смену вида.</v-alert>
                             <v-select v-model="form.level_id" :items="levelOptions" item-title="name" item-value="id" label="Уровень классификации" variant="outlined" density="compact" :error-messages="fieldErrors('level_id')" hint="Любой уровень можно пропустить или назначить позже." persistent-hint class="mb-3" @update:model-value="changeLevel" />
                             <v-autocomplete v-model="form.parent_id" :items="parentOptions" item-title="name" item-value="id" label="Расположение в каталоге" variant="outlined" density="compact" :disabled="currentLevel?.is_domain || saving" :hint="currentLevel?.is_domain ? 'Домены располагаются в корне каталога.' : ''" :persistent-hint="currentLevel?.is_domain" :error-messages="fieldErrors('parent_id')" @update:model-value="changeParent" />
                             <p v-if="parentPath" class="catalog-node-dialog__path">{{ parentPath }}</p>
                             <v-combobox v-if="currentLevel?.is_domain" v-model="form.domain_hosts" label="Интернет-адреса этого Домена" multiple chips closable-chips variant="outlined" density="compact" :disabled="saving" :error-messages="Object.entries(errors).filter(([key]) => key === 'domain_hosts' || key.startsWith('domain_hosts.')).flatMap(([, value]) => value)" hint="Например: пищепром-сервер.рф и www.пищепром-сервер.рф. Введите каждый адрес и нажмите Enter." persistent-hint class="mb-3" />
                             <v-alert v-if="currentLevel?.is_domain" type="info" variant="tonal" density="compact" class="mb-4">На каждом сайте доступны только опубликованные товары его Домена. Каталог и навигация начинаются с вложенных категорий. Для нового сайта также настройте DNS, HTTPS и подключение сайта на сервере.</v-alert>
                             <v-text-field v-model.number="form.sort_order" label="Порядок в ветке" type="number" min="0" max="1000000" variant="outlined" density="compact" :error-messages="fieldErrors('sort_order')" />
+                            <CatalogBranchSlots v-model="form.sort_order" :nodes="nodes" :parent-id="form.parent_id" :node-id="record?.id" :disabled="busy" />
                             <GoodTradeCodeFields v-if="isGood && goodReady" class="catalog-node-dialog__trade-codes" compact :model-value="goodForm" :context="seoGood" :errors="goodErrors" :disabled="busy" :active="open && mainTab && goodReady" @update:model-value="updateGoodForm" />
                             <div class="catalog-node-dialog__publication">
                                 <h3><v-icon icon="mdi-web" size="18" /> Отображение на сайте</h3>
@@ -601,9 +641,9 @@ async function remove() {
                             <v-text-field v-model="form.h1" label="SEO H1" variant="outlined" density="compact" maxlength="255" clearable :error-messages="fieldErrors('h1')" hint="Главный заголовок публичной страницы. Если поле пустое, используется заголовок лендинга или название записи." persistent-hint class="mb-3" />
                             <v-text-field v-model="form.meta_title" label="Заголовок · Title" variant="outlined" density="compact" maxlength="255" :error-messages="fieldErrors('meta_title')" />
                             <v-textarea v-model="form.meta_description" label="Описание · Description" variant="outlined" density="compact" rows="5" maxlength="2000" :error-messages="fieldErrors('meta_description')" />
-                            <div v-if="record?.public_url || record?.edit_url" class="catalog-node-dialog__links">
+                            <CatalogSeoPreview :form="form" :record="record" :nodes="nodes" :levels="levels" />
+                            <div v-if="record?.public_url && record?.is_published" class="catalog-node-dialog__links">
                                 <v-btn v-if="record?.public_url && record?.is_published" :href="record.public_url" target="_blank" rel="noopener" variant="text" prepend-icon="mdi-open-in-new" size="small">Открыть на сайте</v-btn>
-                                <v-btn v-if="record?.edit_url" :href="record.edit_url" target="_blank" rel="noopener" variant="text" prepend-icon="mdi-card-text-outline" size="small">Карточка в учёте</v-btn>
                             </div>
                         </section>
                     </div>
@@ -674,7 +714,10 @@ async function remove() {
 .catalog-node-dialog__columns { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 24px; }
 .catalog-node-dialog__section { min-width: 0; }
 .catalog-node-dialog h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; font-size: 13px; font-weight: 650; color: #4d4058; }
-.catalog-node-dialog__identity { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; color: #8c8294; font-size: 12px; }
+.catalog-node-dialog__identity { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 12px; font-size: 12px; }
+.catalog-node-dialog__identity > :first-child { flex: 1; min-width: 0; }
+.catalog-node-dialog__entity-id { flex: 0 0 auto; padding-top: 11px; color: #8c8294; white-space: nowrap; }
+.catalog-node-dialog__seo { border: 1px solid #e4dbea; border-top: 3px solid #a58ab7; border-radius: 12px; padding: 20px; background: #f8f5fb; }
 .catalog-node-dialog__path { margin: -12px 0 16px; color: #8c8294; font-size: 11px; overflow-wrap: anywhere; }
 .catalog-node-dialog__trade-codes { margin-bottom: 14px; }
 .catalog-node-dialog__publication { border: 1px solid #e6e0eb; border-radius: 10px; background: #f8f5fb; padding: 16px; }
@@ -685,7 +728,7 @@ async function remove() {
 .catalog-node-dialog__avatar-empty { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 10px; color: #ada2b7; background: #f0ebf5; }
 .catalog-node-dialog__avatar p { font-size: 12px; font-weight: 550; }
 .catalog-node-dialog__avatar small { display: block; margin-top: 6px; color: #8c8294; font-size: 11px; font-weight: 400; }
-.catalog-node-dialog__links { display: flex; align-items: flex-start; flex-direction: column; gap: 6px; }
+.catalog-node-dialog__links { display: flex; align-items: flex-start; flex-direction: column; gap: 6px; margin-top: 12px; }
 .catalog-node-dialog__properties { margin-top: 26px; padding-top: 18px; border-top: 1px solid #e6e0eb; }
 .catalog-node-dialog__properties-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .catalog-node-dialog__properties-heading h3 { margin: 0; display: block; }

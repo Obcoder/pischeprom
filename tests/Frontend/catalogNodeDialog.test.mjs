@@ -34,7 +34,7 @@ function harness(t, initialProps = {}, componentName = 'CatalogNodeDialog', conf
     const reads = []
     const environment = {
         ...Vue, descendantIds, goodTradeCodeFields, goodTradeCodeValues, goodRecordTabs, productRecordTabs, catalogRecordTabs, normalizeRecordTab, CatalogGoodWarehouse: 'CatalogGoodWarehouse', CatalogProductOperations: 'CatalogProductOperations', CatalogGoodOverview: 'CatalogGoodOverview', GoodTradeCodeFields: 'GoodTradeCodeFields',
-        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', _mergeModels: Vue.mergeModels,
+        CatalogGoodSeo: 'CatalogGoodSeo', CatalogGoodOperations: 'CatalogGoodOperations', CatalogRecordTabs: 'CatalogRecordTabs', CatalogLandingEditor: 'CatalogLandingEditor', CatalogSeoPreview: 'CatalogSeoPreview', CatalogBranchSlots: 'CatalogBranchSlots', _mergeModels: Vue.mergeModels,
         // Bridge defineModel to the parent, while running the real component setup
         // and event bindings without a browser or a mounted Vuetify application.
         _useModel: (props, name) => Vue.computed({
@@ -73,6 +73,213 @@ function updateModel(vnode, value) {
 function chooseLevel(h, id) {
     updateModel(findVNode(h.render(), node => node.type === 'v-select' && node.props.label === 'Уровень классификации'), id)
 }
+
+test('existing entity kind is editable, resets, and changes operational tabs only after a successful save', async t => {
+    const original = sourceNode({ entity_type: 'product' })
+    const h = harness(t, { node: original, initialTab: 'translations' })
+    const selector = () => findVNode(h.render(), node => node.props?.label === 'Вид записи')
+    assert.equal(selector().props.modelValue, 'product')
+    updateModel(selector(), 'category')
+    assert.equal(h.api.entityTypeChanged.value, true)
+    assert.equal(h.api.isProduct.value, true)
+    assert.equal(h.api.dirty.value, true)
+    h.api.requestReset()
+    h.api.confirmReset()
+    assert.equal(selector().props.modelValue, 'product')
+    assert.equal(h.api.dirty.value, false)
+    updateModel(selector(), 'category')
+    const pending = h.api.save('overview')
+    assert.equal(h.requests[0].data.entity_type, 'category')
+    assert.equal(Object.hasOwn(h.requests[0].data, 'entity_id'), false)
+    h.requests[0].resolve({ ...original, entity_type: 'category', entity_id: 81 })
+    await pending
+    assert.equal(h.api.record.value.id, original.id)
+    assert.equal(h.api.record.value.entity_id, 81)
+    assert.equal(h.api.isProduct.value, false)
+    assert.equal(h.api.productVisited.value, false)
+    assert.equal(h.api.activeTab.value, 'overview')
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('conversion to a good fetches the good overview only after the server creates the new entity', async t => {
+    const original = sourceNode({ entity_type: 'custom', entity_id: null })
+    const h = harness(t, { node: original })
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'good')
+    assert.equal(h.api.isGood.value, false)
+    assert.equal(h.reads.length, 0)
+    const pending = h.api.save('overview')
+    assert.equal(h.requests[0].data.entity_type, 'good')
+    assert.equal(Object.hasOwn(h.requests[0].data, 'good'), false)
+    h.requests[0].resolve({ ...original, entity_type: 'good', entity_id: 42 })
+    await pending
+    assert.equal(h.api.isGood.value, true)
+    assert.equal(h.api.goodReady.value, true)
+    assert.equal(h.api.dirty.value, false)
+    assert.ok(h.reads.some(read => read.url === '/api/catalog/nodes/7/overview'))
+})
+
+test('conversion to a good keeps generic SEO and avatar edits from the same draft', async t => {
+    const original = sourceNode({ entity_type: 'custom', entity_id: null, h1: 'Старый H1', meta_title: 'Старый Title', image: '/storage/old.png' })
+    const h = harness(t, { node: original })
+    const draft = { h1: '  Новый H1  ', meta_title: 'Новый Title', meta_description: 'Новое описание поиска', image: 'https://cdn.example.test/new.png' }
+    Object.assign(h.api.form, draft)
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'good')
+    const pending = h.api.save()
+    for (const [key, value] of Object.entries(draft)) assert.equal(h.requests[0].data[key], value.trim())
+    assert.equal(Object.hasOwn(h.requests[0].data, 'good'), false)
+    h.requests[0].resolve({ ...original, ...draft, h1: null, entity_type: 'good', entity_id: 42 })
+    await pending
+    assert.equal(h.api.form.image, draft.image)
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('conversion from a good leaves current SEO to the server instead of sending hidden stale fields', async t => {
+    const original = sourceNode({ h1: null, meta_title: 'Старый Title', meta_description: 'Старое описание' })
+    const h = harness(t, { node: original })
+    await h.ready()
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'custom')
+    const pending = h.api.save('overview')
+    assert.equal(h.requests[0].data.entity_type, 'custom')
+    for (const key of ['h1', 'meta_title', 'meta_description', 'good']) assert.equal(Object.hasOwn(h.requests[0].data, key), false)
+    const currentSeo = { h1: 'Актуальный H1', meta_title: 'Актуальный Title', meta_description: 'Актуальное описание' }
+    h.requests[0].resolve({ ...original, ...currentSeo, entity_type: null, entity_id: null })
+    await pending
+    for (const [key, value] of Object.entries(currentSeo)) assert.equal(h.api.form[key], value)
+    assert.equal(h.api.form.entity_type, 'custom')
+    assert.equal(h.api.dirty.value, false)
+})
+
+test('failed conversion preserves draft and source identity and displays the server error beside the kind', async t => {
+    const original = sourceNode({ entity_type: 'product' })
+    const h = harness(t, { node: original })
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'good')
+    const pending = h.api.save()
+    h.requests[0].reject({ response: { data: { errors: { entity_type: ['Продукт связан с операциями.'] } } } })
+    await pending
+    const selector = findVNode(h.render(), node => node.props?.label === 'Вид записи')
+    assert.equal(selector.props.modelValue, 'good')
+    assert.deepEqual(selector.props['error-messages'], ['Продукт связан с операциями.'])
+    assert.equal(h.api.record.value.entity_type, 'product')
+    assert.equal(h.api.record.value.entity_id, original.entity_id)
+    assert.equal(h.api.isProduct.value, true)
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.dirty.value, true)
+    assert.equal(h.reads.length, 0)
+})
+
+test('a pending conversion can be reverted without discarding dirty good details or SEO', async t => {
+    for (const seo of [false, true]) {
+        const h = harness(t, { node: sourceNode() })
+        await h.ready()
+        const selector = () => findVNode(h.render(), node => node.props?.label === 'Вид записи')
+        updateModel(selector(), 'custom')
+        if (seo) h.api.seoState.value.dirty = true
+        else h.api.goodForm.denominator = 88
+        await h.api.save()
+        assert.equal(h.requests.length, 0)
+        assert.match(h.api.error.value, /Сначала сохраните или сбросьте/)
+        assert.equal(selector().props.disabled, false)
+        h.api.saving.value = true
+        assert.equal(selector().props.disabled, true)
+        h.api.saving.value = false
+        updateModel(selector(), 'good')
+        assert.equal(h.api.entityTypeChanged.value, false)
+        assert.equal(selector().props.disabled, true)
+        assert.equal(h.api.dirty.value, true)
+        if (seo) assert.equal(h.api.seoState.value.dirty, true)
+        else {
+            const pending = h.api.save()
+            assert.equal(h.requests[0].data.good.denominator, 88)
+            assert.equal(Object.hasOwn(h.requests[0].data, 'entity_type'), false)
+            h.requests[0].resolve(sourceNode())
+            await pending
+        }
+    }
+})
+
+test('a good avatar URL edited after choosing conversion is retained when returning to the good kind', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    const selector = () => findVNode(h.render(), node => node.props?.label === 'Вид записи')
+    updateModel(selector(), 'custom')
+    h.api.updateGoodAvatar('https://cdn.example.test/new-good.png')
+    await h.api.save()
+    assert.equal(h.requests.length, 0)
+    assert.equal(h.api.form.image, 'https://cdn.example.test/new-good.png')
+    assert.equal(selector().props.disabled, false)
+    updateModel(selector(), 'good')
+    const pending = h.api.save()
+    assert.equal(h.requests[0].data.good.avatar_source_url, 'https://cdn.example.test/new-good.png')
+    assert.equal(Object.hasOwn(h.requests[0].data, 'image'), false)
+    h.requests[0].resolve(sourceNode({ image: 'https://cdn.example.test/new-good.png' }))
+    await pending
+})
+
+test('a selected good avatar file survives conversion and a failed upload can be retried', async t => {
+    const h = harness(t, { node: sourceNode() })
+    await h.ready()
+    const image = new Blob(['draft avatar'], { type: 'image/png' })
+    h.api.imageFile.value = image
+    updateModel(findVNode(h.render(), node => node.props?.label === 'Вид записи'), 'custom')
+    const pending = h.api.save()
+    const converted = sourceNode({ entity_type: null, entity_id: null })
+    h.requests[0].resolve(converted)
+    await h.ready()
+    assert.equal(h.requests[1].url, '/api/catalog/nodes/7/image')
+    assert.equal(await h.requests[1].data.get('image').text(), 'draft avatar')
+    h.requests[1].reject({ response: { data: { message: 'Повторите загрузку.' } } })
+    await pending
+    assert.equal(h.api.imageFile.value, image)
+    assert.equal(h.props.modelValue, true)
+    assert.equal(h.api.dirty.value, true)
+    assert.equal(h.api.entityTypeChanged.value, false)
+    const retry = h.api.save()
+    assert.equal(Object.hasOwn(h.requests[2].data, 'entity_type'), false)
+    h.requests[2].resolve(converted)
+    await h.ready()
+    assert.equal(await h.requests[3].data.get('image').text(), 'draft avatar')
+    h.requests[3].resolve({ ...converted, image: '/storage/new-avatar.png' })
+    await retry
+    assert.equal(h.api.imageFile.value, null)
+    assert.equal(h.props.modelValue, false)
+})
+
+test('catalog location excludes all goods and own descendants but keeps products and unclassified parents', t => {
+    const original = sourceNode({ entity_type: 'product', parent_id: null })
+    const nodes = [original,
+        { id: 1, entity_type: 'category', name: 'Раздел', parent_id: null },
+        { id: 2, entity_type: 'product', name: 'Продукт', parent_id: 1 },
+        { id: 3, entity_type: 'good', name: 'Товар', parent_id: 2 },
+        { id: 4, entity_type: null, name: 'Свой уровень', parent_id: 1 },
+        { id: 8, entity_type: 'category', name: 'Потомок', parent_id: original.id },
+        { id: 9, entity_type: 'custom', name: 'Вложенный потомок', parent_id: 8 },
+    ]
+    for (const node of [original, null]) {
+        const h = harness(t, { node, nodes })
+        const parent = findVNode(h.render(), vnode => vnode.props?.label === 'Расположение в каталоге')
+        const ids = parent.props.items.map(item => item.id)
+        for (const id of [null, 1, 2, 4]) assert.ok(ids.includes(id))
+        assert.equal(ids.includes(3), false)
+        if (node) for (const id of [7, 8, 9]) assert.equal(ids.includes(id), false)
+    }
+})
+
+test('slot selection updates saved order and follows a changed branch', async t => {
+    const original = sourceNode({ entity_type: 'product', sort_order: 0 })
+    const h = harness(t, { node: original })
+    const slots = () => findVNode(h.render(), node => node.type === 'CatalogBranchSlots')
+    assert.equal(slots().props['parent-id'], original.parent_id)
+    assert.equal(slots().props['node-id'], original.id)
+    updateModel(slots(), 3)
+    assert.equal(h.api.form.sort_order, 3)
+    h.api.form.parent_id = null
+    assert.equal(slots().props['parent-id'], null)
+    const pending = h.api.save()
+    assert.equal(h.requests[0].data.sort_order, 3)
+    assert.equal(h.requests[0].data.parent_id, null)
+    h.requests[0].resolve({ ...original, sort_order: 3, parent_id: null })
+    await pending
+})
 
 test('goods use the full SEO tab regardless of their classification while other entities retain generic metadata', async t => {
     const h = harness(t, { node: sourceNode({ level_id: null, h1: 'Устаревший H1', meta_title: 'Устаревшее SEO' }), initialTab: 'seo' })

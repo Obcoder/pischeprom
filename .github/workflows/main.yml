@@ -441,6 +441,7 @@ jobs:
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogEntityConversionTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
             tests/Feature/GoodIncomingCodeTest.php \
@@ -628,6 +629,7 @@ jobs:
             tests/Feature/CatalogLandingManagementTest.php \
             tests/Feature/CatalogNodeHeadingTest.php \
             tests/Feature/CatalogTreeTest.php \
+            tests/Feature/CatalogEntityConversionTest.php \
             tests/Feature/CatalogGoodSeoTest.php \
             tests/Feature/CatalogGoodPricingTest.php \
             tests/Feature/GoodIncomingCodeTest.php \

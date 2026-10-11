@@ -64,9 +64,10 @@ class FlexibleCatalogClassificationTest extends TestCase
         $this->postJson('/api/catalog/nodes', ['name' => 'Прежний формат создания', 'level_id' => $level->id])
             ->assertCreated()->assertJsonPath('data.entity_type', 'category');
         $this->patchJson('/api/catalog/nodes/'.$classified['id'], ['entity_type' => 'product'])
-            ->assertUnprocessable()->assertJsonValidationErrors('entity_type');
-        $this->assertDatabaseCount('goods', 2);
-        $this->assertDatabaseCount('products', 0);
+            ->assertOk()->assertJsonPath('data.id', $classified['id'])
+            ->assertJsonPath('data.entity_type', 'product')->assertJsonPath('data.level_id', $level->id);
+        $this->assertDatabaseCount('goods', 1);
+        $this->assertDatabaseCount('products', 1);
         $this->assertDatabaseCount('categories', 1);
     }
 

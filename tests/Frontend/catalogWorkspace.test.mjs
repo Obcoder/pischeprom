@@ -72,6 +72,18 @@ test('toolbar add uses the preceding rendered classifier and leaves source type 
     assert.equal(state.editorContext.entityType, 'custom')
 })
 
+test('creation from a good selects its containing branch instead of the terminal good', async t => {
+    const { state } = harness(t)
+    await state.load()
+    state.nodes.value.push({ id: 50, entity_type: 'good', parent_id: 40, name: 'Товар' })
+    state.create({ parentId: 50, entityType: 'good' })
+    assert.equal(state.editorContext.parentId, 40)
+    assert.equal(state.editorContext.entityType, 'good')
+    state.nodes.value.push({ id: 51, entity_type: 'good', parent_id: null, name: 'Товар в корне' })
+    state.create({ parentId: 51 })
+    assert.equal(state.editorContext.parentId, null)
+})
+
 test('creating from a selected ancestor branch keeps the actual deeper tab scope used by the table', async t => {
     const { state } = harness(t)
     await state.load()

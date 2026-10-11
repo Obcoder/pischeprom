@@ -252,7 +252,8 @@ class CatalogTreeTest extends TestCase
         $this->getJson('/api/catalog')->assertOk();
         $original = CatalogNode::where('entity_type', 'good')->firstOrFail();
         $level = CatalogLevel::create(['name' => 'Свой раздел', 'entity_type' => 'custom']);
-        $custom = $this->createNode($level, 'Дочерний раздел', $original->id);
+        // Legacy trees could contain children below goods; new API writes reject this.
+        $custom = CatalogNode::create(['level_id' => $level->id, 'name' => 'Дочерний раздел', 'parent_id' => $original->id]);
         $good->products()->sync([$first->id]);
         $this->getJson('/api/catalog')->assertOk();
         $this->assertSame(1, CatalogNode::where('entity_type', 'good')->count());
@@ -547,7 +548,8 @@ class CatalogTreeTest extends TestCase
         $placement = CatalogNode::where('import_key', 'good:'.$good->id.':product:'.$first->id)->firstOrFail();
         $level = CatalogLevel::create(['name' => 'Раздел', 'entity_type' => 'custom']);
         $folder = $this->createNode($level, 'Самостоятельная группа');
-        $child = $this->createNode($level, 'Сохранённый подраздел', $placement->id);
+        // Preserve pre-existing legacy data even though new goods are terminal nodes.
+        $child = CatalogNode::create(['level_id' => $level->id, 'name' => 'Сохранённый подраздел', 'parent_id' => $placement->id]);
         $this->patchJson('/api/catalog/nodes/'.$placement->id, ['parent_id' => $folder['id']])->assertOk();
         $this->getJson('/api/catalog')->assertOk();
         $this->getJson('/api/catalog')->assertOk();
