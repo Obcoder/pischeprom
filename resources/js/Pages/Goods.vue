@@ -5,6 +5,7 @@ import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 import PublicCatalogGoodCard from '@/Components/Goods/PublicCatalogGoodCard.vue'
 import PublicCatalogTree from '@/Components/Goods/PublicCatalogTree.vue'
 import PublicCatalogPriceList from '@/Components/Goods/PublicCatalogPriceList.vue'
+import PublicCatalogCategoryFilter from '@/Components/Goods/PublicCatalogCategoryFilter.vue'
 import GoodInquiryDialog from '@/Components/Goods/GoodInquiryDialog.vue'
 import { useAppRoute } from '@/Composables/useAppRoute'
 import { catalogDefaults, normalizeCatalogFilters, catalogQuery, catalogPages } from '@/utils/publicCatalog'
@@ -45,16 +46,6 @@ const selectedNode = computed(() => props.catalogTree.find(node => String(node.i
 const siteName = computed(() => props.site?.name || 'ПИЩЕПРОМ-СЕРВЕР')
 const pageH1 = computed(() => selectedNode.value?.name || props.field?.title || props.field?.name || (props.country ? `Товары из ${props.country.name}` : 'Каталог товаров'))
 const pageDescription = computed(() => props.field?.description || 'Выбирайте товары, сравнивайте предложения и собирайте заказ. Условия и сроки поставки согласуем с вами.')
-const categoryOptions = computed(() => {
-    const byId = new Map(props.catalogTree.map(node => [String(node.id), node]))
-    return props.catalogTree.map(node => {
-        let parent = byId.get(String(node.parent_id))
-        let depth = 0
-        const visited = new Set([String(node.id)])
-        while (parent && !visited.has(String(parent.id))) { visited.add(String(parent.id)); depth++; parent = byId.get(String(parent.parent_id)) }
-        return { ...node, label: `${'— '.repeat(Math.min(depth, 6))}${node.name}` }
-    })
-})
 const visibleCategories = computed(() => {
     const ids = new Set(props.catalogTree.map(node => String(node.id)))
     return props.catalogTree.filter(node => form.node_id ? String(node.parent_id) === String(form.node_id) : !ids.has(String(node.parent_id)))
@@ -123,8 +114,8 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
                 <template v-if="field"><v-icon icon="mdi-chevron-right" size="13" /><span aria-current="page">{{ field.title || field.name }}</span></template>
             </nav>
             <header class="catalog-hero">
-                <div><div class="catalog-hero__eyebrow"><span /> {{ siteName }}</div><h1>{{ pageH1 }}</h1><p>{{ pageDescription }}</p></div>
-                <div class="catalog-hero__count"><strong>{{ total.toLocaleString('ru-RU') }}</strong><span>{{ pluralize(total) }} в каталоге</span></div>
+                <h1>{{ pageH1 }}</h1>
+                <p v-if="field?.description">{{ field.description }}</p>
             </header>
             <section class="catalog-workspace" aria-label="Подбор товаров">
                 <div class="catalog-searchbar">
@@ -134,12 +125,12 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
                     <button type="button" class="catalog-filter-toggle" :class="{ 'is-active': form.show_filters }" :aria-expanded="form.show_filters" aria-controls="catalog-filters" @click="toggleFilters"><v-icon icon="mdi-tune-variant" size="18" />Фильтры<span v-if="activeFilters.length">{{ activeFilters.length }}</span><v-icon :icon="form.show_filters ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="15" /></button>
                     <div class="catalog-view-switch" role="group" aria-label="Вид каталога"><button type="button" :aria-pressed="form.view === 'cards'" :class="{ 'is-active': form.view === 'cards' }" @click="setView('cards')"><v-icon icon="mdi-view-grid-outline" size="18" /><span>Карточки</span></button><button type="button" :aria-pressed="form.view === 'tree'" :class="{ 'is-active': form.view === 'tree' }" @click="setView('tree')"><v-icon icon="mdi-file-tree-outline" size="18" /><span>Дерево</span></button><button type="button" :aria-pressed="form.view === 'pricelist'" :class="{ 'is-active': form.view === 'pricelist' }" @click="setView('pricelist')"><v-icon icon="mdi-table-large" size="18" /><span>Прайс-лист</span></button></div>
                 </div>
-                <div v-if="visibleCategories.length || form.node_id" class="catalog-categories" aria-label="Категории товаров"><button v-if="form.node_id" type="button" class="catalog-categories__back" @click="selectNode(selectedNode?.parent_id)"><v-icon icon="mdi-arrow-left" size="14" />На уровень выше</button><button v-for="node in visibleCategories" :key="node.id" type="button" @click="selectNode(node.id)">{{ node.name }}<span>{{ node.goods_count || 0 }}</span></button></div>
+                <div v-if="!form.show_filters && (visibleCategories.length || form.node_id)" class="catalog-categories" aria-label="Категории товаров"><button v-if="form.node_id" type="button" class="catalog-categories__back" @click="selectNode(selectedNode?.parent_id)"><v-icon icon="mdi-arrow-left" size="14" />На уровень выше</button><button v-for="node in visibleCategories" :key="node.id" type="button" @click="selectNode(node.id)">{{ node.name }}<span>{{ node.goods_count || 0 }}</span></button></div>
                 <div v-if="activeFilters.length" class="catalog-active-filters"><button v-for="filter in activeFilters" :key="filter.key" type="button" :aria-label="`Убрать фильтр ${filter.label}`" @click="clearFilter(filter.key)">{{ filter.label }}<v-icon icon="mdi-close" size="13" /></button><button type="button" class="catalog-reset" @click="resetFilters">Сбросить всё</button></div>
                 <div class="catalog-layout" :class="{ 'catalog-layout--filters': form.show_filters }">
                     <aside v-if="form.show_filters" id="catalog-filters" class="catalog-filters" aria-label="Фильтры каталога">
                         <div class="catalog-filters__heading"><strong>Уточнить выбор</strong><button type="button" @click="resetFilters">Сбросить</button></div>
-                        <label><span>Категория</span><select v-model="form.node_id" @change="visit()"><option value="">Все категории</option><option v-for="node in categoryOptions" :key="node.id" :value="node.id">{{ node.label }}</option></select></label>
+                        <PublicCatalogCategoryFilter class="catalog-category-picker" :nodes="catalogTree" :selected-id="form.node_id" @select="selectNode" />
                         <fieldset><legend>Наличие</legend><label class="catalog-radio"><input v-model="form.availability" type="radio" value="all" @change="visit()"><span>Все товары</span></label><label class="catalog-radio"><input v-model="form.availability" type="radio" value="in_stock" @change="visit()"><span>В наличии</span></label><label class="catalog-radio"><input v-model="form.availability" type="radio" value="on_request" @change="visit()"><span>Наличие по запросу</span></label></fieldset>
                         <label><span>Страна происхождения</span><select v-model="form.country_id" @change="visit()"><option value="">Все страны</option><option v-for="item in countries" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
                         <label v-if="fields.length && !field"><span>Подборка</span><select v-model="form.field_id" @change="visit()"><option value="">Все подборки</option><option v-for="item in fields" :key="item.id" :value="item.id">{{ item.title || item.name }}</option></select></label>
@@ -167,43 +158,38 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 </template>
 
 <style scoped>
-.catalog-page { min-height: calc(100vh - 64px); background: #f6f5f1; color: #34372f; padding: 22px clamp(14px, 3vw, 48px) 28px; }
+.catalog-page { min-height: calc(100vh - 64px); background: #f6f5f1; color: #34372f; padding: 10px clamp(14px, 2vw, 32px) 24px; }
 .catalog-page__inner { max-width: 1640px; margin: 0 auto; }
-.catalog-breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; color: #929389; font-size: 11px; }
+.catalog-breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 5px; color: #929389; font-size: 10px; line-height: 16px; }
 .catalog-breadcrumbs a, .catalog-breadcrumbs button { color: #84877b; text-decoration: none; }
 .catalog-breadcrumbs [aria-current] { color: #4c5145; }
-.catalog-hero { display: flex; justify-content: space-between; gap: 24px; align-items: center; margin-bottom: 26px; }
-.catalog-hero__eyebrow { display: flex; align-items: center; gap: 7px; color: #858575; font-size: 10px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
-.catalog-hero__eyebrow span { width: 6px; height: 6px; border-radius: 50%; background: #800000; }
-.catalog-hero h1 { margin: 6px 0 8px; color: #30362b; font-size: clamp(27px, 3.5vw, 42px); font-weight: 750; line-height: 1.13; letter-spacing: -.035em; }
-.catalog-hero p { max-width: 690px; margin: 0; color: #7b8072; font-size: 13px; line-height: 1.6; }
-.catalog-hero__count { display: flex; flex-direction: column; flex: none; align-items: flex-end; padding-left: 30px; border-left: 1px solid #dddfd5; }
-.catalog-hero__count strong { color: #5b654d; font-size: 36px; font-weight: 650; line-height: 1.1; }
-.catalog-hero__count span { margin-top: 4px; color: #929683; font-size: 10px; }
-.catalog-workspace { padding: 18px; border: 1px solid #e7e7df; border-radius: 14px; background: #fffefa; }
-.catalog-searchbar { display: flex; gap: 10px; }
-.catalog-search { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 5px 6px 5px 13px; border: 1px solid #dfe1d6; border-radius: 8px; background: #fff; color: #989d8e; }
+.catalog-hero { margin-bottom: 10px; }
+.catalog-hero h1 { margin: 0; color: #30362b; font-size: clamp(22px, 2.1vw, 28px); font-weight: 750; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.catalog-hero p { max-width: 900px; margin: 5px 0 0; color: #7b8072; font-size: 12px; line-height: 1.45; }
+.catalog-workspace { padding: 12px; border: 1px solid #e7e7df; border-radius: 10px; background: #fffefa; }
+.catalog-searchbar { display: flex; gap: 8px; }
+.catalog-search { display: flex; flex: 1; min-width: 0; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; border: 1px solid #dfe1d6; border-radius: 8px; background: #fff; color: #989d8e; }
 .catalog-search:focus-within { border-color: #a1aa90; box-shadow: 0 0 0 2px #65754b12; }
 .catalog-search input { width: 100%; min-width: 0; font-size: 13px; color: #30392b; outline: none; }
 .catalog-search input::placeholder { color: #a0a394; }
-.catalog-search button { padding: 7px 16px; border-radius: 5px; background: #657350; color: #fff; font-size: 12px; font-weight: 650; }
-.catalog-filter-toggle { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #dfe1d6; border-radius: 8px; color: #626b56; background: #fff; font-size: 12px; font-weight: 600; }
+.catalog-search button { padding: 5px 12px; border-radius: 4px; background: #657350; color: #fff; font-size: 12px; font-weight: 650; }
+.catalog-filter-toggle { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #dfe1d6; border-radius: 8px; color: #626b56; background: #fff; font-size: 12px; font-weight: 600; }
 .catalog-filter-toggle.is-active { border-color: #bac1ae; background: #eef1e6; }
 .catalog-filter-toggle > span { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #657350; color: white; font-size: 9px; }
-.catalog-view-switch { display: flex; flex: none; gap: 3px; padding: 4px; border: 1px solid #e4e5dd; border-radius: 8px; background: #f2f3ed; }
-.catalog-view-switch button { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 5px; color: #969b8b; font-size: 12px; }
+.catalog-view-switch { display: flex; flex: none; gap: 2px; padding: 3px; border: 1px solid #e4e5dd; border-radius: 8px; background: #f2f3ed; }
+.catalog-view-switch button { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; color: #78816d; font-size: 11px; }
 .catalog-view-switch .is-active { background: #fff; color: #46553a; box-shadow: 0 1px 3px #0000000d; }
-.catalog-categories { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 14px; }
-.catalog-categories button { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border: 1px solid #e9e7df; border-radius: 6px; color: #656a5c; font-size: 11px; background: #faf9f5; }
+.catalog-categories { display: flex; gap: 5px; max-width: 100%; overflow-x: auto; padding: 7px 0 2px; scrollbar-width: thin; }
+.catalog-categories button { display: flex; flex: none; align-items: center; gap: 6px; padding: 4px 7px; white-space: nowrap; border: 1px solid #e9e7df; border-radius: 6px; color: #656a5c; font-size: 11px; background: #faf9f5; }
 .catalog-categories button:hover { color: #800000; border-color: #cdb9ac; }
 .catalog-categories button span { color: #a4a698; font-size: 9px; }
 .catalog-categories .catalog-categories__back { background: #f0f2e8; }
-.catalog-active-filters { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 12px; }
+.catalog-active-filters { display: flex; flex-wrap: wrap; gap: 5px; padding-top: 7px; }
 .catalog-active-filters button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 7px; color: #686e5c; background: #eef0e6; border-radius: 4px; font-size: 10px; }
 .catalog-active-filters .catalog-reset { background: transparent; color: #907b6d; text-decoration: underline; text-underline-offset: 3px; }
-.catalog-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; padding-top: 20px; }
-.catalog-layout--filters { grid-template-columns: 210px minmax(0, 1fr); }
-.catalog-filters { min-width: 0; display: flex; flex-direction: column; gap: 21px; align-self: start; padding: 5px 18px 12px 1px; border-right: 1px solid #eeeee5; }
+.catalog-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding-top: 10px; }
+.catalog-layout--filters { grid-template-columns: 224px minmax(0, 1fr); }
+.catalog-filters { min-width: 0; display: flex; flex-direction: column; gap: 16px; align-self: start; padding: 3px 12px 10px 0; border-right: 1px solid #eeeee5; }
 .catalog-filters__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .catalog-filters__heading strong { color: #4a5340; font-size: 12px; }
 .catalog-filters__heading button { color: #9b9b8b; font-size: 10px; }
@@ -221,7 +207,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .catalog-filters small { display: block; margin-top: 7px; color: #a1a390; font-size: 9px; line-height: 1.5; }
 .catalog-filters__note { display: flex; gap: 7px; margin: 0; padding: 10px 9px; border-radius: 6px; background: #f6f4e9; color: #969073; font-size: 10px; line-height: 1.6; }
 .catalog-results { min-width: 0; }
-.catalog-results__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; min-height: 30px; }
+.catalog-results__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 7px; min-height: 28px; }
 .catalog-results__total { margin-right: auto; color: #858b78; font-size: 11px; }
 .catalog-sort, .catalog-page-size { display: flex; align-items: center; gap: 7px; }
 .catalog-sort > span, .catalog-page-size > span { color: #a0a48e; font-size: 10px; }
@@ -246,7 +232,38 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .catalog-assurance { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: center; padding-top: 23px; color: #a0a48f; font-size: 10px; }
 .catalog-assurance span { display: inline-flex; align-items: center; gap: 7px; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #657350; outline-offset: 3px; }
-@media (max-width: 1100px) { .catalog-layout--filters { grid-template-columns: 185px minmax(0, 1fr); gap: 16px; } .catalog-view-switch button { padding-inline: 7px; } .catalog-sort > span { display: none; } .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); } }
-@media (max-width: 800px) { .catalog-page { padding: 16px 12px 25px; } .catalog-hero { margin-bottom: 20px; } .catalog-hero__count { display: none; } .catalog-workspace { padding: 12px; border-radius: 11px; } .catalog-searchbar { flex-wrap: wrap; } .catalog-search { flex-basis: 100%; } .catalog-filter-toggle { flex: 1; } .catalog-view-switch { flex: 1 1 100%; min-width: 0; } .catalog-view-switch button { flex: 1; min-width: 0; justify-content: center; padding-inline: 6px; font-size: 11px; } .catalog-layout--filters { grid-template-columns: minmax(0, 1fr); } .catalog-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 17px; padding: 13px; border: 1px solid #e8e9de; border-radius: 8px; background: #f9faf4; } .catalog-filters__heading { grid-column: 1 / -1; } .catalog-filters__note { grid-column: 1 / -1; } .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); } .catalog-breadcrumbs { margin-bottom: 17px; } }
-@media (max-width: 520px) { .catalog-hero p { font-size: 12px; } .catalog-results__toolbar { gap: 9px; } .catalog-results__total { flex-basis: 100%; } .catalog-page-size { margin-left: auto; } .catalog-grid { grid-template-columns: minmax(0, 1fr); } .catalog-pagination { justify-content: center; } .catalog-pagination > span { flex-basis: 100%; text-align: center; } .catalog-categories { max-height: 150px; overflow-y: auto; } .catalog-assurance { justify-content: flex-start; } .catalog-filters { grid-template-columns: minmax(0, 1fr); } .catalog-search button { padding-inline: 12px; } }
+@media (max-width: 1100px) {
+    .catalog-layout--filters { grid-template-columns: 205px minmax(0, 1fr); gap: 12px; }
+    .catalog-view-switch button { padding-inline: 7px; }
+    .catalog-sort > span { display: none; }
+    .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+}
+@media (max-width: 800px) {
+    .catalog-page { padding: 8px 10px 22px; }
+    .catalog-breadcrumbs { margin-bottom: 4px; }
+    .catalog-hero { margin-bottom: 8px; }
+    .catalog-workspace { padding: 9px; border-radius: 8px; }
+    .catalog-searchbar { flex-wrap: wrap; gap: 6px; }
+    .catalog-search { flex: 1 1 0; }
+    .catalog-search input { font-size: 12px; }
+    .catalog-search button { padding-inline: 8px; font-size: 11px; }
+    .catalog-filter-toggle { flex: none; gap: 4px; padding-inline: 7px; font-size: 11px; }
+    .catalog-filter-toggle > .v-icon:last-child { display: none; }
+    .catalog-view-switch { flex: 1 1 100%; min-width: 0; }
+    .catalog-view-switch button { flex: 1; min-width: 0; justify-content: center; padding-inline: 6px; font-size: 11px; }
+    .catalog-layout--filters { grid-template-columns: minmax(0, 1fr); }
+    .catalog-filters { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 12px; padding: 10px; border: 1px solid #e8e9de; border-radius: 6px; background: #f9faf4; }
+    .catalog-filters__heading, .catalog-category-picker, .catalog-filters__note { grid-column: 1 / -1; }
+    .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
+}
+@media (max-width: 520px) {
+    .catalog-hero h1 { font-size: 22px; }
+    .catalog-results__toolbar { gap: 6px; }
+    .catalog-results__total { flex-basis: 100%; }
+    .catalog-page-size { margin-left: auto; }
+    .catalog-grid { grid-template-columns: minmax(0, 1fr); }
+    .catalog-pagination { justify-content: center; }
+    .catalog-pagination > span { flex-basis: 100%; text-align: center; }
+    .catalog-assurance { justify-content: flex-start; }
+}
 </style>

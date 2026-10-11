@@ -178,7 +178,7 @@ function downloadRows() {
 <template>
     <section class="price-list catalog-price-list" aria-label="Прайс-лист товаров">
         <div class="price-list__toolbar">
-            <div class="price-list__heading"><span class="price-list__sheet-icon" aria-hidden="true">▦</span><div><strong>Прайс-лист</strong><span>Работайте со строками, как в привычной таблице</span></div></div>
+            <div class="price-list__heading"><span class="price-list__sheet-icon" aria-hidden="true">▦</span><strong>Прайс-лист</strong></div>
             <div class="price-list__tools">
                 <button type="button" :disabled="!goods.length" @click="copyRows"><v-icon :icon="copied ? 'mdi-check' : 'mdi-content-copy'" size="14" />{{ copied ? 'Скопировано' : 'Копировать' }} {{ exportScope }}</button>
                 <button type="button" :disabled="!goods.length" @click="downloadRows"><v-icon icon="mdi-download" size="15" /> CSV · {{ exportScope }}</button>
@@ -229,20 +229,19 @@ function downloadRows() {
 
 <style scoped>
 .price-list { min-width: 0; max-width: 100%; border: 1px solid #d9dbd1; border-radius: 9px; background: #fff; color: #343c32; font-variant-numeric: tabular-nums; }
-.price-list__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 9px 9px 0 0; background: #f6f5ef; }
-.price-list__heading { display: flex; align-items: center; gap: 10px; margin-right: auto; }
-.price-list__sheet-icon { color: #800000; font-size: 30px; line-height: 1; }
+.price-list__toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 9px 9px 0 0; background: #f6f5ef; }
+.price-list__heading { display: flex; align-items: center; gap: 6px; margin-right: auto; }
+.price-list__sheet-icon { color: #800000; font-size: 21px; line-height: 1; }
 .price-list__heading strong { display: block; color: #31352b; font-size: 14px; }
-.price-list__heading div > span { display: block; margin-top: 2px; color: #7d8071; font-size: 10px; }
 .price-list__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.price-list__tools > button, .price-list__columns summary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; padding: 5px 8px; border: 1px solid #dcded5; border-radius: 4px; background: #fff; color: #515c48; font-size: 10px; cursor: pointer; }
+.price-list__tools > button, .price-list__columns summary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; padding: 4px 7px; border: 1px solid #dcded5; border-radius: 4px; background: #fff; color: #515c48; font-size: 10px; cursor: pointer; }
 .price-list__tools > button:hover, .price-list__columns summary:hover { border-color: #9d9f8d; }
 .price-list__columns { position: relative; }
 .price-list__columns summary { list-style: none; }
 .price-list__columns summary::-webkit-details-marker { display: none; }
 .price-list__columns > div { position: absolute; right: 0; top: calc(100% + 5px); z-index: 10; display: grid; gap: 10px; min-width: 155px; padding: 13px; border: 1px solid #d9dbd1; border-radius: 6px; background: white; box-shadow: 0 6px 20px #27332216; }
 .price-list__columns label { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
-.price-list__selection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 45px; padding: 7px 14px; border-top: 1px solid #e3e4da; border-bottom: 1px solid #d9dbd1; font-size: 11px; color: #7b8071; }
+.price-list__selection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-height: 36px; padding: 4px 9px; border-top: 1px solid #e3e4da; border-bottom: 1px solid #d9dbd1; font-size: 11px; color: #7b8071; }
 .price-list__selection b { color: #303c2e; }
 .price-list__clear { color: #80564e; font-size: 10px; text-decoration: underline; text-underline-offset: 2px; }
 .price-list__selection-sum { margin-left: auto; color: #77776a; }
@@ -255,7 +254,7 @@ function downloadRows() {
 table { width: 100%; min-width: 960px; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 11px; line-height: 1.35; }
 th, td { border-right: 1px solid #e3e6dc; border-bottom: 1px solid #e3e6dc; padding: 6px 9px; vertical-align: middle; }
 th:last-child, td:last-child { border-right: 0; }
-thead th { position: sticky; top: 0; z-index: 3; height: 33px; background: #ebeee5; color: #5c6752; font-size: 10px; font-weight: 700; white-space: nowrap; }
+thead th { position: sticky; top: 0; z-index: 3; height: 30px; background: #ebeee5; color: #5c6752; font-size: 10px; font-weight: 700; white-space: nowrap; }
 thead th button { display: flex; align-items: center; gap: 20px; width: 100%; color: inherit; text-align: inherit; font-size: inherit; font-weight: inherit; }
 thead th button span { margin-left: auto; color: #800000; font-size: 14px; }
 thead th[aria-sort="ascending"], thead th[aria-sort="descending"] { background: #e2e7d9; color: #384932; }
@@ -310,7 +309,7 @@ thead .price-list__product { z-index: 4; }
 .price-list__sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible, .price-list__scroll:focus-visible { outline: 2px solid #800000; outline-offset: 2px; }
 @media (max-width: 600px) {
-    .price-list__toolbar { padding: 11px 9px; }
+    .price-list__toolbar { padding: 6px 8px; }
     .price-list__tools { width: 100%; gap: 5px; }
     .price-list__tools > button { flex: 1; padding-inline: 6px; font-size: 9px; }
     .price-list__columns summary { padding-inline: 6px; font-size: 9px; }

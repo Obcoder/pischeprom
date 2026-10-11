@@ -17,7 +17,7 @@ function harness(t, filename, initial, extras = {}) {
     const cart = { succeeds: true, cartError: Vue.ref('Ошибка корзины'), addGood: (...args) => { cartCalls.push(args); return cart.succeeds } }
     const environment = {
         ...Vue, ...catalog, unitLabel, Head: 'Head', Link: 'Link', LayoutDefault: {},
-        PublicCatalogGoodCard: 'PublicCatalogGoodCard', PublicCatalogTree: 'PublicCatalogTree', PublicCatalogPriceList: 'PublicCatalogPriceList', PublicCatalogGoodActions: 'PublicCatalogGoodActions', GoodInquiryDialog: 'GoodInquiryDialog', GoodStockAlertButton: 'GoodStockAlertButton',
+        PublicCatalogGoodCard: 'PublicCatalogGoodCard', PublicCatalogTree: 'PublicCatalogTree', PublicCatalogPriceList: 'PublicCatalogPriceList', PublicCatalogCategoryFilter: 'PublicCatalogCategoryFilter', PublicCatalogGoodActions: 'PublicCatalogGoodActions', GoodInquiryDialog: 'GoodInquiryDialog', GoodStockAlertButton: 'GoodStockAlertButton',
         useAppRoute: () => ({ route: (name, id) => name === 'public.fields.show' ? `/fields/${id}` : '/g' }),
         usePublicGoodUrl: () => ({ goodPublicUrl: good => `/g/${good.slug || good.id}` }),
         router: { get: (...args) => calls.push(args) },
@@ -200,4 +200,23 @@ test('price list preferences restore only when the URL does not explicitly pick 
     assert.equal(h.calls.at(-1)[1].view, 'pricelist')
     assert.equal(h.calls.at(-1)[1].per_page, 100)
     assert.equal(catalog.normalizeCatalogFilters({ view: 'unknown' }).view, 'cards')
+})
+
+
+test('custom category filter resets pagination and retains current view, search and price range', t => {
+    const h = harness(t, goodsPage, defaults({ filters: { view: 'pricelist', per_page: 50, search: 'мука', price_min: 10, node_id: 10 } }))
+    const picker = findVNode(h.render(), vnode => vnode.type === 'PublicCatalogCategoryFilter')
+    assert.equal(picker.props.nodes, h.props.catalogTree)
+    assert.equal(picker.props['selected-id'], 10)
+    picker.props.onSelect(11)
+    assert.equal(h.calls.at(-1)[1].node_id, 11)
+    assert.equal(h.calls.at(-1)[1].page, 1)
+    assert.equal(h.calls.at(-1)[1].view, 'pricelist')
+    assert.equal(h.calls.at(-1)[1].per_page, 50)
+    assert.equal(h.calls.at(-1)[1].search, 'мука')
+    assert.equal(h.calls.at(-1)[1].price_min, 10)
+    picker.props.onSelect('')
+    assert.equal(h.calls.at(-1)[1].node_id, undefined)
+    assert.equal(h.calls.at(-1)[1].search, 'мука')
+    assert.equal(h.calls.at(-1)[1].view, 'pricelist')
 })

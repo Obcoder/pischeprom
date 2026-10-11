@@ -53,7 +53,8 @@ class ClassPageSsrTest extends TestCase
             Good::create(['name' => sprintf('Каталог SSR %02d', $i), 'is_published' => true]);
         }
         $cards = $this->rawPage('/g?per_page=10')->assertSee('Каталог товаров')->assertSee('Каталог SSR 01')
-            ->assertDontSee('Каталог SSR 11')->assertSee('catalog-grid', false);
+            ->assertDontSee('Каталог SSR 11')->assertSee('catalog-grid', false)
+            ->assertSee('catalog-category-filter', false)->assertSee('Найти категорию');
         $xpath = $this->xpath($cards->getContent());
         $this->assertSame(10, $xpath->query('//body//*[contains(concat(" ", normalize-space(@class), " "), " catalog-card ")]')->length);
         $this->rawPage('/g?per_page=10&page=2&view=tree&show_filters=0')->assertSee('Каталог SSR 11')
