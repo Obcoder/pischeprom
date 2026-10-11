@@ -22,5 +22,5 @@ watch(() => [props.node?.id, props.node?.thumbnail_url, props.node?.image], () =
 </template>
 
 <style scoped>
-.catalog-node-avatar { display: inline-block; flex: 0 0 var(--catalog-avatar-size); width: var(--catalog-avatar-size); min-width: var(--catalog-avatar-size); max-width: var(--catalog-avatar-size); height: var(--catalog-avatar-size); min-height: var(--catalog-avatar-size); max-height: var(--catalog-avatar-size); aspect-ratio: 1; object-fit: cover; object-position: center; border-radius: 4px; vertical-align: middle; background: #f4f0f7; }
+.catalog-node-avatar { display: inline-block; flex: 0 0 var(--catalog-avatar-size); width: var(--catalog-avatar-size); min-width: var(--catalog-avatar-size); max-width: var(--catalog-avatar-size); height: var(--catalog-avatar-size); min-height: var(--catalog-avatar-size); max-height: var(--catalog-avatar-size); aspect-ratio: 1; object-fit: contain; object-position: center; border-radius: 0; vertical-align: middle; background: transparent; }
 </style>

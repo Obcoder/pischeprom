@@ -676,7 +676,7 @@ async function remove() {
                             <h3><v-icon icon="mdi-text-box-outline" size="18" /> Содержание</h3>
                             <v-textarea v-model="form.description" label="Описание" variant="outlined" density="compact" :rows="isGood ? 3 : 5" :error-messages="fieldErrors('description')" />
                             <div class="catalog-node-dialog__avatar">
-                                <v-img v-if="avatarPreviewSource" :src="avatarPreviewSource" width="88" height="88" cover rounded="lg" />
+                                <v-img v-if="avatarPreviewSource" :src="avatarPreviewSource" width="88" height="88" />
                                 <div v-else class="catalog-node-dialog__avatar-empty"><v-icon icon="mdi-image-outline" size="30" /></div>
                                 <p>Аватар записи<small>Графическое обозначение в каталоге и на витрине</small><v-btn v-if="!isGood && (form.image || selectedFile)" size="small" variant="text" prepend-icon="mdi-close" :disabled="busy" @click="clearAvatar">Убрать аватар</v-btn></p>
                             </div>

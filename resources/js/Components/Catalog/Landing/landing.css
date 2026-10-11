@@ -17,6 +17,6 @@
 .catalog-landing .landing-image figcaption { color: var(--muted); margin-top: 12px; }
 .catalog-landing .landing-branches { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; padding-bottom: 25px; }
 .catalog-landing .landing-branches a { display: flex; gap: 14px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
-.catalog-landing .landing-branches img { width: 60px; height: 60px; object-fit: cover; border-radius: 5px; }
+.catalog-landing .landing-branches img { width: 60px; height: 60px; }
 .catalog-landing .mobile-bar:has(a:only-child) { grid-template-columns: 1fr; }
 @media (max-width: 640px) { .catalog-landing .hero-description.landing-lines { white-space: normal; } }
