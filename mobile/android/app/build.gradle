@@ -16,6 +16,17 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        debug {
+            // CI must reuse the installed app's certificate, not a runner-generated key.
+            if (System.getenv('MOBILE_ANDROID_KEYSTORE')) {
+                storeFile file(System.getenv('MOBILE_ANDROID_KEYSTORE'))
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false

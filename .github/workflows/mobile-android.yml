@@ -32,6 +32,7 @@ jobs:
     env:
       VITE_MOBILE_API_URL: https://xn----dtbhbbn3apgclecj7i.xn--p1ai/api/mobile/v1
       MOBILE_SIGNER_SHA256: 40e0eafc20adf7db4235b86fc3629fb9828a40e3a92ba925e02453294c2960e1
+      MOBILE_ANDROID_KEYSTORE: ${{ runner.temp }}/pischeprom-debug.keystore
 
     steps:
       - name: Check out the requested commit
@@ -72,9 +73,8 @@ jobs:
             echo '::error::MOBILE_ANDROID_DEBUG_KEYSTORE_BASE64 is required to preserve Android update compatibility.'
             exit 1
           fi
-          install -d -m 700 "$HOME/.android"
           umask 077
-          printf '%s' "$MOBILE_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          printf '%s' "$MOBILE_KEYSTORE" | base64 --decode > "$MOBILE_ANDROID_KEYSTORE"
 
       - name: Assemble APK
         working-directory: mobile/android
@@ -85,9 +85,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           apk='mobile/android/app/build/outputs/apk/debug/app-debug.apk'
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" > /tmp/mobile-apk-certificate.txt
-          grep -Fqx "Signer #1 certificate SHA-256 digest: $MOBILE_SIGNER_SHA256" /tmp/mobile-apk-certificate.txt
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" | tee /tmp/mobile-apk-certificate.txt
+          if ! grep -Fqx "Signer #1 certificate SHA-256 digest: $MOBILE_SIGNER_SHA256" /tmp/mobile-apk-certificate.txt; then
+            echo '::error::APK certificate does not match the existing installed app.'
+            exit 1
+          fi
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 -v 4 "$apk"
           python3 - <<'PY'
           import hashlib, json, os, pathlib, re, shutil, subprocess, zipfile
           apk = pathlib.Path('mobile/android/app/build/outputs/apk/debug/app-debug.apk')
@@ -121,7 +124,7 @@ jobs:
 
       - name: Remove signing key from runner
         if: always()
-        run: rm -f -- "$HOME/.android/debug.keystore"
+        run: rm -f -- "$MOBILE_ANDROID_KEYSTORE"
 
       - name: Upload installable APK
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
