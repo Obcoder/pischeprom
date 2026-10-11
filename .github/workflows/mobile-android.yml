@@ -1,0 +1,133 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/mobile-android.yml'
+      - 'mobile/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'packages/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pischeprom-android-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  apk:
+    name: Build installable Android APK
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VITE_MOBILE_API_URL: https://xn----dtbhbbn3apgclecj7i.xn--p1ai/api/mobile/v1
+      MOBILE_SIGNER_SHA256: 40e0eafc20adf7db4235b86fc3629fb9828a40e3a92ba925e02453294c2960e1
+
+    steps:
+      - name: Check out the requested commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22.18.0
+          cache: npm
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Ensure Android SDK packages
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-36" "build-tools;35.0.0"'
+
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify mobile interactions
+        run: npm run mobile:test
+
+      - name: Build and copy mobile assets to Android
+        run: npm run mobile:sync
+
+      - name: Restore the existing internal app signing key
+        env:
+          MOBILE_KEYSTORE: ${{ secrets.MOBILE_ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$MOBILE_KEYSTORE" ]]; then
+            echo '::error::MOBILE_ANDROID_DEBUG_KEYSTORE_BASE64 is required to preserve Android update compatibility.'
+            exit 1
+          fi
+          install -d -m 700 "$HOME/.android"
+          umask 077
+          printf '%s' "$MOBILE_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+
+      - name: Assemble APK
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon :app:assembleDebug
+
+      - name: Verify and package APK
+        id: package
+        run: |
+          set -Eeuo pipefail
+          apk='mobile/android/app/build/outputs/apk/debug/app-debug.apk'
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" > /tmp/mobile-apk-certificate.txt
+          grep -Fqx "Signer #1 certificate SHA-256 digest: $MOBILE_SIGNER_SHA256" /tmp/mobile-apk-certificate.txt
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$apk"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, shutil, subprocess, zipfile
+          apk = pathlib.Path('mobile/android/app/build/outputs/apk/debug/app-debug.apk')
+          metadata = subprocess.check_output([os.environ['ANDROID_HOME'] + '/build-tools/35.0.0/aapt', 'dump', 'badging', str(apk)], text=True)
+          package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'", metadata)
+          assert package and package[1] == 'ru.pischeprom.orders', 'Unexpected application ID'
+          version = package[3]
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), 'Unexpected version name'
+          with zipfile.ZipFile(apk) as archive:
+              assets = [name for name in archive.namelist() if name.startswith('assets/public/assets/') and name.endswith('.js')]
+              assert any(os.environ['VITE_MOBILE_API_URL'].encode() in archive.read(name) for name in assets), 'Production API URL missing from APK'
+          destination = pathlib.Path('apk-artifact')
+          destination.mkdir()
+          target = destination / f'pischeprom-orders-{version}.apk'
+          shutil.copy2(apk, target)
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          target.with_suffix('.apk.sha256').write_text(f'{digest}  {target.name}\n')
+          (destination / 'build.json').write_text(json.dumps({
+              'commit': os.environ['GITHUB_SHA'], 'application_id': package[1],
+              'version_name': version, 'version_code': int(package[2]), 'sha256': digest,
+              'signer_sha256': os.environ['MOBILE_SIGNER_SHA256'], 'build_type': 'debug',
+          }, indent=2) + '\n')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'version={version}\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write(f'### Android APK {version}\n\nDownload **pischeprom-orders-{version}** from this run’s Artifacts and extract the APK.\n\n')
+              output.write(f'Package: `{package[1]}`, version code: `{package[2]}`.\n\n')
+              output.write('Internal debug build, signed with the same certificate as version 1.2.1.\n\n')
+              output.write(f'SHA-256: `{digest}`\n')
+          PY
+
+      - name: Remove signing key from runner
+        if: always()
+        run: rm -f -- "$HOME/.android/debug.keystore"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: pischeprom-orders-${{ steps.package.outputs.version }}
+          path: apk-artifact/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
