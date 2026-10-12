@@ -9,17 +9,20 @@ use App\Models\Good;
 use App\Models\GoodEntityPrice;
 use App\Models\GoodPriceHistory;
 use App\Models\GoodPriceTypeValue;
+use App\Models\GoodPricingElement;
 use App\Models\PriceType;
 use App\Models\User;
+use App\Services\Goods\GoodPricingArchive;
 use App\Services\Goods\GoodPricingCalculator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class GoodPricingWorkspaceController extends Controller
 {
-    public function index(Good $good, GoodPricingCalculator $calculator): JsonResponse
+    public function index(Good $good, GoodPricingCalculator $calculator, GoodPricingArchive $archive): JsonResponse
     {
         $sources = $calculator->sources($good);
         $manufacturers = DB::table('good_product as gp')->where('gp.good_id', $good->id)
@@ -37,6 +40,9 @@ class GoodPricingWorkspaceController extends Controller
             'currencies' => Currency::orderBy('code')->get(['id', 'code']),
             'measurement' => $good->measurement(), 'vat_rate' => $good->vatRate?->rate ?? 20,
             'calculations' => $good->priceCalculations()->with('currency')->latest('id')->get(),
+            'saved_calculations' => $archive->listing($good),
+            'elements' => GoodPricingElement::where('good_id', $good->id)->with('currency:id,code')->orderBy('name')->get()
+                ->map(fn ($element) => [...$element->attributesToArray(), 'currency_code' => $element->currency?->code]),
         ]);
     }
 
@@ -45,11 +51,11 @@ class GoodPricingWorkspaceController extends Controller
         return response()->json($calculator->calculate($good, $this->validated($request)));
     }
 
-    public function save(Request $request, Good $good, GoodPricingCalculator $calculator): JsonResponse
+    public function save(Request $request, Good $good, GoodPricingCalculator $calculator, GoodPricingArchive $archive): JsonResponse
     {
         $input = $this->validated($request, true);
 
-        return DB::transaction(function () use ($good, $input, $calculator): JsonResponse {
+        return DB::transaction(function () use ($good, $input, $calculator, $archive): JsonResponse {
             $good = Good::lockForUpdate()->findOrFail($good->id);
             $private = $input['scope'] === 'entity';
             $target = $private ? Entity::findOrFail($input['target_id']) : PriceType::findOrFail($input['target_id']);
@@ -70,11 +76,33 @@ class GoodPricingWorkspaceController extends Controller
                 'manual_comment' => $input['comment'] ?? null,
                 'pricing_input' => collect($input)->except(['id', 'revision', 'target_id', 'scope', 'measurement'])->all(),
                 'pricing_result' => $result,
-                ...($private ? ['is_active' => $input['active']] : ['is_published' => $input['active'], 'is_manual' => $input['method'] === 'manual', 'calculation_id' => $input['method'] === 'saved' ? $input['calculation_id'] : null]),
+                ...($private ? ['is_active' => $input['active']] : ['is_published' => $input['active'], 'is_manual' => $input['method'] === 'manual', 'calculation_id' => $input['method'] === 'saved' ? ($input['calculation_id'] ?? null) : null]),
             ]);
             $price->save();
 
-            return response()->json($this->row($price->fresh($private ? ['entity', 'currency'] : ['priceType.currency', 'currency']), $input['scope']));
+            $history = GoodPriceHistory::where('good_id', $good->id)->where('scope', $input['scope'])
+                ->where('price_record_id', $price->id)->latest('id')->firstOrFail();
+            $saved = $archive->record($good, $input, $result, $history);
+
+            return response()->json([
+                ...$this->row($price->fresh($private ? ['entity', 'currency'] : ['priceType.currency', 'currency']), $input['scope']),
+                'saved_calculation' => $archive->toDto($saved),
+            ]);
+        });
+    }
+
+    public function saveCalculation(Request $request, Good $good, GoodPricingCalculator $calculator, GoodPricingArchive $archive): JsonResponse
+    {
+        $input = $this->validated($request);
+        if (! empty($input['target_id'])) {
+            ($input['scope'] === 'entity' ? Entity::query() : PriceType::query())->findOrFail($input['target_id']);
+        }
+
+        return DB::transaction(function () use ($good, $input, $calculator, $archive): JsonResponse {
+            $good = Good::lockForUpdate()->findOrFail($good->id);
+            $result = $calculator->calculate($good, $input);
+
+            return response()->json($archive->toDto($archive->record($good, $input, $result)), 201);
         });
     }
 
@@ -155,11 +183,14 @@ class GoodPricingWorkspaceController extends Controller
 
     private function validated(Request $request, bool $saving = false): array
     {
-        return $request->validate([
+        $input = $request->validate([
             'id' => ['nullable', 'integer', 'min:1'], 'revision' => [$saving ? 'required' : 'nullable', 'integer', 'min:0'],
-            'scope' => ['required', Rule::in(['common', 'entity'])], 'target_id' => [$saving ? 'required' : 'nullable', 'integer', 'min:1'],
+            'scope' => ['required', Rule::in(['common', 'entity'])], 'target_id' => [Rule::requiredIf($saving || $request->input('scope') === 'entity'), 'nullable', 'integer', 'min:1'],
             'method' => ['required', Rule::in(['manual', 'markup', 'absolute', 'margin', 'saved'])],
-            'calculation_id' => ['required_if:method,saved', 'nullable', 'integer', 'min:1'],
+            'calculation_id' => ['nullable', 'integer', 'min:1'],
+            'saved_calculation_id' => ['nullable', 'integer', 'min:1'],
+            'calculation_name' => ['nullable', 'string', 'max:255'],
+            'purchase_amount' => [Rule::requiredIf(! in_array($request->input('method'), ['manual', 'saved'], true) && $request->input('source_key') === 'manual'), 'nullable', 'numeric', 'between:0,999999999999', 'decimal:0,4'],
             'source_key' => ['required_unless:method,manual,saved', 'nullable', 'string', 'max:80'],
             'currency_id' => ['required', 'integer', 'exists:currencies,id'],
             'amount' => ['required_if:method,manual', 'nullable', 'numeric', 'gt:0', 'max:999999999999', 'decimal:0,4'],
@@ -170,9 +201,35 @@ class GoodPricingWorkspaceController extends Controller
             'rounding_step' => ['nullable', 'numeric', 'between:0,1000000', 'decimal:0,4'],
             'active' => ['required', 'boolean'], 'comment' => ['nullable', 'string', 'max:2000'],
             'valid_from' => ['nullable', 'date_format:Y-m-d'], 'valid_to' => ['nullable', 'date_format:Y-m-d', ...($request->filled('valid_from') ? ['after_or_equal:valid_from'] : [])],
+            'elements' => ['nullable', 'array', 'max:30'],
+            'elements.*' => ['array:element_id,element_revision,name,kind,value,percentage_base,includes_vat,vat_rate,enabled,currency_id,measurement'],
+            'elements.*.element_id' => ['nullable', 'integer', 'min:1'],
+            'elements.*.element_revision' => ['nullable', 'integer', 'min:1'],
+            'elements.*.name' => ['required', 'string', 'max:150'],
+            'elements.*.kind' => ['required', Rule::in(['fixed', 'percent'])],
+            'elements.*.value' => ['required', 'numeric', 'between:0,999999999999', 'decimal:0,4'],
+            'elements.*.percentage_base' => ['required', Rule::in(['purchase_net', 'running_cost'])],
+            'elements.*.includes_vat' => ['required', 'boolean'],
+            'elements.*.vat_rate' => ['required', 'numeric', 'between:0,100', 'decimal:0,4'],
+            'elements.*.enabled' => ['required', 'boolean'],
+            'elements.*.currency_id' => ['nullable', 'integer', 'exists:currencies,id'],
+            'elements.*.measurement' => ['nullable', 'array:measure_id,unit_label,kilograms_per_unit'],
+            'elements.*.measurement.measure_id' => ['required_with:elements.*.measurement', 'integer'],
+            'elements.*.measurement.unit_label' => ['nullable', 'string', 'max:255'],
+            'elements.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
             'measurement' => ['required', 'array:measure_id,unit_label,kilograms_per_unit'],
             'measurement.measure_id' => ['required', 'integer'], 'measurement.unit_label' => ['nullable', 'string', 'max:255'],
             'measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
         ]);
+        if ($input['method'] === 'saved' && (bool) ($input['calculation_id'] ?? null) === (bool) ($input['saved_calculation_id'] ?? null)) {
+            throw ValidationException::withMessages(['saved_calculation_id' => 'Выберите один сохранённый расчёт.']);
+        }
+        foreach ($input['elements'] ?? [] as $index => $element) {
+            if ($element['kind'] === 'percent' && $element['includes_vat']) {
+                throw ValidationException::withMessages(["elements.$index.includes_vat" => 'Процентный элемент считается от выбранной базы без НДС.']);
+            }
+        }
+
+        return $input;
     }
 }

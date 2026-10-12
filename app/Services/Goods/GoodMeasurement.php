@@ -108,13 +108,10 @@ class GoodMeasurement
                 foreach ($prices as $price) {
                     $price->auditMeasurementBefore = $before;
                     $price->auditMeasurementAfter = $after;
+                    $factor = $toKg / $fromKg;
                     foreach (['price_net', 'price_gross'] as $field) {
                         if ($price->{$field} !== null) {
-                            $value = round((float) $price->{$field} * $toKg / $fromKg, 4);
-                            if (! is_finite($value) || $value >= 1e12) {
-                                throw ValidationException::withMessages([$prefix.'measure_id' => 'Цена после пересчёта выходит за допустимые пределы.']);
-                            }
-                            $price->{$field} = $value;
+                            $price->{$field} = $this->scaleMoney($price->{$field}, $factor, $prefix);
                         }
                     }
                     if ($price->pricing_input) {
@@ -125,20 +122,41 @@ class GoodMeasurement
                         } elseif (($input['method'] ?? null) === 'absolute') {
                             $fields[] = 'parameter';
                         }
+                        if (($input['source_key'] ?? null) === 'manual') {
+                            $fields[] = 'purchase_amount';
+                        }
                         foreach ($fields as $field) {
                             if (isset($input[$field])) {
-                                $input[$field] = round((float) $input[$field] * $toKg / $fromKg, 4);
+                                $input[$field] = $this->scaleMoney($input[$field], $factor, $prefix);
                             }
                         }
+                        foreach ($input['elements'] ?? [] as $index => $element) {
+                            if (($element['kind'] ?? null) !== 'fixed') {
+                                continue;
+                            }
+                            // Disabled templates may still have a different unit. Keep
+                            // those snapshots intact so enabling them cannot silently
+                            // reinterpret an amount in the current accounting unit.
+                            $elementUnit = $element['measurement'] ?? $before;
+                            if ((int) ($elementUnit['measure_id'] ?? 0) !== (int) ($before['measure_id'] ?? 0)
+                                || ($elementUnit['kilograms_per_unit'] ?? null) != ($before['kilograms_per_unit'] ?? null)) {
+                                continue;
+                            }
+                            $input['elements'][$index]['value'] = $this->scaleMoney($element['value'], $factor, $prefix);
+                            $input['elements'][$index]['measurement'] = $after;
+                        }
+                        $input['measurement'] = $after;
                         $price->pricing_input = $input;
                     }
                     if ($price->pricing_result) {
                         $result = $price->pricing_result;
-                        foreach (['price_net', 'price_gross', 'cost_net', 'profit'] as $field) {
+                        foreach (['price_net', 'price_gross', 'cost_net', 'profit', 'purchase_net', 'source_gross', 'source_vat',
+                            'extra_cost_net', 'profit_before_rounding', 'vat_amount', 'rounding_gross'] as $field) {
                             if (isset($result[$field])) {
-                                $result[$field] = round((float) $result[$field] * $toKg / $fromKg, 4);
+                                $result[$field] = $this->scaleMoney($result[$field], $factor, $prefix);
                             }
                         }
+                        $result = $this->rescaleBreakdown($result, $factor, $before, $after, $prefix, $price->pricing_input ?? []);
                         $result['measurement'] = $after;
                         $price->pricing_result = $result;
                     }
@@ -151,6 +169,86 @@ class GoodMeasurement
 
             return $good;
         });
+    }
+
+    private function scaleMoney(float|string $amount, float $factor, string $prefix): float
+    {
+        $value = round((float) $amount * $factor, 4);
+        if (! is_finite($value) || abs($value) >= 1e12) {
+            throw ValidationException::withMessages([$prefix.'measure_id' => 'Цена после пересчёта выходит за допустимые пределы.']);
+        }
+
+        return $value;
+    }
+
+    private function rescaleBreakdown(array $result, float $factor, array $before, array $after, string $prefix, array $input): array
+    {
+        $manualSource = ($result['source']['kind'] ?? null) === 'manual';
+        if (isset($result['source']['conversion_factor'])) {
+            $result['source']['conversion_factor'] = $manualSource ? 1 : $result['source']['conversion_factor'] * $factor;
+        }
+        if ($manualSource) {
+            $result['source']['price'] = $this->scaleMoney($result['source']['price'], $factor, $prefix);
+            $result['source']['measure_id'] = $after['measure_id'];
+            $result['source']['unit_label'] = $after['unit_label'];
+        }
+        if (empty($result['breakdown'])) {
+            return $result;
+        }
+        $format = fn ($amount) => rtrim(rtrim(number_format((float) $amount, 4, ',', ' '), '0'), ',');
+        $factorLabel = rtrim(rtrim(number_format($factor, 15, ',', ' '), '0'), ',');
+        $roundingIndex = null;
+        foreach ($result['breakdown'] as $index => &$stage) {
+            $amount = $stage['amount'];
+            foreach (['amount', 'subtotal', 'basis', 'vat_amount'] as $field) {
+                if (isset($stage[$field])) {
+                    $stage[$field] = $this->scaleMoney($stage[$field], $factor, $prefix);
+                }
+            }
+            // input_amount for percentages and supplier offers is dimensionless
+            // or expressed in the original source unit, respectively.
+            $fixedElement = ($stage['kind'] ?? null) === 'extra' && ($stage['basis'] ?? null) === null;
+            if (isset($stage['input_amount']) && ($fixedElement || ($manualSource && ($stage['key'] ?? null) === 'purchase'))) {
+                $element = $fixedElement && preg_match('/^element:(\d+)$/', $stage['key'] ?? '', $matches)
+                    ? ($input['elements'][(int) $matches[1]] ?? null) : null;
+                $stage['input_amount'] = $element ? $element['value'] : $this->scaleMoney($stage['input_amount'], $factor, $prefix);
+            }
+            if (isset($stage['conversion_factor'])) {
+                $stage['conversion_factor'] = $manualSource ? 1 : $stage['conversion_factor'] * $factor;
+            }
+            if ($manualSource && ($stage['key'] ?? null) === 'purchase') {
+                $stage['source_unit'] = $after['unit_label'];
+            }
+            if (($stage['kind'] ?? null) === 'profit' && ($stage['method'] ?? null) === 'absolute') {
+                $stage['parameter'] = $this->scaleMoney($stage['parameter'], $factor, $prefix);
+            }
+            $stage['formula'] = 'Пересчёт '.($before['unit_label'] ?: 'кг').' → '.$after['unit_label'].': '
+                .$format($amount).' × '.$factorLabel.' = '.$format($stage['amount']);
+            if (($stage['kind'] ?? null) === 'rounding') {
+                $roundingIndex = $index;
+            }
+        }
+        unset($stage);
+        $total = round(array_sum(array_column($result['breakdown'], 'amount')), 4);
+        $difference = round($result['price_gross'] - $total, 4);
+        if ($roundingIndex === null && $difference != 0) {
+            $roundingIndex = count($result['breakdown']);
+            $result['breakdown'][] = ['key' => 'rounding', 'kind' => 'rounding', 'label' => 'Округление', 'amount' => 0];
+        }
+        if ($roundingIndex !== null && $difference != 0) {
+            $result['breakdown'][$roundingIndex]['amount'] = round($result['breakdown'][$roundingIndex]['amount'] + $difference, 4);
+            $result['breakdown'][$roundingIndex]['formula'] = 'После пересчёта: '.$format($result['price_gross']).' − '
+                .$format(round($total - ($result['breakdown'][$roundingIndex]['amount'] - $difference), 4))
+                .' = '.$format($result['breakdown'][$roundingIndex]['amount']).' (согласование точности 4 знака)';
+        }
+        $subtotal = 0;
+        foreach ($result['breakdown'] as &$stage) {
+            $subtotal = round($subtotal + $stage['amount'], 4);
+            $stage['subtotal'] = $subtotal;
+        }
+        unset($stage);
+
+        return $result;
     }
 
     private function assertStockUnit(Good $good, int $measureId, string $key): void

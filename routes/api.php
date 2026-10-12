@@ -584,8 +584,15 @@ Route::prefix('goods/{good}')
     ->group(function () {
         Route::get('/pricing', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'index'])->name('pricing.index');
         Route::post('/pricing/preview', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'preview'])->name('pricing.preview');
+        Route::post('/pricing/calculations', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'saveCalculation'])->name('pricing.calculations.store');
         Route::put('/pricing', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'save'])->name('pricing.save');
         Route::get('/pricing/history', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'history'])->name('pricing.history');
+        Route::get('/pricing/elements', [\App\Http\Controllers\API\GoodPricingElementController::class, 'index'])->name('pricing.elements.index');
+        Route::post('/pricing/elements', [\App\Http\Controllers\API\GoodPricingElementController::class, 'store'])->name('pricing.elements.store');
+        Route::patch('/pricing/elements/{element}', [\App\Http\Controllers\API\GoodPricingElementController::class, 'update'])
+            ->whereNumber('element')->name('pricing.elements.update');
+        Route::delete('/pricing/elements/{element}', [\App\Http\Controllers\API\GoodPricingElementController::class, 'destroy'])
+            ->whereNumber('element')->name('pricing.elements.destroy');
         Route::delete('/pricing/{scope}/{record}', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'destroy'])
             ->where('scope', 'common|entity')->whereNumber('record')->name('pricing.destroy');
         Route::get('/price-calculations', [GoodPriceCalculationController::class, 'index'])
