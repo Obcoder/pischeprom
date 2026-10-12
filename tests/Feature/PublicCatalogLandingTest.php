@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\CatalogLanding;
+use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
+use App\Models\CatalogSiteDomain;
 use App\Models\Category;
 use App\Models\Good;
 use App\Models\Product;
@@ -35,6 +37,98 @@ class PublicCatalogLandingTest extends TestCase
         Http::preventStrayRequests();
         config()->set('app.asset_url', 'https://assets.example.test');
         $this->withHeader('X-Inertia-Version', hash('xxh128', 'https://assets.example.test'));
+    }
+
+    public function test_header_landings_share_only_published_editorial_links_without_drafts_or_content(): void
+    {
+        $parent = $this->node('Ингредиенты', ['slug' => 'ingredients']);
+        $published = $this->node('Гид по ингредиентам', ['slug' => 'guide', 'parent_id' => $parent->id]);
+        $landing = $this->landing($published);
+        $draft = $landing->draft_content;
+        $draft['hero']['title'] = 'private-draft-heading-sentinel';
+        $content = $landing->published_content;
+        $content['hero']['subtitle'] = 'article-body-not-needed-in-navigation';
+        $landing->update(['draft_content' => $draft, 'published_content' => $content]);
+        $draftOnly = $this->node('Неопубликованный черновик');
+        $this->landing($draftOnly)->update(['published_content' => null, 'published_at' => null, 'activated_at' => null]);
+        $disabled = $this->node('Отключённый лендинг');
+        $this->landing($disabled)->update(['published_content' => null, 'published_at' => null]);
+        $empty = $this->node('Пустой снимок');
+        $this->landing($empty)->update(['published_content' => []]);
+        $this->node('Обычная категория без лендинга');
+        $good = Good::create(['name' => 'Обычная карточка товара', 'is_published' => true]);
+        $goodNode = $this->node('Размещение товара', ['entity_type' => 'good', 'entity_id' => $good->id]);
+        CatalogLanding::create(['catalog_node_id' => $goodNode->id, 'published_content' => $content]);
+
+        foreach (['/privacy-policy', '/g', '/g/'.$good->slug] as $path) {
+            $response = $this->get($path, ['X-Inertia' => 'true'])->assertOk()
+                ->assertJsonPath('props.headerLandings', [[
+                    'id' => $published->id,
+                    'title' => 'Гид по ингредиентам',
+                    'url' => url('/catalog/ingredients/guide'),
+                ]]);
+            $this->assertStringNotContainsString('private-draft-heading-sentinel', $response->getContent());
+            $this->assertStringNotContainsString('article-body-not-needed-in-navigation', $response->getContent());
+        }
+
+        $parent->update(['slug' => 'renamed']);
+        $published->update(['name' => 'Обновлённый гид']);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.headerLandings.0.title', 'Обновлённый гид')
+            ->assertJsonPath('props.headerLandings.0.url', url('/catalog/renamed/guide'));
+    }
+
+    public function test_header_landings_are_scoped_to_the_current_host_and_every_published_ancestor(): void
+    {
+        $domainLevel = CatalogLevel::where('is_domain', true)->firstOrFail();
+        $food = $this->node('Пищевые товары', ['level_id' => $domainLevel->id]);
+        $fabric = $this->node('Ткани', ['level_id' => $domainLevel->id]);
+        CatalogSiteDomain::create(['catalog_node_id' => $food->id, 'hostname' => 'food.test']);
+        CatalogSiteDomain::create(['catalog_node_id' => $fabric->id, 'hostname' => 'fabric.test']);
+        $foodGuide = $this->node('Пищевой гид', ['slug' => 'guide', 'parent_id' => $food->id]);
+        $fabricGuide = $this->node('Гид по тканям', ['slug' => 'guide', 'parent_id' => $fabric->id]);
+        $hidden = $this->node('Скрытая ветка', ['parent_id' => $food->id, 'is_published' => false]);
+        $hiddenGuide = $this->node('Гид скрытой ветки', ['parent_id' => $hidden->id]);
+        foreach ([$foodGuide, $fabricGuide, $hiddenGuide] as $node) {
+            $this->landing($node);
+        }
+
+        foreach (['food.test' => $foodGuide, 'fabric.test' => $fabricGuide] as $host => $guide) {
+            $response = $this->get('http://'.$host.'/privacy-policy', ['X-Inertia' => 'true'])->assertOk()
+                ->assertJsonPath('props.headerLandings', [[
+                    'id' => $guide->id, 'title' => $guide->name, 'url' => 'http://'.$host.'/catalog/guide',
+                ]]);
+            $this->get($response->json('props.headerLandings.0.url'), ['X-Inertia' => 'true'])->assertOk()
+                ->assertJsonPath('props.node.id', $guide->id)
+                ->assertJsonPath('props.classPage.content.hero.title', $guide->name);
+        }
+        $this->get('http://unknown.test/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
+        $foodGuide->update(['is_published' => false]);
+        $this->get('http://food.test/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
+        $foodGuide->update(['is_published' => true]);
+        $food->update(['is_published' => false]);
+        $this->get('http://food.test/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
+    }
+
+    public function test_header_landings_preserve_live_legacy_guides_but_never_reactivate_saved_drafts_or_disabled_pages(): void
+    {
+        $product = Product::forceCreate(['id' => 124, 'rus' => 'Скумбрия', 'is_published' => true]);
+        $node = $this->createClassCatalog($product);
+        $this->assertDatabaseMissing('catalog_landings', ['catalog_node_id' => $node->id]);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonPath('props.headerLandings', [['id' => $node->id, 'title' => 'Скумбрия', 'url' => $this->classUrl()]]);
+
+        $landing = $this->landing($node);
+        $content = $landing->published_content;
+        $landing->update(['published_content' => null, 'published_at' => null, 'activated_at' => null]);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
+        $landing->update(['published_content' => $content, 'published_at' => now(), 'activated_at' => now()]);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonCount(1, 'props.headerLandings');
+        $landing->update(['published_content' => null, 'published_at' => null]);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
+        $landing->delete();
+        $product->update(['is_published' => false]);
+        $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()->assertJsonPath('props.headerLandings', []);
     }
 
     public function test_any_unclassified_node_renders_published_content_and_current_card_seo_without_exposing_its_draft(): void

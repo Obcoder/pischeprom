@@ -39,6 +39,7 @@ class HandleInertiaRequests extends Middleware
 
             'publicCategoryUrls' => fn () => $hasStorefrontHeader ? app(PublicCatalogService::class)->categoryUrls() : [],
             'headerCategories' => fn () => $hasStorefrontHeader ? app(PublicCatalogService::class)->headerCategories() : [],
+            'headerLandings' => fn () => $hasStorefrontHeader ? app(PublicCatalogService::class)->headerLandings() : [],
 
             'realtime' => fn () => app(CommerceRealtimeAccess::class)->clientConfig($request->user()),
             'avitoRealtime' => fn () => app(AvitoRealtimeAccess::class)->clientConfig($request->user()),

@@ -12,6 +12,7 @@ const page = usePage()
 const { route } = useAppRoute()
 const accountMenu = ref(false)
 const categoryDropdown = ref(null)
+const landingDropdown = ref(null)
 const logoFailed = ref(false)
 const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg'
 const contacts = [
@@ -22,6 +23,8 @@ const user = computed(() => page.props.auth?.user ?? null)
 const canLogin = computed(() => Boolean(page.props.canLogin))
 const canRegister = computed(() => Boolean(page.props.canRegister))
 const availableCategories = computed(() => props.categories.filter(category => category?.id && category?.name))
+const availableLandings = computed(() => (Array.isArray(page.props.headerLandings) ? page.props.headerLandings : [])
+    .filter(landing => landing?.id && landing?.title && landing?.url))
 const homeUrl = computed(() => route('home'))
 const catalogUrl = computed(() => route('public.goods.index'))
 const loginUrl = computed(() => hasRoute('login') ? route('login') : '/login')
@@ -44,17 +47,26 @@ function isCurrent(url) { return pathOf(page.url || '/') === pathOf(url) }
 function closeCategories() {
     if (categoryDropdown.value) categoryDropdown.value.open = false
 }
-function dismissCategories(event) {
+function closeLandings() {
+    if (landingDropdown.value) landingDropdown.value.open = false
+}
+function dismissDropdowns(event) {
     if (!categoryDropdown.value?.contains(event.target)) closeCategories()
+    if (!landingDropdown.value?.contains(event.target)) closeLandings()
 }
 function escapeCategories() {
     if (!categoryDropdown.value?.open) return
     closeCategories()
     categoryDropdown.value.querySelector('summary')?.focus()
 }
-watch(() => page.url, closeCategories)
-onMounted(() => document.addEventListener('click', dismissCategories))
-onBeforeUnmount(() => document.removeEventListener('click', dismissCategories))
+function escapeLandings() {
+    if (!landingDropdown.value?.open) return
+    closeLandings()
+    landingDropdown.value.querySelector('summary')?.focus()
+}
+watch(() => page.url, () => { closeCategories(); closeLandings() })
+onMounted(() => document.addEventListener('click', dismissDropdowns))
+onBeforeUnmount(() => document.removeEventListener('click', dismissDropdowns))
 function logout() {
     if (!hasRoute('logout')) return
     accountMenu.value = false
@@ -72,7 +84,7 @@ function logout() {
                             <img v-if="!logoFailed" :src="logoUrl" alt="" width="40" height="40" decoding="async" @error="logoFailed = true">
                             <span v-else>ПС</span>
                         </span>
-                        <span class="app-header__brand-text"><strong>ПИЩЕПРОМ-СЕРВЕР</strong><small>Маркетплейс для пищевой промышленности</small></span>
+                        <span class="app-header__brand-text"><strong>ПИЩЕПРОМ-СЕРВЕР</strong><small>Маркетплейс пищевой промышленности</small></span>
                     </Link>
                     <div class="app-header__contacts" aria-label="Контакты">
                         <a v-for="contact in contacts" :key="contact.href" :href="contact.href" class="app-header__contact">
@@ -117,6 +129,13 @@ function logout() {
                             </div>
                         </details>
                     </div>
+                    <details ref="landingDropdown" class="app-header__landing-dropdown" @keydown.esc.stop.prevent="escapeLandings">
+                        <summary class="app-header__landing-toggle"><span>Полезные страницы</span><v-icon icon="mdi-chevron-down" size="18" /></summary>
+                        <div class="app-header__landing-menu" aria-label="Полезные страницы">
+                            <Link v-for="landing in availableLandings" :key="landing.id" :href="landing.url" class="app-header__landing-link" :class="{ 'app-header__landing-link--active': isCurrent(landing.url) }" :aria-current="isCurrent(landing.url) ? 'page' : undefined" @click="closeLandings">{{ landing.title }}</Link>
+                            <p v-if="!availableLandings.length" class="app-header__landing-empty">Страницы скоро появятся</p>
+                        </div>
+                    </details>
                 </nav>
             </v-container>
         </div>
@@ -131,13 +150,13 @@ function logout() {
 .app-header { position: sticky; top: 0; z-index: 20; min-width: 0; background: #f2ebdf; color: #243d32; }
 .app-header__container { padding-block: 0; }
 .app-header__top { background: #800000; color: #fff; }
-.app-header__top-inner { display: grid; grid-template-columns: minmax(205px, 1fr) auto minmax(150px, 240px) auto; align-items: center; gap: 16px; padding-block: 10px; }
+.app-header__top-inner { display: grid; grid-template-columns: minmax(260px, 1fr) auto minmax(140px, 200px) auto; align-items: center; gap: 12px; padding-block: 6px; }
 .app-header__brand { display: flex; align-items: center; gap: 9px; min-width: 0; color: #fff; text-decoration: none; }
-.app-header__logo { flex: 0 0 40px; width: 40px; height: 40px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #fff; color: #800000; font-weight: 800; }
+.app-header__logo { flex: 0 0 34px; width: 34px; height: 34px; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #fff; color: #800000; font-weight: 800; }
 .app-header__logo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .app-header__brand-text { min-width: 0; }
 .app-header__brand-text strong { display: block; font-size: 14px; font-weight: 700; letter-spacing: .025em; line-height: 1.2; }
-.app-header__brand-text small { display: block; margin-top: 4px; max-width: 220px; font-size: 10px; line-height: 1.4; color: #f2dfd3; }
+.app-header__brand-text small { display: block; margin-top: 3px; font-size: 10px; line-height: 1.2; color: #f2dfd3; white-space: nowrap; }
 .app-header__contacts { display: flex; flex-wrap: wrap; gap: 5px 12px; align-items: center; }
 .app-header__contact { display: inline-flex; align-items: center; gap: 6px; color: #fff0ed; font-size: 12px; line-height: 1.5; text-decoration: none; white-space: nowrap; }
 .app-header__contact:hover { text-decoration: underline; }
@@ -154,31 +173,35 @@ function logout() {
 .app-header__user span { overflow: hidden; text-overflow: ellipsis; }
 .app-header__profile { color: inherit; text-decoration: none; }
 .app-header__navigation { background: #f2ebdf; border-bottom: 1px solid #d7cdbd; }
-.app-header__nav { position: relative; display: flex; align-items: center; gap: 18px; max-width: 100%; padding: 5px 0 0; }
-.app-header__nav-link, .app-header__category-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #243d32; text-decoration: none; font-size: 12px; font-weight: 600; letter-spacing: .07em; line-height: 1.3; white-space: nowrap; text-transform: uppercase; transition: color .15s ease, background .15s ease; }
-.app-header__nav-link:hover, .app-header__category-toggle:hover { background: #243d3209; color: #82462f; }
+.app-header__nav { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; max-width: 100%; padding: 2px 0 0; }
+.app-header__nav-link, .app-header__category-toggle, .app-header__landing-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #243d32; text-decoration: none; font-size: 12px; font-weight: 600; letter-spacing: .07em; line-height: 1.3; white-space: nowrap; text-transform: uppercase; transition: color .15s ease, background .15s ease; }
+.app-header__nav-link:hover, .app-header__category-toggle:hover, .app-header__landing-toggle:hover { background: #243d3209; color: #82462f; }
 .app-header__nav-link--active { border-bottom-color: #b66143; color: #243d32; }
 .app-header__catalog { position: relative; display: flex; align-items: stretch; }
 .app-header__catalog-link--split { padding-right: 9px; }
 .app-header__category-toggle { height: 100%; min-width: 40px; padding-inline: 8px; list-style: none; cursor: pointer; }
-.app-header__category-toggle::-webkit-details-marker { display: none; }
-.app-header__category-dropdown[open] .app-header__category-toggle > .v-icon { transform: rotate(180deg); }
-.app-header__category-menu { position: absolute; z-index: 30; top: 100%; left: 0; width: 320px; max-width: calc(100vw - 28px); max-height: min(360px, 50vh); overflow-y: auto; overscroll-behavior: contain; padding: 5px 12px; border: 1px solid #b8baa9; border-radius: 2px; background: #f8f3e9; }
-.app-header__category-link { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 3px; border-bottom: 1px solid #ded7c9; color: #243d32; text-decoration: none; font-size: 14px; line-height: 1.4; }
-.app-header__category-link:last-child { border-bottom: 0; }
+.app-header__landing-dropdown { position: relative; min-width: 0; }
+.app-header__landing-toggle { list-style: none; cursor: pointer; }
+.app-header__category-toggle::-webkit-details-marker, .app-header__landing-toggle::-webkit-details-marker { display: none; }
+.app-header__category-dropdown[open] .app-header__category-toggle > .v-icon, .app-header__landing-dropdown[open] .app-header__landing-toggle > .v-icon { transform: rotate(180deg); }
+.app-header__category-menu, .app-header__landing-menu { position: absolute; z-index: 30; top: 100%; left: 0; width: 320px; max-width: calc(100vw - 28px); max-height: min(360px, 50vh); overflow-y: auto; overscroll-behavior: contain; padding: 5px 12px; border: 1px solid #b8baa9; border-radius: 2px; background: #f8f3e9; }
+.app-header__landing-menu { left: auto; right: 0; }
+.app-header__category-link, .app-header__landing-link { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 3px; border-bottom: 1px solid #ded7c9; color: #243d32; text-decoration: none; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.app-header__category-link:last-child, .app-header__landing-link:last-child { border-bottom: 0; }
 .app-header__category-link span { min-width: 0; overflow-wrap: anywhere; }
-.app-header__category-link:hover, .app-header__category-link--active { background: #ebe3d4; color: #82462f; }
-.app-header__category-link--active { font-weight: 600; }
-.app-header__cart-row { padding-block: 8px; background: #f2ebdf; border-bottom: 1px solid #d7cdbd; }
+.app-header__category-link:hover, .app-header__category-link--active, .app-header__landing-link:hover, .app-header__landing-link--active { background: #ebe3d4; color: #82462f; }
+.app-header__category-link--active, .app-header__landing-link--active { font-weight: 600; }
+.app-header__landing-empty { margin: 0; padding: 12px 3px; color: #59634f; font-size: 13px; line-height: 1.5; }
+.app-header__cart-row { padding-block: 4px; background: #f2ebdf; border-bottom: 1px solid #d7cdbd; }
 .app-header :is(a, button, summary):focus-visible, .app-header__city :deep(button:focus-visible) { outline: 2px solid #b66143; outline-offset: 3px; }
 .app-header__top :is(a, button):focus-visible, .app-header__city :deep(button:focus-visible) { outline-color: #f2ebdf; }
 @media (max-width: 1279px) and (min-width: 960px) {
-    .app-header__top-inner { grid-template-columns: minmax(200px, 1fr) auto minmax(160px, 220px) auto; gap: 12px; }
+    .app-header__top-inner { grid-template-columns: minmax(250px, 1fr) auto minmax(140px, 190px) auto; gap: 10px; }
     .app-header__contacts { flex-direction: column; align-items: flex-start; gap: 3px; }
 }
 @media (max-width: 959px) {
     .app-header { position: relative; }
-    .app-header__top-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'brand account' 'contacts city'; gap: 8px 16px; padding-block: 10px; }
+    .app-header__top-inner { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'brand account' 'contacts city'; gap: 6px 12px; padding-block: 6px; }
     .app-header__brand { grid-area: brand; }
     .app-header__contacts { grid-area: contacts; }
     .app-header__city { grid-area: city; justify-self: end; max-width: 280px; }
@@ -188,29 +211,30 @@ function logout() {
 }
 @media (max-width: 599px) {
     .app-header__container { padding-inline: 14px; }
-    .app-header__top-inner { gap: 7px 10px; }
-    .app-header__brand { gap: 7px; }
-    .app-header__logo { flex-basis: 34px; width: 34px; height: 34px; }
+    .app-header__top-inner { gap: 5px 8px; }
+    .app-header__brand { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 3px 6px; }
+    .app-header__logo { width: 26px; height: 26px; }
+    .app-header__brand-text { display: contents; }
     .app-header__brand-text strong { font-size: 12px; }
-    .app-header__brand-text small { display: none; }
-    .app-header__account { gap: 3px; }
-    .app-header__login, .app-header__register { padding: 6px 8px; font-size: 11px; }
+    .app-header__brand-text small { grid-column: 1 / -1; margin: 0; font-size: 10px; }
+    .app-header__account { flex-direction: column; align-items: stretch; gap: 0; }
+    .app-header__login, .app-header__register { min-height: 25px; padding: 3px 6px; font-size: 10px; }
     .app-header__contacts { flex-direction: column; align-items: flex-start; gap: 3px; }
     .app-header__contact { gap: 5px; font-size: 11px; }
-    .app-header__city :deep(.city-selector__button) { padding: 8px; font-size: 11px; }
-    .app-header__user { max-width: 145px; padding-inline: 8px; }
-    .app-header__nav { gap: 12px; padding-top: 3px; }
-    .app-header__nav-link { padding-inline: 10px; font-size: 11px; }
-    .app-header__catalog { position: static; }
-    .app-header__category-menu { top: 100%; width: 100%; }
+    .app-header__city { width: 160px; justify-self: end; }
+    .app-header__city :deep(.city-selector__button) { min-height: 30px; padding: 6px; font-size: 11px; }
+    .app-header__user { max-width: 100px; padding-inline: 6px; }
+    .app-header__nav { gap: 0 8px; padding-top: 1px; }
+    .app-header__nav-link, .app-header__landing-toggle { padding-inline: 8px; font-size: 11px; }
+    .app-header__catalog, .app-header__landing-dropdown { position: static; }
+    .app-header__category-menu, .app-header__landing-menu { top: 100%; width: 100%; }
 }
 @media (max-width: 399px) {
-    .app-header__top-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .app-header__brand { grid-column: 1 / -1; padding-right: 96px; min-height: 52px; }
-    .app-header__account { grid-column: 2; align-self: center; flex-direction: column; justify-self: end; gap: 0; }
-    .app-header__login, .app-header__register { min-height: 27px; padding: 4px 7px; }
-    .app-header__user { max-width: 94px; }
+    .app-header__top-inner { grid-template-columns: minmax(0, 1fr) 84px; }
+    .app-header__brand-text small { font-size: 9.5px; }
+    .app-header__account { justify-self: end; }
+    .app-header__user { max-width: 84px; }
     .app-header__user > .v-icon:last-child { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .app-header__nav-link, .app-header__category-toggle { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .app-header__nav-link, .app-header__category-toggle, .app-header__landing-toggle { transition: none; } }
 </style>

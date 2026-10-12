@@ -15,10 +15,14 @@ function harness(t, { categories = [], pageProps = {}, url = '/', routeUrls = {}
     assert.deepEqual(template.errors, [])
     const page = Vue.reactive({ url, props: { auth: { user: null }, canLogin: false, canRegister: false, ziggy: { routes: {} }, publicCategoryUrls: {}, ...pageProps } })
     const requests = []
+    const mounted = []
+    const unmounted = []
+    const events = new Map()
     const urls = { home: '/', 'public.goods.index': '/g', login: '/login', register: '/register', 'customer.profile.edit': '/dashboard/profile', 'profile.show': '/user/profile', dashboard: '/dashboard', logout: '/logout', ...routeUrls }
     const environment = {
         ...Vue, Link: 'Link', CitySelector: 'CitySelector', OrderCartStrip: 'OrderCartStrip', CatalogNodeAvatar: 'CatalogNodeAvatar', publicCategoryUrl,
-        onMounted() {}, onBeforeUnmount() {},
+        onMounted: callback => mounted.push(callback), onBeforeUnmount: callback => unmounted.push(callback),
+        document: { addEventListener: (name, callback) => events.set(name, callback), removeEventListener: name => events.delete(name) },
         usePage: () => page,
         useAppRoute: () => ({ route: (name, parameter) => name === 'category.show' ? `/category/${parameter}` : urls[name] }),
         router: { post: (...args) => requests.push(args) },
@@ -28,8 +32,9 @@ function harness(t, { categories = [], pageProps = {}, url = '/', routeUrls = {}
     const props = Vue.reactive({ categories })
     const scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {} }))
-    t.after(() => scope.stop())
-    return { page, props, api, requests, render: templateRenderer(template, api, props) }
+    mounted.forEach(callback => callback())
+    t.after(() => { unmounted.forEach(callback => callback()); scope.stop() })
+    return { page, props, api, requests, events, render: templateRenderer(template, api, props) }
 }
 
 function allNodes(root, predicate) {
@@ -74,15 +79,70 @@ test('navigation has only home and catalog, with supplied categories and canonic
     const fishLink = categoryLinks(dropdown)[0]
     assert.equal(findVNode(fishLink, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
     assert.equal(findVNode(top, node => hasClass(node, 'app-header__brand')).props.href, '/')
+    assert.equal(textOf(findVNode(top, node => node.type === 'small')), 'Маркетплейс пищевой промышленности')
     assert.equal(findVNode(top, node => node.type === 'CitySelector').props.compact, '')
     assert.ok(findVNode(tree, node => node.type === 'OrderCartStrip'))
 
     h.props.categories = []
     assert.deepEqual(navLinks(h.render()).map(textOf), ['Начало', 'Каталог'])
-    assert.equal(findVNode(h.render(), node => node.type === 'details'), null)
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'app-header__category-dropdown')), null)
     h.props.categories = [{ id: 90, name: 'Добавленная категория' }]
     assert.deepEqual(navLinks(h.render()).map(link => link.props.href), ['/', '/g'])
     assert.deepEqual(categoryLinks(h.render()).map(link => link.props.href), ['/category/90'])
+})
+
+test('useful pages dropdown always exists and renders only supplied landing destinations', t => {
+    const h = harness(t)
+    let dropdown = findVNode(h.render(), node => hasClass(node, 'app-header__landing-dropdown'))
+    assert.equal(dropdown.type, 'details')
+    assert.equal(dropdown.props.open, undefined)
+    assert.equal(textOf(findVNode(dropdown, node => node.type === 'summary')), 'Полезные страницы')
+    assert.equal(textOf(findVNode(dropdown, node => hasClass(node, 'app-header__landing-empty'))), 'Страницы скоро появятся')
+    assert.equal(findVNode(dropdown, node => node.type === 'Link'), null)
+
+    h.page.props.headerLandings = [
+        { id: 10, title: 'Контроль качества', url: '/pages/quality' },
+        { id: 11, title: 'Как мы работаем', url: 'https://shop.example/pages/how-we-work' },
+        null, { id: 12, title: 'Без адреса' }, { id: 13, url: '/no-title' },
+    ]
+    dropdown = findVNode(h.render(), node => hasClass(node, 'app-header__landing-dropdown'))
+    assert.deepEqual(allNodes(dropdown, node => hasClass(node, 'app-header__landing-link')).map(link => [link.props.href, textOf(link)]), [
+        ['/pages/quality', 'Контроль качества'], ['https://shop.example/pages/how-we-work', 'Как мы работаем'],
+    ])
+    assert.equal(findVNode(dropdown, node => hasClass(node, 'app-header__landing-empty')), null)
+    h.page.url = '/pages/quality/?source=home'
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'app-header__landing-link--active')).props['aria-current'], 'page')
+    h.page.props.headerLandings = []
+    assert.equal(allNodes(h.render(), node => hasClass(node, 'app-header__landing-link')).length, 0)
+    assert.ok(findVNode(h.render(), node => hasClass(node, 'app-header__landing-empty')))
+})
+
+test('landing and category dropdowns close on outside clicks, selection, Escape and route changes', async t => {
+    const h = harness(t, { categories: [fish], pageProps: { headerLandings: [{ id: 10, title: 'Контроль качества', url: '/pages/quality' }] } })
+    let focused = 0
+    h.api.categoryDropdown.value = { open: true, contains: target => target === 'category' }
+    h.api.landingDropdown.value = { open: true, contains: target => target === 'landing', querySelector: () => ({ focus: () => focused++ }) }
+    h.events.get('click')({ target: 'landing' })
+    assert.equal(h.api.landingDropdown.value.open, true)
+    assert.equal(h.api.categoryDropdown.value.open, false)
+    h.events.get('click')({ target: 'outside' })
+    assert.equal(h.api.landingDropdown.value.open, false)
+
+    h.api.landingDropdown.value.open = true
+    findVNode(h.render(), node => hasClass(node, 'app-header__landing-link')).props.onClick()
+    assert.equal(h.api.landingDropdown.value.open, false)
+    h.api.landingDropdown.value.open = true
+    const dropdown = findVNode(h.render(), node => hasClass(node, 'app-header__landing-dropdown'))
+    dropdown.props.onKeydown({ key: 'Escape', stopPropagation() {}, preventDefault() {} })
+    assert.equal(h.api.landingDropdown.value.open, false)
+    assert.equal(focused, 1)
+
+    h.api.categoryDropdown.value.open = true
+    h.api.landingDropdown.value.open = true
+    h.page.url = '/pages/quality'
+    await Vue.nextTick()
+    assert.equal(h.api.categoryDropdown.value.open, false)
+    assert.equal(h.api.landingDropdown.value.open, false)
 })
 
 test('current navigation ignores queries and trailing slashes for relative and absolute URLs', t => {

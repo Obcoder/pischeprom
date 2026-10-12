@@ -73,13 +73,14 @@ class PublicCatalogTest extends TestCase
 
     public function test_staff_pages_do_not_load_storefront_navigation(): void
     {
-        $this->mock(PublicCatalogService::class)->shouldNotReceive('headerCategories', 'categoryUrls');
+        $this->mock(PublicCatalogService::class)->shouldNotReceive('headerCategories', 'headerLandings', 'categoryUrls');
         $request = Request::create('/Ameise/products');
         $route = (new Route('GET', '/Ameise/products', fn () => null))->name('Ameise.products');
         $request->setRouteResolver(fn () => $route);
         $shared = app(HandleInertiaRequests::class)->share($request);
 
         $this->assertSame([], $shared['headerCategories']());
+        $this->assertSame([], $shared['headerLandings']());
         $this->assertSame([], $shared['publicCategoryUrls']());
     }
 

@@ -30,14 +30,12 @@ function goodsLabel(count) {
     <section class="home-welcome-banner" aria-labelledby="home-welcome-title">
         <div class="home-welcome-banner__intro">
             <div class="home-welcome-banner__content">
-                <p class="home-welcome-banner__eyebrow">
-                    Магазин для пищевой отрасли
-                </p>
-
                 <h1 id="home-welcome-title" class="home-welcome-banner__title">
-                    Сырьё и продукты<br>
-                    <span>для вашего бизнеса</span>
+                    Сервер о вкусной<br>
+                    <span>и здоровой пище</span>
                 </h1>
+
+                <p class="home-welcome-banner__slogan">Питание. Здоровье. Пищепром.</p>
 
                 <p class="home-welcome-banner__text">
                     Ингредиенты, добавки и готовая продукция
@@ -56,13 +54,16 @@ function goodsLabel(count) {
                 </div>
             </div>
 
-            <div class="home-welcome-banner__art" aria-hidden="true">
-                <div class="home-welcome-banner__sun" />
-                <div class="home-welcome-banner__paper" />
-                <div class="home-welcome-banner__photo home-welcome-banner__photo--produce" />
-                <div class="home-welcome-banner__photo home-welcome-banner__photo--grain" />
-                <span class="home-welcome-banner__art-note">Основа<br>хорошего вкуса</span>
-            </div>
+            <figure class="home-welcome-banner__art">
+                <img
+                    src="/home/food-industry-collage.webp"
+                    alt="Овощи, фрукты, ягоды, мясо, рыболовецкий траулер, зерно и мука. Пища для людей - наше дело."
+                    width="1536"
+                    height="1024"
+                    decoding="async"
+                    fetchpriority="high"
+                >
+            </figure>
         </div>
 
         <div class="home-welcome-banner__collections">
@@ -145,15 +146,6 @@ function goodsLabel(count) {
 }
 
 .home-welcome-banner__content { min-width: 0; padding-block: 22px 30px; }
-.home-welcome-banner__eyebrow {
-    margin: 0 0 20px;
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 1.6;
-    letter-spacing: .18em;
-    text-transform: uppercase;
-}
 .home-welcome-banner__title {
     margin: 0;
     font-family: Georgia, 'Times New Roman', serif;
@@ -164,9 +156,10 @@ function goodsLabel(count) {
     text-wrap: balance;
 }
 .home-welcome-banner__title span { color: var(--terracotta); font-style: italic; }
+.home-welcome-banner__slogan { margin: 20px 0 0; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.5; }
 .home-welcome-banner__text {
     max-width: 380px;
-    margin: 20px 0 0;
+    margin: 12px 0 0;
     color: var(--muted);
     font-size: 14px;
     line-height: 1.65;
@@ -192,58 +185,8 @@ function goodsLabel(count) {
 .home-welcome-banner__catalog-link:hover { background: #365443; border-color: #365443; }
 .home-welcome-banner a:focus-visible { outline: 2px solid var(--terracotta); outline-offset: 5px; }
 
-.home-welcome-banner__art { position: relative; min-width: 0; height: 365px; }
-.home-welcome-banner__sun {
-    position: absolute;
-    width: 43%;
-    aspect-ratio: 1;
-    top: 0;
-    right: 8%;
-    border-radius: 50%;
-    background: url('/home/paper-grain.svg'), #bc6949;
-}
-.home-welcome-banner__paper {
-    position: absolute;
-    inset: 27% -2% 0 0;
-    background: url('/home/paper-grain.svg'), var(--ink);
-    clip-path: polygon(0 42%, 8% 35%, 12% 37%, 23% 26%, 28% 29%, 41% 17%, 49% 19%, 58% 11%, 65% 14%, 77% 3%, 81% 6%, 96% 0, 100% 8%, 98% 74%, 84% 81%, 77% 78%, 65% 90%, 56% 86%, 48% 97%, 40% 92%, 29% 100%, 15% 92%, 0 99%);
-}
-.home-welcome-banner__photo {
-    position: absolute;
-    background-image: url('/home/pischeprom-welcome-collage.jpg');
-    background-repeat: no-repeat;
-    clip-path: polygon(1% 5%, 10% 3%, 18% 5%, 27% 1%, 35% 4%, 44% 2%, 53% 4%, 63% 0, 72% 3%, 81% 1%, 90% 4%, 98% 2%, 100% 30%, 98% 58%, 100% 95%, 90% 98%, 83% 96%, 73% 100%, 63% 97%, 54% 99%, 46% 96%, 35% 100%, 26% 97%, 18% 99%, 9% 96%, 0 98%, 2% 65%, 0 39%);
-}
-.home-welcome-banner__photo--produce {
-    width: 79%;
-    height: 57%;
-    top: 24%;
-    right: 0;
-    background-size: 260% auto;
-    background-position: 95% 12%;
-    transform: rotate(-6deg);
-}
-.home-welcome-banner__photo--grain {
-    width: 43%;
-    height: 41%;
-    bottom: 0;
-    left: 1%;
-    background-size: 300% auto;
-    background-position: 0 88%;
-    transform: rotate(5deg);
-}
-.home-welcome-banner__art-note {
-    position: absolute;
-    right: 3%;
-    bottom: 0;
-    color: var(--ink);
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: 23px;
-    font-style: italic;
-    line-height: 1.2;
-    text-align: center;
-    transform: rotate(-6deg);
-}
+.home-welcome-banner__art { min-width: 0; margin: 0; }
+.home-welcome-banner__art img { display: block; width: 100%; height: auto; object-fit: contain; }
 .home-welcome-banner__collections { margin-top: 26px; padding-top: 21px; border-top: 1px solid #b8b29f; }
 .home-welcome-banner__collections-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 18px; }
 .home-welcome-banner__collections-title { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; letter-spacing: -.025em; line-height: 1.2; }
@@ -267,7 +210,6 @@ function goodsLabel(count) {
 @media (max-width: 1100px) {
     .home-welcome-banner { padding-inline: 12px; }
     .home-welcome-banner__intro { gap: 12px; }
-    .home-welcome-banner__art { height: 330px; }
     .home-welcome-banner__field-title { font-size: 21px; }
     .home-welcome-banner__fields { gap: 18px; }
     .home-welcome-banner__field-card + .home-welcome-banner__field-card { padding-left: 18px; }
@@ -275,8 +217,6 @@ function goodsLabel(count) {
 @media (max-width: 760px) {
     .home-welcome-banner__intro { grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); }
     .home-welcome-banner__title { font-size: 37px; }
-    .home-welcome-banner__art { height: 300px; }
-    .home-welcome-banner__art-note { font-size: 19px; }
     .home-welcome-banner__field-card { grid-template-columns: minmax(0, 1fr); }
     .home-welcome-banner__field-footer { grid-column: 1; }
     .home-welcome-banner__field-title { font-size: 20px; }
@@ -285,13 +225,10 @@ function goodsLabel(count) {
     .home-welcome-banner { padding: 12px 2px 20px; margin-bottom: 20px; }
     .home-welcome-banner__intro { grid-template-columns: minmax(0, 1fr); gap: 4px; }
     .home-welcome-banner__content { padding: 8px 0 0; }
-    .home-welcome-banner__eyebrow { margin-bottom: 14px; font-size: 9px; }
     .home-welcome-banner__title { max-width: 440px; font-size: clamp(36px, 9vw, 48px); }
     .home-welcome-banner__text { margin-top: 16px; font-size: 13px; }
     .home-welcome-banner__actions { margin-top: 18px; }
-    .home-welcome-banner__art { height: 260px; max-width: 440px; width: 100%; margin: 12px auto 0; }
-    .home-welcome-banner__sun { width: 40%; }
-    .home-welcome-banner__art-note { display: none; }
+    .home-welcome-banner__art { max-width: 500px; width: 100%; margin: 20px auto 0; }
     .home-welcome-banner__collections { margin-top: 24px; padding-top: 18px; }
     .home-welcome-banner__collections-heading { margin-bottom: 14px; }
     .home-welcome-banner__collections-title { font-size: 27px; }

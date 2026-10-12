@@ -236,19 +236,8 @@ function submitOrder() {
                 >
 
                 <div class="order-cart-tile__body">
-                    <strong>{{ item.name }}</strong>
+                    <strong :title="item.name">{{ item.name }}</strong>
                     <span>{{ item.quantity }} {{ item.measurement.unit_label }} × {{ money(item.price_gross, item.currency_code) }} / {{ item.measurement.unit_label }}</span>
-                    <input
-                        :value="item.quantity"
-                        type="number"
-                        min="0.001"
-                        max="9999"
-                        step="0.001"
-                        inputmode="decimal"
-                        :aria-label="`Количество, ${item.measurement.unit_label}`"
-                        :disabled="submitting"
-                        @change="setQuantity(item.good_id, $event.target.value)"
-                    >
                 </div>
 
                 <div class="order-cart-tile__controls">
@@ -260,6 +249,18 @@ function submitOrder() {
                     >
                         <v-icon icon="mdi-minus" size="13" />
                     </button>
+
+                    <input
+                        :value="item.quantity"
+                        type="number"
+                        min="0.001"
+                        max="9999"
+                        step="0.001"
+                        inputmode="decimal"
+                        :aria-label="`Количество, ${item.measurement.unit_label}`"
+                        :disabled="submitting"
+                        @change="setQuantity(item.good_id, $event.target.value)"
+                    >
 
                     <button
                         type="button"
@@ -461,8 +462,8 @@ function submitOrder() {
     min-width: 0;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px;
-    padding: 4px 0;
+    gap: 8px;
+    padding: 2px 0;
     color: #243d32;
     background: #f2ebdf;
 }
@@ -470,7 +471,7 @@ function submitOrder() {
 .order-cart-strip__rail {
     display: flex;
     min-width: 0;
-    gap: 8px;
+    gap: 6px;
     overflow-x: auto;
     scrollbar-width: thin;
     scrollbar-color: #a9aa95 transparent;
@@ -479,20 +480,21 @@ function submitOrder() {
 
 .order-cart-tile {
     display: grid;
-    width: 252px;
-    min-width: 252px;
-    grid-template-columns: 42px minmax(0, 1fr) 28px;
+    width: 230px;
+    min-width: 230px;
+    grid-template-columns: 30px minmax(0, 1fr);
     align-items: center;
-    gap: 8px;
-    padding: 8px;
+    gap: 3px 6px;
+    padding: 5px;
     border: 1px solid #d1c8b8;
     border-radius: 2px;
     background: #f8f3e9;
 }
 
 .order-cart-tile__image {
-    width: 42px;
-    height: 48px;
+    grid-row: 1 / span 2;
+    width: 30px;
+    height: 38px;
     border-radius: 1px;
     object-fit: cover;
     background: #e9e0d1;
@@ -501,35 +503,33 @@ function submitOrder() {
 .order-cart-tile__body {
     display: grid;
     min-width: 0;
-    gap: 4px;
+    gap: 1px;
 }
 
 .order-cart-tile__body strong {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
     overflow: hidden;
     color: #243d32;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     line-height: 1.35;
-    overflow-wrap: anywhere;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .order-cart-tile__body span {
     color: #5a624f;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     line-height: 1.35;
     overflow-wrap: anywhere;
     font-variant-numeric: tabular-nums;
 }
 
-.order-cart-tile__body input {
-    width: 82px;
+.order-cart-tile__controls input {
+    width: 62px;
     min-height: 28px;
     max-width: 100%;
-    padding: 3px 6px;
+    padding: 2px 5px;
     border: 1px solid #b8baa9;
     border-radius: 1px;
     background: #fcf9f1;
@@ -538,14 +538,16 @@ function submitOrder() {
 }
 
 .order-cart-tile__controls {
-    display: grid;
-    gap: 2px;
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 3px;
 }
 
 .order-cart-tile__controls button {
     display: grid;
     width: 28px;
-    height: 24px;
+    height: 28px;
     place-items: center;
     border: 1px solid #c6c5b3;
     border-radius: 1px;
@@ -565,7 +567,7 @@ function submitOrder() {
 
 .order-cart-strip__placeholder {
     display: inline-flex;
-    min-height: 48px;
+    min-height: 30px;
     min-width: 0;
     align-items: center;
     gap: 8px;
@@ -580,28 +582,38 @@ function submitOrder() {
 .order-cart-strip__summary {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
 }
 
 .order-cart-strip__totals {
     display: grid;
-    min-width: 112px;
-    gap: 3px;
+    grid-template-columns: auto auto;
+    min-width: 96px;
+    gap: 1px 6px;
+    align-items: baseline;
 }
 
 .order-cart-strip__totals span,
 .order-cart-strip__totals small {
     color: #59634f;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 400;
     line-height: 1.3;
     overflow-wrap: anywhere;
 }
 
+.order-cart-strip__totals small {
+    grid-column: 1 / -1;
+}
+
+.order-cart-strip--empty .order-cart-strip__totals {
+    display: none;
+}
+
 .order-cart-strip__totals strong {
     color: #243d32;
     font-family: Georgia, 'Times New Roman', serif;
-    font-size: 21px;
+    font-size: 17px;
     font-weight: 400;
     line-height: 1.15;
     font-variant-numeric: lining-nums tabular-nums;
@@ -618,11 +630,11 @@ function submitOrder() {
 .order-cart-strip__clear,
 .order-cart-strip__submit {
     display: inline-flex;
-    min-height: 40px;
+    min-height: 32px;
     align-items: center;
     justify-content: center;
     gap: 5px;
-    padding: 8px 12px;
+    padding: 5px 9px;
     border: 1px solid #243d32;
     border-radius: 2px;
     background: #243d32;
@@ -878,7 +890,7 @@ function submitOrder() {
 }
 
 @media (max-width: 720px) {
-    .order-cart-strip {
+    .order-cart-strip:not(.order-cart-strip--empty) {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -893,18 +905,14 @@ function submitOrder() {
         flex: 1 1 auto;
     }
 
-    .order-cart-tile {
-        grid-template-columns: 42px minmax(0, 1fr) 32px;
-    }
-
     .order-cart-tile__controls button {
-        width: 32px;
+        width: 30px;
         height: 30px;
     }
 
     .order-cart-strip__clear,
     .order-cart-strip__submit {
-        min-height: 44px;
+        min-height: 36px;
     }
 
     .order-checkout__footer {
@@ -915,7 +923,7 @@ function submitOrder() {
 
 @media (max-width: 399px) {
     .order-cart-strip__summary {
-        gap: 12px;
+        gap: 6px;
     }
 
     .order-cart-strip:not(.order-cart-strip--empty) .order-cart-strip__actions {
@@ -926,6 +934,17 @@ function submitOrder() {
     .order-cart-strip__actions button {
         flex: 1 1 auto;
         white-space: normal;
+    }
+
+    .order-cart-strip--empty .order-cart-strip__placeholder {
+        gap: 5px;
+        font-size: 10px;
+        letter-spacing: .025em;
+    }
+
+    .order-cart-strip--empty .order-cart-strip__submit {
+        padding-inline: 7px;
+        font-size: 10px;
     }
 }
 </style>

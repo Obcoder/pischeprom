@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Models\CatalogLanding;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\Category;
@@ -125,6 +126,39 @@ class PublicCatalogService
                 ];
             })
             ->all();
+    }
+
+    /** Only live editorial landings belong in the storefront's useful-pages menu. */
+    public function headerLandings(): array
+    {
+        $nodes = $this->visibleNodes()->filter(fn (array $node): bool => $node['entity_type'] !== 'good'
+            && filled($node['public_url']));
+        if ($nodes->isEmpty()) {
+            return [];
+        }
+
+        $landings = Schema::hasTable('catalog_landings')
+            ? CatalogLanding::whereIn('catalog_node_id', $nodes->keys())
+                ->get(['catalog_node_id', 'published_content->template as published_template'])->keyBy('catalog_node_id')
+            : collect();
+
+        return $nodes->filter(function (array $node) use ($landings): bool {
+            if ($landings->has($node['id'])) {
+                // A saved draft or explicitly disabled page blocks legacy fallback.
+                return filled($landings->get($node['id'])->published_template);
+            }
+            if ($node['entity_type'] !== 'product') {
+                return false;
+            }
+            $configuration = config('product-pages.pages.'.$node['entity_id']);
+
+            return is_array($configuration) && filled($configuration['guide'] ?? null)
+                && (int) ($configuration['catalog_node_id'] ?? 0) === (int) $node['id'];
+        })->map(fn (array $node): array => [
+            'id' => $node['id'],
+            'title' => $node['name'],
+            'url' => $node['public_url'],
+        ])->unique('url')->values()->all();
     }
 
     private function pagePayload(array $node, Collection $nodes): array
