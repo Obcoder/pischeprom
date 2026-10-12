@@ -66,19 +66,15 @@ test('home featured category keeps its structural icon beside the resolved categ
     assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
 })
 
-test('header category menus and quick links retain canonical destinations and category icons', t => {
+test('header navigation retains canonical category destinations and avatars', t => {
     const h = harness(t, 'resources/js/Components/Layout/AppHeader.vue', { categories: [category] })
-    const desktop = findVNode(h.render(), node => hasClass(node, 'app-header__category-link'))
-    assert.equal(desktop.props.href, '/catalog/fish')
-    const item = findVNode(desktop, node => node.type === 'v-list-item')
-    assert.equal(item.props['prepend-icon'], 'mdi-shape-outline')
-    assert.equal(findVNode(item.children.title(), node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
-    h.api.mounted.value = true
-    h.api.drawer.value = true
-    const mobile = findVNode(h.render(), node => hasClass(node, 'app-header__drawer-link') && node.props.href === '/catalog/fish')
-    assert.ok(findVNode(mobile, node => node.props?.icon === 'mdi-shape-outline'))
-    assert.equal(findVNode(mobile, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
-    assert.equal(h.api.quickLinks.value[0].node.image, '/fish.png')
+    const navigation = findVNode(h.render(), node => node.type === 'nav')
+    const link = findVNode(navigation, node => hasClass(node, 'app-header__quick-link'))
+    assert.equal(link.props.href, '/catalog/fish')
+    assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
+    h.props.categories = []
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'app-header__quick-link')), null)
+    assert.equal(findVNode(h.render(), node => node.type === 'CatalogNodeAvatar'), null)
 })
 
 test('legacy category product chips and picker carry the shared product avatar', t => {

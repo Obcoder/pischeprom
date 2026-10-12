@@ -26,6 +26,10 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $isStaff = app(StaffAccess::class)->allows($request->user());
+        $hasStorefrontHeader = $request->routeIs(
+            'home', 'public.catalog.*', 'category.show', 'public.goods.*', 'public.fields.*',
+            'shop.products.show', 'legal.*', 'dashboard', 'customer.profile.edit', 'web.sesame',
+        );
 
         return [
             ...parent::share($request),
@@ -33,9 +37,8 @@ class HandleInertiaRequests extends Middleware
             'canLogin' => LaravelRoute::has('login'),
             'canRegister' => LaravelRoute::has('register'),
 
-            'publicCategoryUrls' => fn () => $request->routeIs(
-                'home', 'public.catalog.*', 'category.show', 'public.goods.*', 'shop.products.show',
-            ) ? app(PublicCatalogService::class)->categoryUrls() : [],
+            'publicCategoryUrls' => fn () => $hasStorefrontHeader ? app(PublicCatalogService::class)->categoryUrls() : [],
+            'headerCategories' => fn () => $hasStorefrontHeader ? app(PublicCatalogService::class)->headerCategories() : [],
 
             'realtime' => fn () => app(CommerceRealtimeAccess::class)->clientConfig($request->user()),
             'avitoRealtime' => fn () => app(AvitoRealtimeAccess::class)->clientConfig($request->user()),

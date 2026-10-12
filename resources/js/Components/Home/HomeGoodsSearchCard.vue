@@ -29,48 +29,8 @@ const props = defineProps({
 });
 
 const search = ref("");
-
-const filteredGoods = computed(() => {
-    const query = search.value.trim().toLowerCase();
-
-    let items = [...props.goods];
-
-    if (query) {
-        items = items.filter((good) => {
-            const productText = (good.products || [])
-                .map((product) => {
-                    return [
-                        product.rus,
-                        product.eng,
-                        product.name,
-                        product.title,
-                        product.category?.name,
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
-                })
-                .join(" ");
-
-            const haystack = [
-                good.name,
-                good.description,
-                good.slug,
-                productText,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return haystack.includes(query);
-        });
-    }
-
-    return items.slice(0, props.limit);
-});
-
-const hasSearch = computed(() => {
-    return search.value.trim().length > 0;
-});
+const searchQuery = computed(() => String(search.value ?? "").trim());
+const hasSearch = computed(() => searchQuery.value.length > 0);
 
 const newestGoods = computed(() => {
     return [...props.goods]
@@ -84,7 +44,7 @@ const newestGoods = computed(() => {
 });
 
 const visibleGoods = computed(() => {
-    const query = search.value.trim().toLowerCase();
+    const query = searchQuery.value.toLowerCase();
 
     if (!query) {
         return newestGoods.value;
@@ -197,7 +157,7 @@ function shortDescription(good) {
 function clickHomePhone() {
     registerPhoneCallClick({
         source: "home_goods_search_card",
-        search: search.value.trim() || null,
+        search: searchQuery.value || null,
         good_id: visibleGoods.value[0]?.id || null,
         good_name: visibleGoods.value[0]?.name || null,
     });
@@ -229,7 +189,7 @@ function clickHomePhone() {
             {{ hasSearch ? "Найденные товары" : "Новинки каталога" }}
         </v-card-title>
 
-        <v-card-subtitle>
+        <v-card-subtitle class="goods-search-card__subtitle">
             {{
                 hasSearch
                     ? "Поиск работает по названию, описанию и связанным продуктам"
@@ -251,10 +211,10 @@ function clickHomePhone() {
                     class="product-group"
                 >
                     <div class="product-group__header">
-                        <div>
+                        <div class="product-group__labels">
                             <div class="product-group__title">
                                 <CatalogNodeAvatar v-if="group.node" :node="group.node" :size="26" />
-                                {{ group.title }}
+                                <span>{{ group.title }}</span>
                             </div>
 
                             <div
@@ -262,11 +222,12 @@ function clickHomePhone() {
                                 class="product-group__category"
                             >
                                 <CatalogNodeAvatar v-if="group.categoryNode" :node="group.categoryNode" :size="20" />
-                                {{ group.category }}
+                                <span>{{ group.category }}</span>
                             </div>
                         </div>
 
                         <v-chip
+                            class="product-group__count"
                             size="x-small"
                             color="#800000"
                             variant="tonal"
@@ -289,6 +250,7 @@ function clickHomePhone() {
                             >
                                 <v-img
                                     :src="goodImage(good)"
+                                    :alt="good.name"
                                     cover
                                 />
                             </v-avatar>
@@ -354,10 +316,16 @@ function clickHomePhone() {
 </template>
 
 <style scoped>
-.product-group__title, .product-group__category { display: flex; align-items: center; gap: 7px; }
 .goods-search-card {
+    container: home-goods-search / inline-size;
+    min-width: 0;
     overflow: hidden;
     background: #ffffff;
+}
+
+.goods-search-card__subtitle {
+    white-space: normal;
+    line-height: 1.45;
 }
 
 .goods-search-card__body {
@@ -367,16 +335,18 @@ function clickHomePhone() {
 
 .goods-search-card__actions {
     align-items: stretch;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
 .goods-search-card__action-link {
-    flex: 1 1 auto;
+    flex: 1 1 180px;
     min-width: 0;
 }
 
 .goods-search-card__phone {
-    flex: 0 0 auto;
+    flex: 1 1 120px;
+    margin-inline-start: 0 !important;
 }
 
 .product-group {
@@ -408,6 +378,29 @@ function clickHomePhone() {
     font-weight: 800;
 }
 
+.product-group__labels {
+    min-width: 0;
+}
+
+.product-group__title,
+.product-group__category {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
+.product-group__title span,
+.product-group__category span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.product-group__count {
+    flex-shrink: 0;
+    align-self: flex-start;
+}
+
 .product-group__category {
     margin-top: 2px;
     color: #8a3b00;
@@ -421,10 +414,12 @@ function clickHomePhone() {
 
 .good-row {
     display: grid;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-areas: "image content" "price price";
     gap: 10px;
-    align-items: center;
-    padding: 8px;
+    align-items: start;
+    min-width: 0;
+    padding: 10px;
     border-radius: 16px;
     text-decoration: none;
     color: inherit;
@@ -440,18 +435,21 @@ function clickHomePhone() {
 }
 
 .good-row__image {
+    grid-area: image;
     background: #fff1df;
 }
 
 .good-row__content {
+    grid-area: content;
     min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .good-row__name {
     color: #3f1d1d;
     font-size: 0.9rem;
     font-weight: 800;
-    line-height: 1.25;
+    line-height: 1.4;
 }
 
 .good-row__description {
@@ -462,8 +460,11 @@ function clickHomePhone() {
 }
 
 .good-row__price {
-    white-space: nowrap;
-    align-self: start;
+    grid-area: price;
+    justify-self: start;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
     padding: 5px 8px;
     border-radius: 999px;
     color: #5c0000;
@@ -472,22 +473,15 @@ function clickHomePhone() {
     font-weight: 800;
 }
 
-@media (max-width: 600px) {
+@container home-goods-search (max-width: 360px) {
     .goods-search-card__actions {
         flex-direction: column;
     }
 
+    .goods-search-card__action-link,
     .goods-search-card__phone {
+        flex: 0 0 auto;
         width: 100%;
-    }
-
-    .good-row {
-        grid-template-columns: 48px minmax(0, 1fr);
-    }
-
-    .good-row__price {
-        grid-column: 2;
-        justify-self: start;
     }
 }
 </style>

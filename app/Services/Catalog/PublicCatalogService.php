@@ -92,6 +92,41 @@ class PublicCatalogService
             ->unique('entity_id')->pluck('public_url', 'entity_id')->all();
     }
 
+    /** Shared storefront navigation uses published categories from the current site. */
+    public function headerCategories(): array
+    {
+        if (! Schema::hasTable('categories')) {
+            return [];
+        }
+
+        $urls = $this->categoryUrls();
+        $columns = ['id', 'name', 'slug'];
+        if (Schema::hasColumn('categories', 'image')) {
+            $columns[] = 'image';
+        }
+
+        return app(CatalogSiteContext::class)->scopeEntities(Category::query(), 'category')
+            ->where('is_published', true)
+            ->when(Schema::hasColumn('categories', 'is_featured'), fn ($query) => $query->orderByDesc('is_featured'))
+            ->when(Schema::hasColumn('categories', 'sort_order'), fn ($query) => $query->orderBy('sort_order'))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get($columns)
+            ->map(function (Category $category) use ($urls): array {
+                $image = app(CatalogAvatars::class)->url($category->image);
+
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'slug' => $category->slug,
+                    'image' => $image,
+                    'thumbnail_url' => $image,
+                    'public_url' => $urls[$category->id] ?? route('category.show', $category->slug ?: $category->id),
+                ];
+            })
+            ->all();
+    }
+
     private function pagePayload(array $node, Collection $nodes): array
     {
         $id = $node['id'];

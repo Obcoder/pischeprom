@@ -75,6 +75,28 @@ class CatalogSiteDomainTest extends TestCase
         $this->assertSame([$good->id], $context->scopeGoods(Good::query())->pluck('id')->all());
     }
 
+    public function test_shared_header_categories_follow_the_host_and_hide_unpublished_site_branches(): void
+    {
+        [$foodDomain, $food] = $this->site('Продукты пищевые', 'food.test');
+        [, $fabric] = $this->site('Ткани', 'fabric.test');
+        Category::create(['name' => 'Без размещения на сайте', 'is_published' => true]);
+        $catalog = app(PublicCatalogService::class);
+
+        $this->host('food.test');
+        $this->assertSame([$food->id], array_column($catalog->headerCategories(), 'id'));
+        $this->host('fabric.test');
+        $this->assertSame([$fabric->id], array_column($catalog->headerCategories(), 'id'));
+        $this->host('unknown.test');
+        $this->assertSame([], $catalog->headerCategories());
+
+        $this->host('food.test');
+        $food->update(['is_published' => false]);
+        $this->assertSame([], $catalog->headerCategories());
+        $food->update(['is_published' => true]);
+        $foodDomain->update(['is_published' => false]);
+        $this->assertSame([], $catalog->headerCategories());
+    }
+
     public function test_staff_can_bind_unicode_aliases_but_cannot_reassign_another_sites_hostname(): void
     {
         $this->actingAs(User::factory()->create(['type' => 'employee', 'status' => 'active']));

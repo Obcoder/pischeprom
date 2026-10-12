@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\CatalogField;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
@@ -12,6 +13,8 @@ use App\Models\Product;
 use App\Services\Catalog\CatalogService;
 use App\Services\Catalog\PublicCatalogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -25,6 +28,59 @@ class PublicCatalogTest extends TestCase
         Http::preventStrayRequests();
         config()->set('app.asset_url', 'https://assets.example.test');
         $this->withHeader('X-Inertia-Version', hash('xxh128', 'https://assets.example.test'));
+    }
+
+    public function test_shared_header_lists_real_published_categories_with_safe_fields_and_stable_order(): void
+    {
+        $last = Category::create(['name' => 'Бакалея', 'slug' => 'bakaleya', 'is_published' => true, 'sort_order' => 0]);
+        $second = Category::create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true, 'is_featured' => true, 'sort_order' => 20]);
+        $first = Category::create(['name' => 'Ягоды', 'slug' => 'yagody', 'image' => '/berries.webp', 'is_published' => true,
+            'is_featured' => true, 'sort_order' => 5, 'description' => 'not-a-header-field-sentinel']);
+        Category::create(['name' => 'Скрытая категория', 'is_published' => false, 'is_featured' => true]);
+        for ($index = 1; $index <= 20; $index++) {
+            Category::create(['name' => 'Дополнительная категория '.$index, 'is_published' => true, 'sort_order' => 100]);
+        }
+
+        $response = $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()
+            ->assertJsonCount(23, 'props.headerCategories')
+            ->assertJsonPath('props.headerCategories.0', [
+                'id' => $first->id, 'name' => 'Ягоды', 'slug' => 'yagody',
+                'image' => '/berries.webp', 'thumbnail_url' => '/berries.webp',
+                'public_url' => route('category.show', 'yagody'),
+            ])
+            ->assertJsonPath('props.headerCategories.1.id', $second->id)
+            ->assertJsonPath('props.headerCategories.2.id', $last->id);
+
+        $this->assertStringNotContainsString('Скрытая категория', $response->getContent());
+        $this->assertStringNotContainsString('not-a-header-field-sentinel', $response->getContent());
+    }
+
+    public function test_goods_pages_share_the_canonical_category_destination_using_the_source_category_id(): void
+    {
+        $category = Category::forceCreate(['id' => 251, 'name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
+        $node = $this->node('Рыба', ['entity_type' => 'category', 'entity_id' => $category->id]);
+        $good = Good::create(['name' => 'Опубликованный товар', 'is_published' => true]);
+        $this->assertNotSame($node->id, $category->id);
+
+        foreach (['/g', '/g/'.$good->slug, '/privacy-policy'] as $path) {
+            $this->get($path, ['X-Inertia' => 'true'])->assertOk()
+                ->assertJsonCount(1, 'props.headerCategories')
+                ->assertJsonPath('props.headerCategories.0.id', $category->id)
+                ->assertJsonPath('props.headerCategories.0.public_url', url('/catalog/ryba'))
+                ->assertJsonPath('props.publicCategoryUrls.251', url('/catalog/ryba'));
+        }
+    }
+
+    public function test_staff_pages_do_not_load_storefront_navigation(): void
+    {
+        $this->mock(PublicCatalogService::class)->shouldNotReceive('headerCategories', 'categoryUrls');
+        $request = Request::create('/Ameise/products');
+        $route = (new Route('GET', '/Ameise/products', fn () => null))->name('Ameise.products');
+        $request->setRouteResolver(fn () => $route);
+        $shared = app(HandleInertiaRequests::class)->share($request);
+
+        $this->assertSame([], $shared['headerCategories']());
+        $this->assertSame([], $shared['publicCategoryUrls']());
     }
 
     public function test_guests_can_browse_arbitrary_levels_and_only_explicitly_public_properties(): void

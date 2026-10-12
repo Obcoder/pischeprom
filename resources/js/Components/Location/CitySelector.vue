@@ -309,6 +309,8 @@ onBeforeUnmount(() => {
             :class="{
                 'city-selector__button--compact': compact,
             }"
+            :aria-label="`Город доставки: ${currentCityName}`"
+            :title="`Город доставки: ${currentCityName}`"
             @click="openDialog"
         >
             <v-avatar
@@ -331,7 +333,7 @@ onBeforeUnmount(() => {
             />
 
             <span class="city-selector__text">
-                Доставка в
+                <span v-if="!compact">Доставка в </span>
                 <strong>{{ currentCityName }}</strong>
             </span>
         </button>

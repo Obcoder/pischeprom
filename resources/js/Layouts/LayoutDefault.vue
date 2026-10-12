@@ -10,9 +10,9 @@ const categories = computed(() => {
     const props = inertiaPage.props || {}
 
     const possibleCategories = [
+        props.headerCategories,
         props.categories,
         props.publicCategories,
-        props.headerCategories,
         props.navigation?.categories,
     ]
 
