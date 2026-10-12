@@ -12,7 +12,6 @@ const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1
 <template>
     <v-app class="product-app">
         <div class="product-site">
-            <div class="product-topline">Продукты для вашего бизнеса. Условия — под вашу задачу.</div>
             <header class="product-header">
                 <div class="product-header__inner">
                     <Link href="/" class="product-brand" aria-label="Пищепром-сервер — главная">
@@ -42,7 +41,6 @@ const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1
 .product-app { background: #fffaf8; color: #2d201d; font-family: Arial, sans-serif; }
 .product-site { min-height: 100vh; min-width: 0; display: flex; flex-direction: column; }
 .product-site main { flex: 1; min-width: 0; }
-.product-topline { background: #640000; color: #fff3ed; text-align: center; font-size: 12px; padding: 9px 18px; letter-spacing: .025em; }
 .product-header { background: #800000; border-bottom: 1px solid rgba(128, 0, 0, .14); }
 .product-header__inner { max-width: 1320px; padding: 20px 32px; margin: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(150px, 230px) auto; align-items: center; gap: 24px; }
 .product-brand { display: flex; min-width: 0; gap: 13px; align-items: center; text-decoration: none; color: #fff; }
@@ -80,7 +78,6 @@ a:focus-visible, .product-location :deep(button:focus-visible) { outline: 3px so
 }
 @media (max-width: 767px) {
     .product-footer { padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
-    .product-topline { display: none; }
     .product-header__inner { grid-template-columns: auto minmax(0, 1fr) 44px; gap: 12px 10px; padding: 14px 20px 12px; }
     .product-brand { grid-column: 1 / 3; grid-row: 1; }
     .product-account { grid-column: 3; grid-row: 1; width: 44px; height: 44px; padding: 0; background: rgba(255, 255, 255, .12); }

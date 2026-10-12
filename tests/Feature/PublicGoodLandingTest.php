@@ -7,6 +7,7 @@ use App\Models\Good;
 use App\Models\GoodPriceTypeValue;
 use App\Models\GoodSeo;
 use App\Models\PriceType;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -39,6 +40,7 @@ class PublicGoodLandingTest extends TestCase
         $this->price($good, 84444.44, ['code' => 'retail-expired'], ['valid_to' => today()->subDay()]);
         $this->price($good, 85555.55, ['code' => 'retail-future'], ['valid_from' => today()->addDay()]);
         $this->price($good, 86666.66, ['code' => 'retail-unpublished'], ['is_published' => false]);
+        $this->price($good, 88888.88, ['code' => 'wholesale', 'name' => 'Оптовая', 'sort_order' => 1]);
 
         $related = $this->good('Другой товар');
         $this->price($related, 87777.77, ['code' => 'related-dealer', 'name' => 'Дилерская', 'is_public' => false]);
@@ -64,11 +66,81 @@ class PublicGoodLandingTest extends TestCase
             ->assertJsonPath('props.seo.price', 240)
             ->assertJsonPath('props.seo.currency', 'RUB')
             ->assertJsonPath('props.seo.jsonLd.0.offers.price', '240.00')
+            ->assertJsonCount(1, 'props.productPrices')
+            ->assertJsonPath('props.productPrices.0.price_type_name', 'Розничная')
+            ->assertJsonPath('props.productPrices.0.price', 240)
+            ->assertJsonPath('props.productPrices.0.is_retail', true)
+            ->assertJsonPath('props.productPrices.0.price_unit_label', 'кг')
+            ->assertJsonPath('props.productPrices.0.includes_vat', true)
             ->assertJsonMissingPath('props.good.price_type_values')
             ->assertJsonMissingPath('props.relatedGoods.0.price_type_values');
 
-        foreach (['81111.11', '82222.22', '83333.33', '84444.44', '85555.55', '86666.66', '87777.77', 'internal-price-comment-sentinel', 'secret-must-stay-server-side'] as $privateValue) {
+        foreach (['81111.11', '82222.22', '83333.33', '84444.44', '85555.55', '86666.66', '87777.77', '88888.88', 'internal-price-comment-sentinel', 'secret-must-stay-server-side'] as $privateValue) {
             $this->assertFalse(str_contains($response->getContent(), $privateValue), 'Private data leaked into the public payload: '.$privateValue);
+        }
+        Http::assertNothingSent();
+    }
+
+    public function test_guest_landing_does_not_fall_back_to_a_wholesale_price_without_retail(): void
+    {
+        $good = $this->good();
+        $this->price($good, 88888.88, ['code' => 'wholesale', 'name' => 'Оптовая']);
+
+        $response = $this->get(route('public.goods.show', $good->slug), ['X-Inertia' => 'true'])
+            ->assertOk()
+            ->assertJsonPath('props.productPrices', [])
+            ->assertJsonPath('props.publicPurchase.price', null)
+            ->assertJsonPath('props.publicPurchase.package_price', null)
+            ->assertJsonPath('props.seo.price', null)
+            ->assertJsonMissingPath('props.seo.jsonLd.0.offers.price')
+            ->assertJsonPath('props.seo.jsonLd.0.offers.description', 'Цена по запросу');
+
+        $this->assertStringNotContainsString('88888.88', $response->getContent());
+    }
+
+    public function test_authenticated_customer_sees_current_published_price_types_without_internal_data(): void
+    {
+        $good = $this->good();
+        $retail = $this->price($good, 240);
+        $this->price($good, 210, ['code' => 'wholesale', 'name' => 'Оптовая', 'sort_order' => 5], [
+            'price_gross' => null,
+            'price_net' => 210,
+            'manual_comment' => 'internal-wholesale-comment',
+        ]);
+        $this->price($good, 200, ['code' => 'partner', 'name' => 'Партнёрская', 'sort_order' => 20], [
+            'valid_from' => today(),
+            'valid_to' => today(),
+        ]);
+        // Only the newest current value for each price type belongs in the table.
+        $retail->replicate()->fill(['price_gross' => 250])->save();
+        $this->price($good, 82222.22, ['code' => 'purchase', 'name' => 'Закупочная', 'is_public' => false]);
+        $this->price($good, 83333.33, ['code' => 'inactive', 'is_active' => false]);
+        $this->price($good, 84444.44, ['code' => 'expired'], ['valid_to' => today()->subDay()]);
+        $this->price($good, 85555.55, ['code' => 'future'], ['valid_from' => today()->addDay()]);
+        $this->price($good, 86666.66, ['code' => 'unpublished'], ['is_published' => false]);
+        $this->price($good, 0, ['code' => 'zero', 'name' => 'Нулевая']);
+
+        $response = $this->actingAs(User::factory()->create(['type' => 'customer']))
+            ->get(route('public.goods.show', $good->slug), ['X-Inertia' => 'true'])
+            ->assertOk()
+            ->assertJsonCount(3, 'props.productPrices')
+            ->assertJsonPath('props.productPrices.0.price_type_id', $retail->price_type_id)
+            ->assertJsonPath('props.productPrices.0.price_type_name', 'Розничная')
+            ->assertJsonPath('props.productPrices.0.price', 250)
+            ->assertJsonPath('props.productPrices.1.price_type_name', 'Оптовая')
+            ->assertJsonPath('props.productPrices.1.price', 210)
+            ->assertJsonPath('props.productPrices.1.includes_vat', false)
+            ->assertJsonPath('props.productPrices.1.currency_code', 'RUB')
+            ->assertJsonPath('props.productPrices.1.is_retail', false)
+            ->assertJsonPath('props.productPrices.2.price_type_name', 'Партнёрская')
+            ->assertJsonPath('props.productPrices.2.price', 200)
+            ->assertJsonPath('props.publicPurchase.price', 250)
+            ->assertJsonPath('props.seo.price', 250)
+            ->assertJsonPath('props.seo.jsonLd.0.offers.price', '250.00')
+            ->assertJsonMissingPath('props.good.price_type_values');
+
+        foreach (['82222.22', '83333.33', '84444.44', '85555.55', '86666.66', 'internal-wholesale-comment', 'target_margin_percent', 'manual_comment', 'calculation_id'] as $privateValue) {
+            $this->assertStringNotContainsString($privateValue, $response->getContent());
         }
         Http::assertNothingSent();
     }
@@ -144,7 +216,7 @@ class PublicGoodLandingTest extends TestCase
         ]);
     }
 
-    private function price(Good $good, float $value, array $typeAttributes = [], array $attributes = []): void
+    private function price(Good $good, float $value, array $typeAttributes = [], array $attributes = []): GoodPriceTypeValue
     {
         $currency = Currency::query()->where('code', 'RUB')->first()
             ?: Currency::query()->forceCreate(['code' => 'RUB', 'name' => 'Рубль']);
@@ -157,7 +229,8 @@ class PublicGoodLandingTest extends TestCase
             'sort_order' => 10,
             ...$typeAttributes,
         ]);
-        GoodPriceTypeValue::query()->create([
+
+        return GoodPriceTypeValue::query()->create([
             'good_id' => $good->id,
             'price_type_id' => $type->id,
             'currency_id' => $currency->id,

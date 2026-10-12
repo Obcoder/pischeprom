@@ -28,6 +28,7 @@ class GoodController extends Controller
 
     public function show(
         string $good,
+        Request $request,
         GoodSeoService $seoService,
         GoodStructuredDataService $structuredDataService,
         GoodStockService $stock,
@@ -96,10 +97,10 @@ class GoodController extends Controller
             },
         ]);
 
-        // Only the public, currently valid offer may reach the landing or its metadata.
+        // Checkout and public metadata use retail; other customer prices require a session.
         app(CatalogAvatars::class)->appendProducts($good->products, public: true);
-        $good->setRelation('priceTypeValues', $offers->pricesFor($good));
-        $purchase = $offers->for($good);
+        $good->setRelation('priceTypeValues', $offers->pricesFor($good, retailOnly: true));
+        $purchase = $offers->for($good, retailOnly: true);
 
         $relatedGoods = $site->scopeGoods(Good::query())
             ->where('id', '!=', $good->id)
@@ -175,6 +176,7 @@ class GoodController extends Controller
             'relatedGoods' => $relatedGoods,
             'availability' => $stock->availabilityPayload($good),
             'publicPurchase' => [...$purchase, 'max_url' => $max->publicProductUrl($good)],
+            'productPrices' => $offers->tableFor($good, authenticated: $request->user() !== null),
             'seo' => $pageSeo,
         ]);
     }

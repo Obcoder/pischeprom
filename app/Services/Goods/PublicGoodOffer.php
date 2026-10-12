@@ -12,9 +12,9 @@ use Illuminate\Support\Str;
 class PublicGoodOffer
 {
     /** Prices and quantities use the accounting unit configured on the product. */
-    public function for(Good $good): array
+    public function for(Good $good, bool $retailOnly = false): array
     {
-        return $this->offer($good, $this->pricesFor($good)->first());
+        return $this->offer($good, $this->pricesFor($good, $retailOnly)->first());
     }
 
     /** Resolve a public listing without a price query for every card. */
@@ -88,9 +88,44 @@ class PublicGoodOffer
     }
 
     /** @return Collection<int, GoodPriceTypeValue> */
-    public function pricesFor(Good $good): Collection
+    public function pricesFor(Good $good, bool $retailOnly = false): Collection
     {
-        return $this->preferredPrices($this->publicPrices()->where('good_id', $good->id)->get());
+        return $this->preferredPrices($this->publicPrices()->where('good_id', $good->id)->get())
+            ->when($retailOnly, fn (Collection $prices) => $prices->filter(fn (GoodPriceTypeValue $price) => $this->isRetail($price))->values());
+    }
+
+    /** Customer-facing rows never include calculation details or internal price types. */
+    public function tableFor(Good $good, bool $authenticated): array
+    {
+        $prices = $this->publicPrices()->where('good_id', $good->id)->get();
+
+        if (! $authenticated) {
+            $prices = $this->preferredPrices($prices)
+                ->filter(fn (GoodPriceTypeValue $price) => $this->isRetail($price));
+        }
+
+        return $prices
+            ->filter(fn (GoodPriceTypeValue $price) => ($price->price_gross ?? $price->price_net ?? 0) > 0)
+            ->sortBy(fn (GoodPriceTypeValue $price) => [
+                $this->isRetail($price) ? 0 : 1,
+                $price->priceType->sort_order ?? 100,
+            ])
+            ->unique('price_type_id')
+            ->values()
+            ->map(function (GoodPriceTypeValue $price) use ($good): array {
+                $offer = $this->offer($good, $price);
+
+                return [
+                    'price_type_id' => $price->price_type_id,
+                    'price_type_name' => $price->priceType->name,
+                    'is_retail' => $this->isRetail($price),
+                    'price' => $offer['price'],
+                    'currency_code' => $offer['currency_code'],
+                    'includes_vat' => $offer['includes_vat'],
+                    'price_unit_label' => $offer['price_unit_label'],
+                ];
+            })
+            ->all();
     }
 
     private function publicPrices(): Builder
@@ -115,9 +150,14 @@ class PublicGoodOffer
                     && ($price->price_gross ?? $price->price_net ?? 0) > 0;
             })
             ->sortBy(fn (GoodPriceTypeValue $price) => [
-                Str::contains(Str::lower($price->priceType->code.' '.$price->priceType->name), ['retail', 'rozn', 'рознич', 'розница']) ? 0 : 1,
+                $this->isRetail($price) ? 0 : 1,
                 $price->priceType->sort_order ?? 100,
             ])
             ->values();
+    }
+
+    private function isRetail(GoodPriceTypeValue $price): bool
+    {
+        return Str::contains(Str::lower($price->priceType->code.' '.$price->priceType->name), ['retail', 'rozn', 'рознич', 'розница']);
     }
 }

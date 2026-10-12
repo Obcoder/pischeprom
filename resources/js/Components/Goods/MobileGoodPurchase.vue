@@ -1,10 +1,12 @@
 <script setup>
 import { computed } from 'vue'
+import PublicGoodPriceTable from '@/Components/Goods/PublicGoodPriceTable.vue'
 import { quantityWeight, unitLabel } from '@/utils/goodMeasurement'
 
 const props = defineProps({
     quantity: { type: [Number, String], default: 1 },
     purchase: { type: Object, default: () => ({}) },
+    prices: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:quantity', 'inquiry', 'max', 'add-to-cart'])
 const count = computed(() => Math.min(9999, Math.max(0.001, Math.round((Number(props.quantity) || 1) * 1000) / 1000)))
@@ -20,13 +22,10 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(0.001, 
 <template>
     <section class="mobile-good-buy" aria-label="Заказ товара">
         <div class="mobile-good-buy__price-row">
-            <div>
-                <span class="mobile-good-buy__caption">{{ purchase.price ? 'Цена товара' : 'Условия под ваш объём' }}</span>
-                <div class="mobile-good-buy__price">{{ purchase.price ? money(purchase.price) : 'Цена по запросу' }}<small v-if="purchase.price"> / {{ unit }}</small></div>
-                <span v-if="purchase.price" class="mobile-good-buy__caption">{{ purchase.includes_vat ? 'С НДС' : 'НДС уточняется' }}</span>
-            </div>
+            <span class="mobile-good-buy__caption">Цены товара</span>
             <button type="button" class="mobile-good-buy__bargain" :disabled="!canOrder" @click="emit('inquiry', 'bargain')"><v-icon icon="mdi-handshake-outline" size="21" /><span>Торг<small>Своя цена</small></span></button>
         </div>
+        <PublicGoodPriceTable :prices="prices" :purchase="purchase" />
         <div class="mobile-good-buy__quantity-row">
             <label for="mobile-product-quantity">Количество, {{ unit }}<small>{{ totalWeight ? `${number(totalWeight)} кг` : 'Массу уточнит менеджер' }}</small></label>
             <div class="mobile-good-buy__stepper">
@@ -51,6 +50,7 @@ function update(value) { emit('update:quantity', Math.min(9999, Math.max(0.001, 
 @media (max-width: 767px) {
     .mobile-good-buy { display: block; padding: 20px 16px 16px; background: #fff; border: 1px solid #ecdedd; border-radius: 16px; }
     .mobile-good-buy__price-row, .mobile-good-buy__quantity-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .mobile-good-buy__price-row { margin-bottom: 8px; }
     .mobile-good-buy__caption { color: #897271; font-size: 11px; line-height: 1.5; }
     .mobile-good-buy__price { color: #322323; font-size: 30px; line-height: 1.25; font-weight: 750; margin: 4px 0; letter-spacing: -.7px; }
     .mobile-good-buy__price small { color: #8b7775; font-size: 13px; font-weight: 400; }

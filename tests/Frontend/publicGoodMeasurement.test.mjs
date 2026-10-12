@@ -20,7 +20,7 @@ function harness(t, filename, initial) {
     const cart = { succeeds: true, cartError: Vue.ref(''), addGood: (...args) => { cartCalls.push(args); return cart.succeeds } }
     const env = {
         ...Vue, CatalogNodeAvatar: 'CatalogNodeAvatar', measurementForGood, quantityWeight, unitLabel,
-        Head: {}, Link: {}, LayoutProduct: {}, GoodInquiryDialog: {}, PublicGoodGallery: {}, MobileGoodPurchase: {}, GoodStockAlertButton: {}, DeliveryApartmentFields: {},
+        Head: {}, Link: {}, LayoutProduct: {}, GoodInquiryDialog: {}, PublicGoodGallery: {}, MobileGoodPurchase: 'MobileGoodPurchase', PublicGoodPriceTable: 'PublicGoodPriceTable', GoodStockAlertButton: {}, DeliveryApartmentFields: {},
         useOrderCart: () => cart,
         usePage: () => ({ props: {} }), onMounted: () => {},
         usePublicGoodUrl: () => ({ goodPublicUrl: good => `/g/${good.id}` }),
@@ -173,4 +173,40 @@ test('good breadcrumb keeps the related product avatar and its existing public d
     const link = findVNode(h.render(), node => node.props?.href === '/p/9')
     assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.thumbnail_url, '/mackerel-thumb.png')
     assert.equal(h.api.products.value[0].name, 'Скумбрия')
+})
+
+test('desktop and mobile purchases receive the same server-approved prices and product unit', t => {
+    const productPrices = [
+        { price_type_id: 1, price_type_name: 'Розничная', price: 190, currency_code: 'RUB', includes_vat: true, is_retail: true },
+        { price_type_id: 2, price_type_name: 'Оптовая', price: 175, currency_code: 'RUB', includes_vat: true, is_retail: false },
+    ]
+    const page = harness(t, 'resources/js/Pages/Goods/Show.vue', {
+        good: { id: 7, name: 'Брокколи', measurement: box }, publicPurchase: offer(box), productPrices, seo: {}, availability: {}, relatedGoods: [],
+    })
+    const desktop = findVNode(page.render(), node => node.type === 'PublicGoodPriceTable')
+    const mobilePurchase = findVNode(page.render(), node => node.type === 'MobileGoodPurchase')
+    assert.deepEqual(desktop.props.prices, productPrices)
+    assert.deepEqual(mobilePurchase.props.prices, productPrices)
+    assert.deepEqual(desktop.props.purchase.measurement, box)
+    assert.deepEqual(mobilePurchase.props.purchase, desktop.props.purchase)
+
+    const mobile = harness(t, 'resources/js/Components/Goods/MobileGoodPurchase.vue', mobilePurchase.props)
+    const mobileTable = findVNode(mobile.render(), node => node.type === 'PublicGoodPriceTable')
+    assert.deepEqual(mobileTable.props.prices, productPrices)
+    assert.deepEqual(mobileTable.props.purchase, desktop.props.purchase)
+
+    page.props.productPrices = [productPrices[0]]
+    assert.deepEqual(findVNode(page.render(), node => node.type === 'PublicGoodPriceTable').props.prices, [productPrices[0]])
+    assert.deepEqual(findVNode(page.render(), node => node.type === 'MobileGoodPurchase').props.prices, [productPrices[0]])
+})
+
+test('the product introduction preserves every paragraph of a long description', t => {
+    const description = Array.from({ length: 60 }, (_, index) => `Абзац ${index + 1}: замороженная брокколи — состав, хранение и условия поставки.`).join('\n\n')
+        + '\n' + 'Длинноесловодляпереноса'.repeat(30) + '\nПоследний абзац описания.'
+    const page = harness(t, 'resources/js/Pages/Goods/Show.vue', {
+        good: { id: 7, name: 'Брокколи', description }, publicPurchase: offer(kilogram), productPrices: [], seo: {}, availability: {}, relatedGoods: [],
+    })
+    const introduction = findVNode(page.render(), node => hasClass(node, 'hero-description'))
+    assert.equal(introduction.children, description)
+    assert.equal(findVNode(page.render(), node => typeof node.children === 'string' && node.children.includes('Продукты для вашего бизнеса.')), null)
 })
