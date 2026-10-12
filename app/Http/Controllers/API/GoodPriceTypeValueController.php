@@ -106,6 +106,7 @@ class GoodPriceTypeValueController extends Controller
                 'price_type_id' => $priceType->id,
             ],
             [
+                'pricing_input' => null, 'pricing_result' => null,
                 'calculation_id' => $calculation?->id,
                 'currency_id' => $validated['currency_id']
                     ?? $calculation?->currency_id
@@ -185,6 +186,7 @@ class GoodPriceTypeValueController extends Controller
 
         $value->update([
             ...$validated,
+            'pricing_input' => null, 'pricing_result' => null,
             'price_net' => $priceNet,
             'price_gross' => $priceGross,
             'vat_rate' => $vatRate,

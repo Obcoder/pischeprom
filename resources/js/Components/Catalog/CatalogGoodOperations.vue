@@ -3,10 +3,8 @@ import { ref, reactive, computed, watch, onScopeDispose } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { useDate } from 'vuetify'
-import GoodQuotationCalculator from '@/Components/GoodQuotationCalculator.vue'
-import GoodPriceCalculationsTab from '@/Components/Goods/GoodPriceCalculationsTab.vue'
+import GoodPricingWorkspace from '@/Components/Goods/GoodPricingWorkspace.vue'
 import GoodPriceTypesTab from '@/Components/Goods/GoodPriceTypesTab.vue'
-import GoodPriceTypeValuesTab from '@/Components/Goods/GoodPriceTypeValuesTab.vue'
 import GoodMediaTab from '@/Components/Goods/GoodMediaTab.vue'
 import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
 
@@ -33,22 +31,14 @@ const savingRecommendationClassifications = ref(false);
 
 const dialogFormQuotation = ref(false);
 const recommendationIndustryIds = ref([]);
-const priceCalculationsRefreshKey = ref(0);
-const priceValuesRefreshKey = ref(0);
+const pricingWorkspace = ref(null)
+const pricingState = ref({ dirty: false, busy: false })
 
 // --------------------------------------------------
 // COMPUTED
 // --------------------------------------------------
 const currentVatRate = computed(() => {
     return goodData.value?.vat_rate || goodData.value?.vatRate || null;
-});
-
-const defaultVatRate = computed(() => {
-    return Number(currentVatRate.value?.rate ?? 20);
-});
-
-const goodBoxWeight = computed(() => {
-    return Number(goodData.value?.denominator || 1);
 });
 
 const currentRecommendationIndustries = computed(() => {
@@ -205,8 +195,7 @@ async function fetchGood({ preserveDraft = true } = {}) {
 async function refresh({ throwOnError = false } = {}) {
     try {
         const good = await fetchGood()
-        priceCalculationsRefreshKey.value++
-        priceValuesRefreshKey.value++
+        await pricingWorkspace.value?.refresh()
         return good
     } catch (failure) {
         pageError.value = failure.response?.data?.message || 'Не удалось обновить данные товара.'
@@ -253,16 +242,6 @@ async function loadPageData() {
 
 function syncRecommendationClassificationForm() {
     recommendationIndustryIds.value = currentRecommendationIndustries.value.map((industry) => industry.id);
-}
-
-function handleCalculationSaved() {
-    priceCalculationsRefreshKey.value += 1;
-    changed();
-}
-
-function handleCalculationApplied() {
-    priceValuesRefreshKey.value += 1;
-    changed();
 }
 
 async function saveRecommendationClassifications() {
@@ -315,13 +294,15 @@ async function storeQuotation() {
 const normalizedIds = values => [...values].map(String).sort().join(',')
 const recommendationDirty = computed(() => normalizedIds(recommendationIndustryIds.value) !== normalizedIds(currentRecommendationIndustries.value.map(item => item.id)))
 const quotationDirty = computed(() => formQuotation.unit_id != null || formQuotation.price != null || formQuotation.measure_id != null || Number(formQuotation.denominator) !== 1)
-const dirty = computed(() => recommendationDirty.value || quotationDirty.value)
-const busy = computed(() => savingRecommendationClassifications.value || Boolean(formQuotation.processing))
-const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : null)
+const dirty = computed(() => recommendationDirty.value || quotationDirty.value || pricingState.value.dirty)
+const busy = computed(() => savingRecommendationClassifications.value || Boolean(formQuotation.processing) || pricingState.value.busy)
+const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : pricingState.value.dirty ? 'prices' : null)
 const visitedTabs = ref(new Set())
 watch(() => props.activeTab, tab => { if (operationTabs.includes(tab)) visitedTabs.value = new Set([...visitedTabs.value, tab]) }, { immediate: true })
 watch([dirty, busy, dirtyTab], ([dirty, busy, dirtyTab]) => emit('state', { dirty, busy, dirtyTab }), { immediate: true })
 function reset() {
+    pricingWorkspace.value?.reset()
+    pricingState.value = { dirty: false, busy: false }
     syncRecommendationClassificationForm()
     resetQuotation()
     dialogFormQuotation.value = false
@@ -489,48 +470,13 @@ defineExpose({ refresh, reset })
 
                 <!-- PRICES -->
                 <v-window-item value="prices" :eager="visitedTabs.has('prices')">
-                    <v-row dense class="prices-workspace">
-                        <v-col cols="12" xl="5">
-                            <GoodPriceTypeValuesTab
-                                :measurement="goodData.measurement"
-                                :key="priceValuesRefreshKey"
-                                class="prices-workspace__card"
-                                :good-id="goodData.id"
-                                :currencies="currencies"
-                                :table-height="260"
-                                :items-per-page="5"
-                                :show-intro="false"
-                            />
-                        </v-col>
-
-                        <v-col cols="12" xl="7">
-                            <GoodQuotationCalculator
-                                class="prices-workspace__card"
-                                :good-id="goodData.id"
-                                :quotations="goodData.quotations || []"
-                                :purchases="goodData.purchases || []"
-                                :measures="measures"
-                                :currencies="currencies"
-                                :default-vat-rate="defaultVatRate"
-                                :default-box-weight-kg="goodBoxWeight"
-                                currency-code="RUB"
-                                compact
-                                @saved="handleCalculationSaved"
-                            />
-                        </v-col>
-
-                        <v-col cols="12">
-                            <GoodPriceCalculationsTab
-                                :measurement="goodData.measurement"
-                                :key="priceCalculationsRefreshKey"
-                                class="prices-workspace__card"
-                                :good-id="goodData.id"
-                                :table-height="360"
-                                :show-intro="false"
-                                @applied="handleCalculationApplied"
-                            />
-                        </v-col>
-                    </v-row>
+                    <GoodPricingWorkspace
+                        ref="pricingWorkspace"
+                        :good-id="goodData.id"
+                        :active="active && activeTab === 'prices'"
+                        @changed="changed"
+                        @state="pricingState = $event"
+                    />
                 </v-window-item>
 
                 <!-- PRICE TYPES -->
@@ -825,58 +771,6 @@ defineExpose({ refresh, reset })
     gap: 6px;
     max-height: 118px;
     overflow: auto;
-}
-
-.prices-workspace {
-    --price-header: #dc7a51;
-    --price-body: #47765a;
-    --price-text: #f7ecd7;
-    --price-grid: rgba(255, 255, 255, 0.9);
-    align-items: stretch;
-}
-
-.prices-workspace__card {
-    border: 1px solid rgba(71, 118, 90, 0.24);
-    box-shadow: 0 10px 30px rgba(35, 55, 42, 0.08);
-}
-
-.prices-workspace :deep(.v-card-title) {
-    min-height: 42px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-    font-size: 0.98rem;
-}
-
-.prices-workspace :deep(.v-card-text) {
-    padding: 10px;
-}
-
-.prices-workspace :deep(.v-table) {
-    border: 4px solid var(--price-grid);
-    border-radius: 0;
-    overflow: hidden;
-}
-
-.prices-workspace :deep(.v-table thead th) {
-    background: var(--price-header) !important;
-    color: #2f3129 !important;
-    font-weight: 800 !important;
-    border: 3px solid var(--price-grid);
-}
-
-.prices-workspace :deep(.v-table tbody td) {
-    background: var(--price-body);
-    color: var(--price-text);
-    border: 3px solid var(--price-grid);
-    height: 30px !important;
-}
-
-.prices-workspace :deep(.v-table tbody tr:hover td) {
-    background: #3f6d52 !important;
-}
-
-.prices-workspace :deep(.v-data-table-footer) {
-    padding: 6px 10px;
 }
 
 .catalog-good-operations { min-width: 0; }

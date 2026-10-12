@@ -91,7 +91,8 @@ class GoodMeasurement
                 $locked->unsetRelation('measure');
                 $after = $this->assertConfigured($locked, $prefix.'measure_id');
                 $this->assertStockUnit($locked, (int) $after['measure_id'], $prefix.'measure_id');
-                $prices = $locked->priceTypeValues()->lockForUpdate()->get();
+                $prices = $locked->priceTypeValues()->lockForUpdate()->get()
+                    ->concat(\App\Models\GoodEntityPrice::where('good_id', $locked->id)->lockForUpdate()->get());
                 // Legacy screens disagreed on the price basis, so the first
                 // assignment preserves numbers unless the operator selects kg.
                 if (! $before['measure_id'] && $existingPriceBasis !== 'kg') {
@@ -105,14 +106,41 @@ class GoodMeasurement
                     ]);
                 }
                 foreach ($prices as $price) {
+                    $price->auditMeasurementBefore = $before;
+                    $price->auditMeasurementAfter = $after;
                     foreach (['price_net', 'price_gross'] as $field) {
                         if ($price->{$field} !== null) {
                             $value = round((float) $price->{$field} * $toKg / $fromKg, 4);
-                            if (! is_finite($value) || $value >= 1e14) {
+                            if (! is_finite($value) || $value >= 1e12) {
                                 throw ValidationException::withMessages([$prefix.'measure_id' => 'Цена после пересчёта выходит за допустимые пределы.']);
                             }
                             $price->{$field} = $value;
                         }
+                    }
+                    if ($price->pricing_input) {
+                        $input = $price->pricing_input;
+                        $fields = ['rounding_step'];
+                        if (($input['method'] ?? null) === 'manual') {
+                            $fields[] = 'amount';
+                        } elseif (($input['method'] ?? null) === 'absolute') {
+                            $fields[] = 'parameter';
+                        }
+                        foreach ($fields as $field) {
+                            if (isset($input[$field])) {
+                                $input[$field] = round((float) $input[$field] * $toKg / $fromKg, 4);
+                            }
+                        }
+                        $price->pricing_input = $input;
+                    }
+                    if ($price->pricing_result) {
+                        $result = $price->pricing_result;
+                        foreach (['price_net', 'price_gross', 'cost_net', 'profit'] as $field) {
+                            if (isset($result[$field])) {
+                                $result[$field] = round((float) $result[$field] * $toKg / $fromKg, 4);
+                            }
+                        }
+                        $result['measurement'] = $after;
+                        $price->pricing_result = $result;
                     }
                     $price->save();
                 }

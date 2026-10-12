@@ -183,6 +183,20 @@ jobs:
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php
 
+      - name: Check product pricing, history and entity privacy PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/GoodPricingWorkspaceController.php \
+            app/Http/Controllers/API/GoodPriceTypeValueController.php \
+            app/Models/Concerns/TracksGoodPriceHistory.php \
+            app/Models/GoodPriceHistory.php app/Models/GoodEntityPrice.php \
+            app/Models/GoodPriceTypeValue.php \
+            app/Services/Goods/GoodPricingCalculator.php \
+            app/Services/Goods/GoodPriceAudit.php app/Services/Goods/EntityCabinetPrices.php \
+            app/Services/Orders/CustomerOrderNotificationService.php \
+            database/migrations/2026_10_12_180000_create_good_price_history_and_entity_prices.php \
+            tests/Feature/GoodPricingWorkspaceTest.php
+
       - name: Check logistics PHP style
         run: |
           vendor/bin/pint --test \
@@ -530,6 +544,7 @@ jobs:
           vendor/bin/pint --test \
             app/Actions/Fortify/AuthenticatePortalUser.php \
             app/Http/Responses/PortalLoginResponse.php \
+            app/Http/Responses/PortalLogoutResponse.php \
             app/Http/Requests/PortalTwoFactorLoginRequest.php \
             app/Providers/FortifyServiceProvider.php \
             app/Services/Auth \
@@ -613,6 +628,7 @@ jobs:
             tests/Feature/GoodInquiryTest.php \
             tests/Feature/GoodInquiryMeasurementNotificationTest.php \
             tests/Feature/GoodMeasurementTest.php \
+            tests/Feature/GoodPricingWorkspaceTest.php \
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php \
             tests/Feature/PublicGoodTradeCodesTest.php \

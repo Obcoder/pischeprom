@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Goods\EntityCabinetPrices;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -28,7 +29,9 @@ class CustomerDashboardController extends Controller
             $user->loadMissing($relations);
         }
 
-        return Inertia::render('Dashboard', [
+        Inertia::encryptHistory();
+        $response = Inertia::render('Dashboard', [
+            'privatePrices' => fn () => app(EntityCabinetPrices::class)->forUser($user),
             'profile' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -71,6 +74,8 @@ class CustomerDashboardController extends Controller
 
             'orders' => Order::query()
                 ->where('created_by_user_id', $user->id)
+                ->where(fn ($query) => $query->where('has_private_prices', false)
+                    ->orWhereIn('entity_id', app(EntityCabinetPrices::class)->allowedEntities($user)->select('entities.id')))
                 ->with([
                     'status',
                     'buildings',
@@ -115,6 +120,9 @@ class CustomerDashboardController extends Controller
                         ] : null,
                     ])->values(),
                 ])->values(),
-        ]);
+        ])->toResponse($request);
+        $response->headers->set('Cache-Control', 'no-store, private');
+
+        return $response;
     }
 }

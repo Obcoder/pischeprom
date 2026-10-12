@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Building;
 use App\Models\Good;
+use App\Models\GoodEntityPrice;
 use App\Models\GoodPriceTypeValue;
 use App\Models\Order;
 use App\Models\OrderStatus;
 use App\Models\User;
 use App\Services\Catalog\CatalogSiteContext;
 use App\Services\Entities\UserEntityResolver;
+use App\Services\Goods\EntityCabinetPrices;
 use App\Services\Goods\GoodMeasurement;
 use App\Services\Goods\PublicGoodOffer;
 use App\Services\Orders\CustomerOrderNotificationService;
@@ -29,9 +31,13 @@ class CustomerOrderController extends Controller
         CustomerOrderNotificationService $notificationService,
         UserEntityResolver $entityResolver
     ): JsonResponse {
+        $private = $request->routeIs('customer.entity-orders.store');
         $this->normalizeItems($request);
 
         $validated = $request->validate([
+            'entity_id' => [$private ? 'required' : 'prohibited', 'integer', 'exists:entities,id'],
+            'items.*.price_id' => [$private ? 'required' : 'prohibited', 'nullable', 'integer', 'min:1'],
+            'items.*.price_revision' => [$private ? 'required' : 'prohibited', 'nullable', 'integer', 'min:1'],
             'items' => ['required', 'array', 'min:1', 'max:60'],
             'items.*.good_id' => ['required', 'integer', 'exists:goods,id'],
             'items.*.quantity' => ['nullable', 'numeric', 'min:0.001', 'max:9999', 'decimal:0,3'],
@@ -54,11 +60,13 @@ class CustomerOrderController extends Controller
         abort_unless($user instanceof User, 401);
 
         $rawItems = collect($validated['items']);
-        $entity = $user->entities()
-            ->wherePivot('is_primary', true)
-            ->first()
+        $entity = $private
+            ? app(EntityCabinetPrices::class)->allowedEntities($user)->findOrFail($validated['entity_id'])
+            : ($user->entities()
+                ->wherePivot('is_primary', true)
+                ->first()
             ?: $user->entities()->first()
-            ?: $entityResolver->resolve($user);
+            ?: $entityResolver->resolve($user));
         $canManageEntity = $entityResolver->canManageEntity($entity, $user);
         $contactTelephone = $canManageEntity
             ? $entityResolver->attachPhone($entity, $validated['customer_phone'])
@@ -74,7 +82,8 @@ class CustomerOrderController extends Controller
             $rawItems,
             $validated,
             $statusId,
-            $canManageEntity
+            $canManageEntity,
+            $private
         ): Order {
             $goods = $this->publishedGoods($rawItems->pluck('good_id')->unique()->values());
 
@@ -82,6 +91,21 @@ class CustomerOrderController extends Controller
                 throw ValidationException::withMessages([
                     'items' => 'Один из товаров уже недоступен для заказа.',
                 ]);
+            }
+
+            $privatePrices = $private ? app(EntityCabinetPrices::class)->available($user)
+                ->where('entity_id', $entity->id)->whereIn('id', $rawItems->pluck('price_id'))
+                ->with('currency')->lockForUpdate()->get()->keyBy('id') : collect();
+            if ($private) {
+                foreach ($rawItems as $index => $item) {
+                    $price = $privatePrices->get($item['price_id']);
+                    if (! $price || (int) $price->good_id !== (int) $item['good_id'] || (int) $price->revision !== (int) $item['price_revision']) {
+                        throw ValidationException::withMessages(["items.{$index}.price_id" => 'Индивидуальная цена изменилась или больше недоступна. Обновите личный кабинет.']);
+                    }
+                }
+                if ($privatePrices->pluck('currency_id')->unique()->count() > 1) {
+                    throw ValidationException::withMessages(['items' => 'Оформляйте товары в разных валютах отдельными заказами.']);
+                }
             }
 
             $lines = $rawItems
@@ -92,8 +116,13 @@ class CustomerOrderController extends Controller
                     isset($item['measure_id']) ? (int) $item['measure_id'] : null,
                     $item['measurement'] ?? null,
                     $index,
+                    $private ? $privatePrices->get($item['price_id']) : null,
                 ))
                 ->values();
+
+            if ($lines->sum('line_total') >= 1e12) {
+                throw ValidationException::withMessages(['items' => 'Сумма заказа превышает допустимое значение.']);
+            }
 
             $address = trim($validated['delivery_address']);
             $building = Building::query()->firstOrCreate([
@@ -112,6 +141,7 @@ class CustomerOrderController extends Controller
 
             $order = Order::query()->create([
                 'number' => Order::generateNumber(),
+                'has_private_prices' => $private,
                 'entity_id' => $entity->id,
                 'order_status_id' => $statusId,
                 'created_by_user_id' => $user->id,
@@ -154,7 +184,7 @@ class CustomerOrderController extends Controller
                 'currency_code' => $order->currency_code,
             ],
             'redirect' => route('dashboard'),
-        ], 201);
+        ], 201)->header('Cache-Control', 'no-store, private');
     }
 
     private function normalizeItems(Request $request): void
@@ -166,6 +196,8 @@ class CustomerOrderController extends Controller
                 'measure_id' => data_get($item, 'measure_id'),
                 'measurement' => data_get($item, 'measurement'),
                 'pricing_context' => data_get($item, 'pricing_context'),
+                'price_id' => data_get($item, 'price_id'),
+                'price_revision' => data_get($item, 'price_revision'),
             ])
             ->values()
             ->all();
@@ -216,7 +248,7 @@ class CustomerOrderController extends Controller
             ->keyBy('id');
     }
 
-    private function makeOrderLine(Good $good, float $quantity, string $pricingContext, ?int $measureId = null, ?array $snapshot = null, int $index = 0): array
+    private function makeOrderLine(Good $good, float $quantity, string $pricingContext, ?int $measureId = null, ?array $snapshot = null, int $index = 0, ?GoodEntityPrice $privatePrice = null): array
     {
         $measurement = app(GoodMeasurement::class)->assertConfigured($good, "items.{$index}.measurement");
         app(GoodMeasurement::class)->assertMeasure($good, $measureId, "items.{$index}.measure_id");
@@ -226,11 +258,14 @@ class CustomerOrderController extends Controller
         $price = $pricingContext === 'public'
             ? app(PublicGoodOffer::class)->pricesFor($good)->first()
             : $this->selectedPrice($good);
-        $priceGross = $this->priceValue($price);
-        $currencyCode = $this->currencyCode($price);
+        $priceGross = $privatePrice ? (float) $privatePrice->price_gross : $this->priceValue($price);
+        $currencyCode = $privatePrice ? $privatePrice->currency->code : $this->currencyCode($price);
         $lineTotal = $priceGross !== null
             ? round($priceGross * $quantity, 4)
             : null;
+        if ($lineTotal !== null && (! is_finite($lineTotal) || $lineTotal >= 1e12)) {
+            throw ValidationException::withMessages(["items.{$index}.quantity" => 'Сумма позиции превышает допустимое значение.']);
+        }
         $lineWeight = $denominator !== null
             ? round($denominator * $quantity, 6)
             : null;
@@ -249,9 +284,10 @@ class CustomerOrderController extends Controller
             'line_total' => $lineTotal,
             'country_name' => $good->country?->name,
             'snapshot' => [
+                'private_price' => $privatePrice ? ['id' => $privatePrice->id, 'revision' => $privatePrice->revision, 'entity_id' => $privatePrice->entity_id] : null,
                 'measurement' => $measurement,
                 'description' => $good->description,
-                'price_type' => $price?->priceType
+                'price_type' => ! $privatePrice && $price?->priceType
                     ? [
                         'id' => $price->priceType->id,
                         'code' => $price->priceType->code,

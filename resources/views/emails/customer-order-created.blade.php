@@ -26,7 +26,9 @@
 <p>
     Общая сумма:
     <strong>
-        @if($order->total_amount > 0)
+        @if($order->has_private_prices)
+            Индивидуальные условия — в личном кабинете
+        @elseif($order->total_amount > 0)
             {{ number_format($order->total_amount, 2, ',', ' ') }} {{ $order->currency_code === 'RUB' ? '₽' : $order->currency_code }}
         @else
             по запросу
@@ -64,14 +66,18 @@
             </td>
             <td align="right">{{ rtrim(rtrim(number_format($item->quantity, 3, ',', ' '), '0'), ',') }} {{ $unitLabel }}</td>
             <td align="right">
-                @if($item->price_gross > 0)
+                @if($order->has_private_prices)
+                    В личном кабинете
+                @elseif($item->price_gross > 0)
                     {{ number_format($item->price_gross, 2, ',', ' ') }} {{ $item->currency_code === 'RUB' ? '₽' : $item->currency_code }} / {{ $unitLabel }}
                 @else
                     по запросу
                 @endif
             </td>
             <td align="right">
-                @if($item->line_total > 0)
+                @if($order->has_private_prices)
+                    В личном кабинете
+                @elseif($item->line_total > 0)
                     {{ number_format($item->line_total, 2, ',', ' ') }} {{ $item->currency_code === 'RUB' ? '₽' : $item->currency_code }}
                 @else
                     по запросу

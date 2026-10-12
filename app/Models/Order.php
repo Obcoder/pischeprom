@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
 class Order extends Model
 {
     protected $fillable = [
+        'has_private_prices',
         'number',
         'entity_id',
         'order_status_id',
@@ -29,6 +30,7 @@ class Order extends Model
     ];
 
     protected $casts = [
+        'has_private_prices' => 'boolean',
         'total_amount' => 'float',
         'total_weight' => 'float',
         'submitted_at' => 'datetime',

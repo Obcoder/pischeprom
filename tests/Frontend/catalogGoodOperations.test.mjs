@@ -16,7 +16,7 @@ function harness(t, overrides = {}) {
     const props = Vue.reactive({ goodId: 42, activeTab: 'market', active: false, ...overrides })
     const environment = {
         ...Vue, useDate: () => ({ format: value => value }), route: (name, id) => `${name}/${id ?? ''}`,
-        ...Object.fromEntries(['GoodQuotationCalculator', 'GoodPriceCalculationsTab', 'GoodPriceTypesTab', 'GoodPriceTypeValuesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
+        ...Object.fromEntries(['GoodPricingWorkspace', 'GoodPriceTypesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
         axios: Object.fromEntries(['get', 'patch', 'post'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])),
         useForm(initial) {
             const data = Vue.reactive({ ...initial, errors: {}, processing: false })
@@ -49,8 +49,6 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     assert.equal(h.requests.length, 0)
     await h.load()
     assert.equal(h.api.goodData.value.id, 42)
-    assert.equal(h.api.defaultVatRate.value, 10)
-    assert.equal(h.api.goodBoxWeight.value, 5)
     assert.equal(h.api.currencies.value.length, 1)
     for (const key of ['market', 'prices', 'price-types', 'collections', 'media', 'sales']) {
         assert.ok(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key), key)
@@ -61,9 +59,9 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     assert.equal(findVNode(h.render(), node => node.type === 'v-tabs'), null)
     assert.equal(findVNode(h.render(), node => node.type === 'GoodSeoTab'), null)
     assert.equal(findVNode(h.render(), node => node.type === 'FindBuyersLauncher'), null)
-    const calculator = findVNode(h.render(), node => node.type === 'GoodQuotationCalculator')
-    assert.deepEqual(calculator.props.quotations, [{ id: 1 }])
-    assert.deepEqual(calculator.props.purchases, [{ id: 2 }])
+    const workspace = findVNode(h.render(), node => node.type === 'GoodPricingWorkspace')
+    assert.equal(workspace.props['good-id'], 42)
+    assert.equal(workspace.props.active, false)
     h.props.activeTab = 'media'; await Vue.nextTick()
     h.props.activeTab = 'prices'; await Vue.nextTick()
     assert.equal(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === 'media').props.eager, true)
@@ -198,10 +196,10 @@ test('media and calculation changes refresh the source without resetting another
     await update
     assert.equal(h.api.goodData.value.ava_image, '/new.jpg')
     assert.deepEqual(h.api.recommendationIndustryIds.value, [7])
-    h.api.handleCalculationApplied()
-    assert.equal(h.api.priceValuesRefreshKey.value, 1)
+    const pricing = findVNode(h.render(), node => node.type === 'GoodPricingWorkspace')
+    const change = pricing.props.onChanged()
     h.requests.at(-1).resolve(h.good)
-    await Vue.nextTick()
+    await change
 })
 
 test('quotation validation keeps the draft and renders server errors without triggering Inertia navigation', async t => {

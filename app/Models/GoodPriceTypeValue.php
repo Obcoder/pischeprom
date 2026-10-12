@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class GoodPriceTypeValue extends Model
 {
+    use \App\Models\Concerns\TracksGoodPriceHistory;
+
+    protected $attributes = ['revision' => 1];
+
     protected $fillable = [
         'good_id',
         'price_type_id',
@@ -20,9 +24,12 @@ class GoodPriceTypeValue extends Model
         'is_published',
         'valid_from',
         'valid_to',
+        'pricing_input',
+        'pricing_result',
     ];
 
     protected $casts = [
+        'revision' => 'integer',
         'price_net' => 'float',
         'price_gross' => 'float',
         'vat_rate' => 'float',
@@ -30,6 +37,8 @@ class GoodPriceTypeValue extends Model
         'is_published' => 'boolean',
         'valid_from' => 'date:Y-m-d',
         'valid_to' => 'date:Y-m-d',
+        'pricing_input' => 'array',
+        'pricing_result' => 'array',
     ];
 
     public function good(): BelongsTo

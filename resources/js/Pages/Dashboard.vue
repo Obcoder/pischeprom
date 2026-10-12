@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3'
 import { route } from "ziggy-js";
+import CustomerEntityPrices from '@/Components/Goods/CustomerEntityPrices.vue'
 import LayoutDefault from '@/Layouts/LayoutDefault.vue'
 
 defineOptions({
@@ -8,6 +9,7 @@ defineOptions({
 })
 
 const props = defineProps({
+    privatePrices: { type: Array, default: () => [] },
     profile: {
         type: Object,
         required: true,
@@ -78,8 +80,7 @@ function formatDate(value) {
                     </h1>
 
                     <p class="dashboard-text">
-                        Здесь будет собираться информация по профилю, городу доставки,
-                        заявкам, бонусам и специальным ценам.
+                        Ваш профиль, доставка, заказы и индивидуальные условия для вашей организации.
                     </p>
                 </div>
 
@@ -92,6 +93,8 @@ function formatDate(value) {
                     <span v-else>{{ profile.name?.[0] || 'П' }}</span>
                 </v-avatar>
             </div>
+
+            <CustomerEntityPrices :prices="privatePrices" :profile="profile" />
 
             <v-row dense class="align-stretch">
                 <v-col cols="12" md="6" lg="4">

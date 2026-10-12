@@ -22,6 +22,9 @@ class OrderWriter
             $order = $order?->exists
                 ? Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail()
                 : new Order;
+            if ($order->has_private_prices && (int) $order->entity_id !== (int) $data['entity_id']) {
+                throw ValidationException::withMessages(['entity_id' => 'Заказ с индивидуальными ценами закреплён за исходным Entity. Для другого клиента создайте отдельный заказ.']);
+            }
             abort_if($order->shipped_sale_id !== null, 409, 'Отгруженный заказ нельзя изменять.');
             if ($order->exists && array_key_exists('delivery_date', $data)) {
                 $order->setRelation('items', $order->items()->lockForUpdate()->get());

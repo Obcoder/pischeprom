@@ -582,6 +582,12 @@ Route::apiResource('goods', GoodController::class)->except(['show']);
 Route::prefix('goods/{good}')
     ->name('api.goods.')
     ->group(function () {
+        Route::get('/pricing', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'index'])->name('pricing.index');
+        Route::post('/pricing/preview', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'preview'])->name('pricing.preview');
+        Route::put('/pricing', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'save'])->name('pricing.save');
+        Route::get('/pricing/history', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'history'])->name('pricing.history');
+        Route::delete('/pricing/{scope}/{record}', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'destroy'])
+            ->where('scope', 'common|entity')->whereNumber('record')->name('pricing.destroy');
         Route::get('/price-calculations', [GoodPriceCalculationController::class, 'index'])
             ->name('price-calculations.index');
 
@@ -661,6 +667,10 @@ Route::prefix('goods/{good}')
         Route::patch('/media/{media}/main-video', [GoodMediaController::class, 'setMainVideo'])
             ->name('media.main-video');
     });
+
+Route::get('/pricing/entities', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'entities'])->name('pricing.entities');
+Route::get('/pricing/entities/{entity}/access', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'access'])->name('pricing.access');
+Route::put('/pricing/entities/{entity}/access/{user}', [\App\Http\Controllers\API\GoodPricingWorkspaceController::class, 'grant'])->name('pricing.grant');
 
 Route::get('/goods/{id}/{slug?}', [GoodController::class, 'show'])
     ->where('id', '[0-9]+')->name('good.fetch');

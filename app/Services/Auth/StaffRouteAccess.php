@@ -42,6 +42,7 @@ class StaffRouteAccess
         'dashboard' => ['GET', 'HEAD'],
         'dashboard/profile' => ['GET', 'HEAD', 'POST'],
         'orders' => ['POST'],
+        'dashboard/entity-orders' => ['POST'],
 
         // Fortify/Jetstream keep their existing session, password and 2FA checks.
         'login' => ['GET', 'HEAD', 'POST'],

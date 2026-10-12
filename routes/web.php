@@ -79,6 +79,9 @@ Route::middleware([
     Route::get('/dashboard', [CustomerDashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::post('/dashboard/entity-orders', [CustomerOrderController::class, 'store'])
+        ->middleware('throttle:20,1')->name('customer.entity-orders.store');
+
     Route::get('/dashboard/profile', [CustomerProfileController::class, 'edit'])
         ->name('customer.profile.edit');
 

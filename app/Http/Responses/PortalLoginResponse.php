@@ -4,6 +4,7 @@ namespace App\Http\Responses;
 
 use App\Services\Auth\StaffRouteAccess;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Laravel\Fortify\Contracts\LoginResponse;
 use Laravel\Fortify\Contracts\TwoFactorLoginResponse;
 use Laravel\Fortify\Fortify;
@@ -14,6 +15,7 @@ class PortalLoginResponse implements LoginResponse, TwoFactorLoginResponse
 {
     public function toResponse($request)
     {
+        Inertia::clearHistory();
         $ameise = $request->session()->pull('auth.login_portal') === 'ameise';
 
         if ($ameise || ! $this->hasPublicIntendedDestination($request)) {
