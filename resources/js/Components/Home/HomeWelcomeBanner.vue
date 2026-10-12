@@ -56,7 +56,7 @@ function goodsLabel(count) {
 
             <figure class="home-welcome-banner__art">
                 <img
-                    src="/home/food-industry-collage.webp"
+                    src="/home/food-industry-cutout.webp"
                     alt="Овощи, фрукты, ягоды, мясо, рыболовецкий траулер, зерно и мука. Пища для людей - наше дело."
                     width="1536"
                     height="1024"
@@ -123,8 +123,8 @@ function goodsLabel(count) {
     --terracotta: #a55136;
     position: relative;
     isolation: isolate;
-    margin-bottom: 24px;
-    padding: 22px 24px 24px;
+    margin-bottom: 18px;
+    padding: 16px 22px 18px;
     background: var(--paper);
     color: var(--ink);
 }
@@ -140,31 +140,32 @@ function goodsLabel(count) {
 
 .home-welcome-banner__intro {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    gap: 24px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 18px;
     align-items: center;
 }
 
-.home-welcome-banner__content { min-width: 0; padding-block: 22px 30px; }
+.home-welcome-banner__content { min-width: 0; padding-block: 12px 16px; }
 .home-welcome-banner__title {
     margin: 0;
-    font-family: Georgia, 'Times New Roman', serif;
-    font-size: clamp(34px, 4.1vw, 64px);
-    font-weight: 400;
-    letter-spacing: -.045em;
-    line-height: 1.04;
+    font-family: 'Rubik-Medium', Arial, sans-serif;
+    font-size: clamp(30px, 3.3vw, 48px);
+    font-weight: 500;
+    color: #233e52;
+    letter-spacing: -.035em;
+    line-height: 1.12;
     text-wrap: balance;
 }
-.home-welcome-banner__title span { color: var(--terracotta); font-style: italic; }
-.home-welcome-banner__slogan { margin: 20px 0 0; color: var(--ink); font-size: 16px; font-weight: 600; line-height: 1.5; }
+.home-welcome-banner__title span { color: #496d46; }
+.home-welcome-banner__slogan { margin: 14px 0 0; color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.5; }
 .home-welcome-banner__text {
     max-width: 380px;
-    margin: 12px 0 0;
+    margin: 8px 0 0;
     color: var(--muted);
     font-size: 14px;
     line-height: 1.65;
 }
-.home-welcome-banner__actions { margin-top: 22px; }
+.home-welcome-banner__actions { margin-top: 16px; }
 .home-welcome-banner__catalog-link {
     display: inline-flex;
     min-height: 44px;
@@ -185,10 +186,10 @@ function goodsLabel(count) {
 .home-welcome-banner__catalog-link:hover { background: #365443; border-color: #365443; }
 .home-welcome-banner a:focus-visible { outline: 2px solid var(--terracotta); outline-offset: 5px; }
 
-.home-welcome-banner__art { min-width: 0; margin: 0; }
+.home-welcome-banner__art { min-width: 0; width: 92%; max-width: 480px; margin: 0 auto; }
 .home-welcome-banner__art img { display: block; width: 100%; height: auto; object-fit: contain; }
-.home-welcome-banner__collections { margin-top: 26px; padding-top: 21px; border-top: 1px solid #b8b29f; }
-.home-welcome-banner__collections-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 18px; }
+.home-welcome-banner__collections { margin-top: 16px; padding-top: 14px; border-top: 1px solid #b8b29f; }
+.home-welcome-banner__collections-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; }
 .home-welcome-banner__collections-title { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; letter-spacing: -.025em; line-height: 1.2; }
 .home-welcome-banner__collections-note { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .home-welcome-banner__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; }
@@ -216,25 +217,25 @@ function goodsLabel(count) {
 }
 @media (max-width: 760px) {
     .home-welcome-banner__intro { grid-template-columns: minmax(0, 1fr) minmax(0, .9fr); }
-    .home-welcome-banner__title { font-size: 37px; }
+    .home-welcome-banner__title { font-size: 30px; }
     .home-welcome-banner__field-card { grid-template-columns: minmax(0, 1fr); }
     .home-welcome-banner__field-footer { grid-column: 1; }
     .home-welcome-banner__field-title { font-size: 20px; }
 }
 @media (max-width: 599px) {
-    .home-welcome-banner { padding: 12px 2px 20px; margin-bottom: 20px; }
+    .home-welcome-banner { padding: 10px 2px 14px; margin-bottom: 16px; }
     .home-welcome-banner__intro { grid-template-columns: minmax(0, 1fr); gap: 4px; }
     .home-welcome-banner__content { padding: 8px 0 0; }
-    .home-welcome-banner__title { max-width: 440px; font-size: clamp(36px, 9vw, 48px); }
-    .home-welcome-banner__text { margin-top: 16px; font-size: 13px; }
-    .home-welcome-banner__actions { margin-top: 18px; }
-    .home-welcome-banner__art { max-width: 500px; width: 100%; margin: 20px auto 0; }
-    .home-welcome-banner__collections { margin-top: 24px; padding-top: 18px; }
+    .home-welcome-banner__title { max-width: 440px; font-size: clamp(28px, 7.6vw, 38px); }
+    .home-welcome-banner__text { margin-top: 10px; font-size: 13px; }
+    .home-welcome-banner__actions { margin-top: 14px; }
+    .home-welcome-banner__art { max-width: 350px; width: 92%; margin: 12px auto 0; }
+    .home-welcome-banner__collections { margin-top: 14px; padding-top: 12px; }
     .home-welcome-banner__collections-heading { margin-bottom: 14px; }
     .home-welcome-banner__collections-title { font-size: 27px; }
     .home-welcome-banner__collections-note { font-size: 9px; }
     .home-welcome-banner__fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
-    .home-welcome-banner__field-card { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; padding: 16px 0; }
+    .home-welcome-banner__field-card { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; padding: 12px 0; }
     .home-welcome-banner__field-card + .home-welcome-banner__field-card { border-left: 0; border-top: 1px solid #c7c1b0; padding-left: 0; }
     .home-welcome-banner__field-title { font-size: 22px; }
     .home-welcome-banner__field-description { margin-top: 5px; }

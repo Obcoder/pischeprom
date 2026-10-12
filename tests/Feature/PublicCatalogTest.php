@@ -30,32 +30,43 @@ class PublicCatalogTest extends TestCase
         $this->withHeader('X-Inertia-Version', hash('xxh128', 'https://assets.example.test'));
     }
 
-    public function test_shared_header_lists_real_published_categories_with_safe_fields_and_stable_order(): void
+    public function test_shared_header_preserves_catalog_parents_order_and_canonical_links(): void
     {
-        $last = Category::create(['name' => 'Бакалея', 'slug' => 'bakaleya', 'is_published' => true, 'sort_order' => 0]);
-        $second = Category::create(['name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true, 'is_featured' => true, 'sort_order' => 20]);
-        $first = Category::create(['name' => 'Ягоды', 'slug' => 'yagody', 'image' => '/berries.webp', 'is_published' => true,
-            'is_featured' => true, 'sort_order' => 5, 'description' => 'not-a-header-field-sentinel']);
-        Category::create(['name' => 'Скрытая категория', 'is_published' => false, 'is_featured' => true]);
-        for ($index = 1; $index <= 20; $index++) {
-            Category::create(['name' => 'Дополнительная категория '.$index, 'is_published' => true, 'sort_order' => 100]);
-        }
+        $root = $this->node('Плодово-ягодное направление', ['slug' => 'fruit', 'sort_order' => 20]);
+        $category = Category::create(['name' => 'Облепиха', 'slug' => 'sea-buckthorn', 'image' => '/berries.webp', 'is_published' => true,
+            'is_featured' => true, 'description' => 'not-a-header-field-sentinel']);
+        $child = $this->node('Облепиха', ['parent_id' => $root->id, 'entity_type' => 'category', 'entity_id' => $category->id]);
+        $product = Product::create(['rus' => 'Облепиха замороженная', 'is_published' => true]);
+        $leaf = $this->node('Облепиха замороженная', ['parent_id' => $child->id, 'entity_type' => 'product', 'entity_id' => $product->id]);
+        $first = $this->node('Рыба', ['sort_order' => 10]);
+        Category::create(['name' => 'Без размещения', 'is_published' => true]);
+        $hidden = $this->node('Скрытая ветка', ['is_published' => false]);
+        $this->node('Скрытый потомок', ['parent_id' => $hidden->id]);
+        $good = Good::create(['name' => 'Товар не является разделом', 'is_published' => true]);
+        $this->node($good->name, ['parent_id' => $leaf->id, 'entity_type' => 'good', 'entity_id' => $good->id]);
 
         $response = $this->get('/privacy-policy', ['X-Inertia' => 'true'])->assertOk()
-            ->assertJsonCount(23, 'props.headerCategories')
-            ->assertJsonPath('props.headerCategories.0', [
-                'id' => $first->id, 'name' => 'Ягоды', 'slug' => 'yagody',
-                'image' => '/berries.webp', 'thumbnail_url' => '/berries.webp',
-                'public_url' => route('category.show', 'yagody'),
-            ])
-            ->assertJsonPath('props.headerCategories.1.id', $second->id)
-            ->assertJsonPath('props.headerCategories.2.id', $last->id);
+            ->assertJsonCount(4, 'props.headerCategories');
+        $nodes = collect($response->json('props.headerCategories'))->keyBy('id');
+        $this->assertSame([$first->id, $root->id], $nodes->whereNull('parent_id')->keys()->all());
+        $this->assertSame($root->id, $nodes[$child->id]['parent_id']);
+        $this->assertSame($child->id, $nodes[$leaf->id]['parent_id']);
+        $this->assertSame('/berries.webp', $nodes[$child->id]['thumbnail_url']);
+        $this->assertSame(url('/catalog/fruit/sea-buckthorn'), $nodes[$child->id]['public_url']);
 
-        $this->assertStringNotContainsString('Скрытая категория', $response->getContent());
+        $this->assertStringNotContainsString('Скрытый потомок', $response->getContent());
+        $this->assertStringNotContainsString('Без размещения', $response->getContent());
         $this->assertStringNotContainsString('not-a-header-field-sentinel', $response->getContent());
+
+        $child->update(['parent_id' => $first->id]);
+        $moved = collect(app(PublicCatalogService::class)->headerCategories())->keyBy('id');
+        $this->assertSame($first->id, $moved[$child->id]['parent_id']);
+        $this->assertSame($this->url($first).'/sea-buckthorn', $moved[$child->id]['public_url']);
+        $category->update(['is_published' => false]);
+        $this->assertSame([$first->id, $root->id], array_column(app(PublicCatalogService::class)->headerCategories(), 'id'));
     }
 
-    public function test_goods_pages_share_the_canonical_category_destination_using_the_source_category_id(): void
+    public function test_goods_pages_share_catalog_node_ids_and_source_category_destination_map(): void
     {
         $category = Category::forceCreate(['id' => 251, 'name' => 'Рыба', 'slug' => 'ryba', 'is_published' => true]);
         $node = $this->node('Рыба', ['entity_type' => 'category', 'entity_id' => $category->id]);
@@ -65,7 +76,7 @@ class PublicCatalogTest extends TestCase
         foreach (['/g', '/g/'.$good->slug, '/privacy-policy'] as $path) {
             $this->get($path, ['X-Inertia' => 'true'])->assertOk()
                 ->assertJsonCount(1, 'props.headerCategories')
-                ->assertJsonPath('props.headerCategories.0.id', $category->id)
+                ->assertJsonPath('props.headerCategories.0.id', $node->id)
                 ->assertJsonPath('props.headerCategories.0.public_url', url('/catalog/ryba'))
                 ->assertJsonPath('props.publicCategoryUrls.251', url('/catalog/ryba'));
         }

@@ -8,15 +8,7 @@ const inertiaPage = usePage()
 
 const categories = computed(() => {
     const props = inertiaPage.props || {}
-
-    const possibleCategories = [
-        props.headerCategories,
-        props.categories,
-        props.publicCategories,
-        props.navigation?.categories,
-    ]
-
-    return possibleCategories.find((items) => Array.isArray(items)) || []
+    return Array.isArray(props.headerCategories) ? props.headerCategories : []
 })
 
 const footerLinks = [

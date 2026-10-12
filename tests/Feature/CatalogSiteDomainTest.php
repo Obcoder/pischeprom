@@ -83,9 +83,10 @@ class CatalogSiteDomainTest extends TestCase
         $catalog = app(PublicCatalogService::class);
 
         $this->host('food.test');
-        $this->assertSame([$food->id], array_column($catalog->headerCategories(), 'id'));
+        $this->assertSame([CatalogNode::where('entity_type', 'category')->where('entity_id', $food->id)->value('id')], array_column($catalog->headerCategories(), 'id'));
+        $this->assertNull($catalog->headerCategories()[0]['parent_id']);
         $this->host('fabric.test');
-        $this->assertSame([$fabric->id], array_column($catalog->headerCategories(), 'id'));
+        $this->assertSame([CatalogNode::where('entity_type', 'category')->where('entity_id', $fabric->id)->value('id')], array_column($catalog->headerCategories(), 'id'));
         $this->host('unknown.test');
         $this->assertSame([], $catalog->headerCategories());
 
