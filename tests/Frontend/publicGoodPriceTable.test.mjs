@@ -80,6 +80,27 @@ test('a supplied unavailable price row requests a quote without claiming a VAT a
     assert.equal(findVNode(body, node => node.type === 'small'), null)
 })
 
+test('guest price types remain visible with a registration label in place of restricted amounts', t => {
+    const h = harness(t, {
+        prices: [retail, { price_type_id: 2, price_type_name: 'Оптовая', price: null, requires_auth: true }, { price_type_id: 3, price_type_name: 'Партнёрская', price: null, requires_auth: true }],
+        purchase,
+    })
+    const tree = h.render()
+    assert.equal(textOf(findVNode(tree, node => hasClass(node, 'good-price-table__retail'))), 'Розничная190 ₽С НДС')
+    for (const name of ['Оптовая', 'Партнёрская']) {
+        const row = findVNode(tree, node => node.type === 'tr' && textOf(node).includes(name))
+        assert.ok(row)
+        assert.equal(textOf(row), `${name}Доступна зарегистрированным пользователям`)
+        assert.equal(findVNode(row, node => node.type === 'strong'), null)
+        assert.equal(findVNode(row, node => node.type === 'small'), null)
+    }
+
+    h.props.prices = [retail, { price_type_id: 2, price_type_name: 'Оптовая', price: 170, currency_code: 'RUB', includes_vat: true, requires_auth: false }]
+    const authenticated = h.render()
+    assert.equal(findVNode(authenticated, node => hasClass(node, 'good-price-table__locked')), null)
+    assert.match(textOf(authenticated), /Оптовая170 ₽С НДС/)
+})
+
 test('description styling permits all lines, preserves paragraphs and wraps unbroken text on every viewport', () => {
     const filename = 'resources/js/Pages/Goods/Show.vue'
     const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename })

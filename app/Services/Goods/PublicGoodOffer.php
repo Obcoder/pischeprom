@@ -99,11 +99,6 @@ class PublicGoodOffer
     {
         $prices = $this->publicPrices()->where('good_id', $good->id)->get();
 
-        if (! $authenticated) {
-            $prices = $this->preferredPrices($prices)
-                ->filter(fn (GoodPriceTypeValue $price) => $this->isRetail($price));
-        }
-
         return $prices
             ->filter(fn (GoodPriceTypeValue $price) => ($price->price_gross ?? $price->price_net ?? 0) > 0)
             ->sortBy(fn (GoodPriceTypeValue $price) => [
@@ -112,13 +107,22 @@ class PublicGoodOffer
             ])
             ->unique('price_type_id')
             ->values()
-            ->map(function (GoodPriceTypeValue $price) use ($good): array {
-                $offer = $this->offer($good, $price);
-
-                return [
+            ->map(function (GoodPriceTypeValue $price) use ($good, $authenticated): array {
+                $row = [
                     'price_type_id' => $price->price_type_id,
                     'price_type_name' => $price->priceType->name,
                     'is_retail' => $this->isRetail($price),
+                    'requires_auth' => ! $authenticated && ! $this->isRetail($price),
+                ];
+
+                if ($row['requires_auth']) {
+                    return [...$row, 'price' => null];
+                }
+
+                $offer = $this->offer($good, $price);
+
+                return [
+                    ...$row,
                     'price' => $offer['price'],
                     'currency_code' => $offer['currency_code'],
                     'includes_vat' => $offer['includes_vat'],
@@ -144,9 +148,7 @@ class PublicGoodOffer
     {
         return $prices
             ->filter(function (GoodPriceTypeValue $price): bool {
-                $text = Str::lower($price->priceType->code.' '.$price->priceType->name);
-
-                return ! Str::contains($text, ['partner', 'партн', 'дилер', 'dealer', 'diler'])
+                return ! $this->isPartner($price)
                     && ($price->price_gross ?? $price->price_net ?? 0) > 0;
             })
             ->sortBy(fn (GoodPriceTypeValue $price) => [
@@ -158,6 +160,12 @@ class PublicGoodOffer
 
     private function isRetail(GoodPriceTypeValue $price): bool
     {
-        return Str::contains(Str::lower($price->priceType->code.' '.$price->priceType->name), ['retail', 'rozn', 'рознич', 'розница']);
+        return ! $this->isPartner($price)
+            && Str::contains(Str::lower($price->priceType->code.' '.$price->priceType->name), ['retail', 'rozn', 'рознич', 'розница']);
+    }
+
+    private function isPartner(GoodPriceTypeValue $price): bool
+    {
+        return Str::contains(Str::lower($price->priceType->code.' '.$price->priceType->name), ['partner', 'партн', 'дилер', 'dealer', 'diler']);
     }
 }

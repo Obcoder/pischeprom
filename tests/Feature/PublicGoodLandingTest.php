@@ -34,13 +34,13 @@ class PublicGoodLandingTest extends TestCase
     {
         $good = $this->good();
         $this->price($good, 240, [], ['manual_comment' => 'internal-price-comment-sentinel']);
-        $this->price($good, 81111.11, ['code' => 'partner', 'name' => 'Партнерская', 'is_public' => true]);
+        $partner = $this->price($good, 81111.11, ['code' => 'partner', 'name' => 'Партнерская', 'is_public' => true]);
         $this->price($good, 82222.22, ['code' => 'purchase', 'name' => 'Закупочная', 'is_public' => false]);
         $this->price($good, 83333.33, ['code' => 'retail-inactive', 'is_active' => false]);
         $this->price($good, 84444.44, ['code' => 'retail-expired'], ['valid_to' => today()->subDay()]);
         $this->price($good, 85555.55, ['code' => 'retail-future'], ['valid_from' => today()->addDay()]);
         $this->price($good, 86666.66, ['code' => 'retail-unpublished'], ['is_published' => false]);
-        $this->price($good, 88888.88, ['code' => 'wholesale', 'name' => 'Оптовая', 'sort_order' => 1]);
+        $wholesale = $this->price($good, 88888.88, ['code' => 'wholesale', 'name' => 'Оптовая', 'sort_order' => 1]);
 
         $related = $this->good('Другой товар');
         $this->price($related, 87777.77, ['code' => 'related-dealer', 'name' => 'Дилерская', 'is_public' => false]);
@@ -66,12 +66,27 @@ class PublicGoodLandingTest extends TestCase
             ->assertJsonPath('props.seo.price', 240)
             ->assertJsonPath('props.seo.currency', 'RUB')
             ->assertJsonPath('props.seo.jsonLd.0.offers.price', '240.00')
-            ->assertJsonCount(1, 'props.productPrices')
+            ->assertJsonCount(3, 'props.productPrices')
             ->assertJsonPath('props.productPrices.0.price_type_name', 'Розничная')
             ->assertJsonPath('props.productPrices.0.price', 240)
             ->assertJsonPath('props.productPrices.0.is_retail', true)
+            ->assertJsonPath('props.productPrices.0.requires_auth', false)
             ->assertJsonPath('props.productPrices.0.price_unit_label', 'кг')
             ->assertJsonPath('props.productPrices.0.includes_vat', true)
+            ->assertJsonPath('props.productPrices.1', [
+                'price_type_id' => $wholesale->price_type_id,
+                'price_type_name' => 'Оптовая',
+                'is_retail' => false,
+                'requires_auth' => true,
+                'price' => null,
+            ])
+            ->assertJsonPath('props.productPrices.2', [
+                'price_type_id' => $partner->price_type_id,
+                'price_type_name' => 'Партнерская',
+                'is_retail' => false,
+                'requires_auth' => true,
+                'price' => null,
+            ])
             ->assertJsonMissingPath('props.good.price_type_values')
             ->assertJsonMissingPath('props.relatedGoods.0.price_type_values');
 
@@ -88,12 +103,33 @@ class PublicGoodLandingTest extends TestCase
 
         $response = $this->get(route('public.goods.show', $good->slug), ['X-Inertia' => 'true'])
             ->assertOk()
-            ->assertJsonPath('props.productPrices', [])
+            ->assertJsonCount(1, 'props.productPrices')
+            ->assertJsonPath('props.productPrices.0.price_type_name', 'Оптовая')
+            ->assertJsonPath('props.productPrices.0.requires_auth', true)
+            ->assertJsonPath('props.productPrices.0.price', null)
             ->assertJsonPath('props.publicPurchase.price', null)
             ->assertJsonPath('props.publicPurchase.package_price', null)
             ->assertJsonPath('props.seo.price', null)
             ->assertJsonMissingPath('props.seo.jsonLd.0.offers.price')
             ->assertJsonPath('props.seo.jsonLd.0.offers.description', 'Цена по запросу');
+
+        $this->assertStringNotContainsString('88888.88', $response->getContent());
+    }
+
+    public function test_partner_price_stays_restricted_when_its_name_mentions_retail(): void
+    {
+        $good = $this->good();
+        $this->price($good, 88888.88, ['code' => 'partner', 'name' => 'Розничная партнёрская']);
+
+        $response = $this->get(route('public.goods.show', $good->slug), ['X-Inertia' => 'true'])
+            ->assertOk()
+            ->assertJsonCount(1, 'props.productPrices')
+            ->assertJsonPath('props.productPrices.0.price_type_name', 'Розничная партнёрская')
+            ->assertJsonPath('props.productPrices.0.is_retail', false)
+            ->assertJsonPath('props.productPrices.0.requires_auth', true)
+            ->assertJsonPath('props.productPrices.0.price', null)
+            ->assertJsonPath('props.publicPurchase.price', null)
+            ->assertJsonPath('props.seo.price', null);
 
         $this->assertStringNotContainsString('88888.88', $response->getContent());
     }
@@ -127,13 +163,16 @@ class PublicGoodLandingTest extends TestCase
             ->assertJsonPath('props.productPrices.0.price_type_id', $retail->price_type_id)
             ->assertJsonPath('props.productPrices.0.price_type_name', 'Розничная')
             ->assertJsonPath('props.productPrices.0.price', 250)
+            ->assertJsonPath('props.productPrices.0.requires_auth', false)
             ->assertJsonPath('props.productPrices.1.price_type_name', 'Оптовая')
             ->assertJsonPath('props.productPrices.1.price', 210)
             ->assertJsonPath('props.productPrices.1.includes_vat', false)
             ->assertJsonPath('props.productPrices.1.currency_code', 'RUB')
             ->assertJsonPath('props.productPrices.1.is_retail', false)
+            ->assertJsonPath('props.productPrices.1.requires_auth', false)
             ->assertJsonPath('props.productPrices.2.price_type_name', 'Партнёрская')
             ->assertJsonPath('props.productPrices.2.price', 200)
+            ->assertJsonPath('props.productPrices.2.requires_auth', false)
             ->assertJsonPath('props.publicPurchase.price', 250)
             ->assertJsonPath('props.seo.price', 250)
             ->assertJsonPath('props.seo.jsonLd.0.offers.price', '250.00')
@@ -152,6 +191,7 @@ class PublicGoodLandingTest extends TestCase
 
         $this->get(route('public.goods.show', $good->slug), ['X-Inertia' => 'true'])
             ->assertOk()
+            ->assertJsonPath('props.productPrices', [])
             ->assertJsonPath('props.publicPurchase.price', null)
             ->assertJsonPath('props.publicPurchase.package_price', null)
             ->assertJsonPath('props.seo.price', null);
