@@ -607,6 +607,7 @@ onMounted(() => {
 .welcome-section.welcome-section--top-search {
     padding-top: 4px;
     padding-bottom: 24px;
+    background: url('/home/paper-grain.svg'), #f2ebdf;
 }
 
 .for-whom-card {
