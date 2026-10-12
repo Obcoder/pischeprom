@@ -59,6 +59,16 @@ class CheckCommodityService
         $item->delete();
     }
 
+    public function syncCheckDate(Check $check): void
+    {
+        StockMovement::query()
+            ->where('source_type', StockMovement::SOURCE_CHECK_COMMODITY)
+            ->whereIn('source_id', CheckCommodity::query()
+                ->select('id')
+                ->where('check_id', $check->id))
+            ->update(['moved_at' => $check->date]);
+    }
+
     private function resolveWarehouseId(mixed $warehouseId = null): int
     {
         if ($warehouseId) {

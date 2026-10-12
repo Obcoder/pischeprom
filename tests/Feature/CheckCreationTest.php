@@ -18,6 +18,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class CheckCreationTest extends TestCase
@@ -345,5 +346,107 @@ class CheckCreationTest extends TestCase
         $this->deleteJson("/api/check-services/{$itemId}")->assertNoContent();
 
         $this->assertDatabaseMissing('check_service', ['id' => $itemId]);
+    }
+
+    public function test_nullable_check_amount_uses_zero_and_omitted_amount_preserves_existing_value(): void
+    {
+        $entity = Entity::query()->create(['name' => 'Поставщик']);
+
+        $checkId = $this->postJson('/api/checks', [
+            'date' => '2026-08-12',
+            'entity_id' => $entity->id,
+            'amount' => null,
+        ])->assertCreated()
+            ->assertJsonPath('amount', 0)
+            ->json('id');
+
+        $this->patchJson("/api/checks/{$checkId}", ['amount' => 150])
+            ->assertOk()
+            ->assertJsonPath('data.amount', 150);
+
+        $this->patchJson("/api/checks/{$checkId}", ['date' => '2026-08-13'])
+            ->assertOk()
+            ->assertJsonPath('data.amount', 150);
+
+        $this->patchJson("/api/checks/{$checkId}", ['amount' => null])
+            ->assertOk()
+            ->assertJsonPath('data.amount', 0);
+    }
+
+    public function test_changing_check_date_updates_only_its_stock_movements(): void
+    {
+        $entity = Entity::query()->create(['name' => 'Поставщик']);
+        $commodity = Commodity::query()->create(['name' => 'Сырьё']);
+        $payload = [
+            'date' => '2026-08-12',
+            'entity_id' => $entity->id,
+            'amount' => 500,
+            'commodities' => [
+                ['commodity_id' => $commodity->id, 'quantity' => 2, 'price' => 50],
+                ['commodity_id' => $commodity->id, 'quantity' => 3, 'price' => 75],
+            ],
+        ];
+
+        $check = $this->postJson('/api/checks', $payload)->assertCreated()->json();
+        $otherCheck = $this->postJson('/api/checks', $payload)->assertCreated()->json();
+
+        $this->patchJson("/api/checks/{$check['id']}", ['date' => '2026-08-15'])
+            ->assertOk()
+            ->assertJsonPath('data.date', '2026-08-15')
+            ->assertJsonPath('data.amount', 500);
+
+        foreach ($check['items'] as $item) {
+            $this->assertDatabaseHas('stock_movements', [
+                'source_type' => StockMovement::SOURCE_CHECK_COMMODITY,
+                'source_id' => $item['id'],
+                'moved_at' => '2026-08-15 00:00:00',
+                'quantity_delta' => $item['quantity'],
+                'unit_price' => $item['price'],
+            ]);
+        }
+
+        foreach ($otherCheck['items'] as $item) {
+            $this->assertDatabaseHas('stock_movements', [
+                'source_type' => StockMovement::SOURCE_CHECK_COMMODITY,
+                'source_id' => $item['id'],
+                'moved_at' => '2026-08-12 00:00:00',
+            ]);
+        }
+
+        $this->assertDatabaseCount('stock_movements', 4);
+    }
+
+    public function test_failed_check_deletion_preserves_its_rows_and_stock_movements(): void
+    {
+        $entity = Entity::query()->create(['name' => 'Поставщик']);
+        $commodity = Commodity::query()->create(['name' => 'Сырьё']);
+        $service = Service::query()->create(['name' => 'Доставка']);
+
+        $check = $this->postJson('/api/checks', [
+            'date' => '2026-08-12',
+            'entity_id' => $entity->id,
+            'amount' => 500,
+            'commodities' => [['commodity_id' => $commodity->id]],
+            'services' => [['service_id' => $service->id]],
+        ])->assertCreated()->json();
+
+        $event = 'eloquent.deleted: '.Check::class;
+        Event::listen($event, function () {
+            throw new \RuntimeException('Deletion failed after removing the check.');
+        });
+
+        try {
+            $this->deleteJson("/api/checks/{$check['id']}")->assertServerError();
+        } finally {
+            Event::forget($event);
+        }
+
+        $this->assertDatabaseHas('checks', ['id' => $check['id']]);
+        $this->assertDatabaseHas('check_commodity', ['id' => $check['items'][0]['id']]);
+        $this->assertDatabaseHas('check_service', ['id' => $check['service_items'][0]['id']]);
+        $this->assertDatabaseHas('stock_movements', [
+            'source_type' => StockMovement::SOURCE_CHECK_COMMODITY,
+            'source_id' => $check['items'][0]['id'],
+        ]);
     }
 }

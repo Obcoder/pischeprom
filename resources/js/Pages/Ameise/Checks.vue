@@ -6,6 +6,8 @@ import { route } from 'ziggy-js'
 import EntityFormDialog from '@/Components/Dictionaries/Entities/EntityFormDialog.vue'
 import { useEntityApi } from '@/Composables/entities/useEntityApi.js'
 import { useEntityForm } from '@/Composables/entities/useEntityForm.js'
+import { loadCheckDictionary } from '@/Composables/checks/checkDictionaries.js'
+import { useCheckEntityLookup } from '@/Composables/checks/useCheckEntityLookup.js'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 import { logo } from '@/Pages/Helpers/consts.js'
 
@@ -22,7 +24,6 @@ const {
     toPayload: newEntityPayload,
 } = useEntityForm()
 const checks = ref([])
-const entities = ref([])
 const commodities = ref([])
 const services = ref([])
 const warehouses = ref([])
@@ -38,6 +39,17 @@ const creatingEntity = ref(false)
 const entityMetaLoading = ref(false)
 const entityMetaLoaded = ref(false)
 const selectedCheckLoading = ref(false)
+const checksError = ref('')
+const dictionaryErrors = ref([])
+const dictionariesLoading = ref(false)
+const selectedCheckError = ref('')
+const lineError = ref('')
+let checksController
+let checksRequest = 0
+let detailController
+let detailRequest = 0
+let dictionariesController
+let dictionariesRequest = 0
 
 const checkDialog = ref(false)
 const detailDialog = ref(false)
@@ -46,7 +58,6 @@ const datePickerOpen = ref(false)
 const calendarDate = ref(null)
 const dictionaryType = ref('articles')
 const entityCreatorOpen = ref(false)
-const entitySearch = ref('')
 const checkErrors = ref({})
 const checkSubmitError = ref('')
 const newEntityErrors = ref({})
@@ -96,6 +107,19 @@ const checkForm = reactive({
     entity_id: null,
     amount: 0,
 })
+
+const entityLookup = useCheckEntityLookup({
+    get: (...args) => axios.get(...args),
+    url: () => route('checks.entities.index'),
+    selectedId: computed(() => checkForm.entity_id),
+})
+const filterEntityLookup = useCheckEntityLookup({
+    get: (...args) => axios.get(...args),
+    url: () => route('checks.entities.index'),
+    selectedId: computed(() => filters.entity_id),
+})
+const { search: entitySearch, items: entityItems, loading: entitiesLoading, error: entitiesError, hasMore: entitiesHaveMore } = entityLookup
+const { search: filterEntitySearch, items: filterEntityItems, loading: filterEntitiesLoading, error: filterEntitiesError, hasMore: filterEntitiesHaveMore } = filterEntityLookup
 
 const entityMeta = reactive({
     classifications: [],
@@ -437,8 +461,18 @@ watch(
         lineForm.service_id = null
         lineForm.warehouse_id = lineForm.kind === 'commodity' ? defaultWarehouseId.value : null
         lineForm.expense_article_id = null
-    }
+    },
+    { flush: 'sync' }
 )
+
+watch(detailDialog, open => {
+    if (!open) {
+        detailRequest += 1
+        detailController?.abort()
+        selectedCheckLoading.value = false
+        selectedCheck.value = null
+    }
+}, { flush: 'sync' })
 
 watch(dictionaryType, () => resetDictionaryForm())
 
@@ -447,10 +481,12 @@ let filtersTimer = null
 watch(
     filters,
     () => {
+        checksRequest += 1
+        checksController?.abort()
         window.clearTimeout(filtersTimer)
         filtersTimer = window.setTimeout(() => loadChecks(), 250)
     },
-    { deep: true }
+    { deep: true, flush: 'sync' }
 )
 
 function unpack(response) {
@@ -805,12 +841,18 @@ function resetFilters() {
 }
 
 async function loadChecks() {
+    const request = ++checksRequest
+    checksController?.abort()
+    checksController = new AbortController()
     loadingChecks.value = true
+    checksError.value = ''
 
     try {
         const response = await axios.get(route('checks.index'), {
             params: checksFilterParams(),
+            signal: checksController.signal,
         })
+        if (request !== checksRequest) return
 
         checks.value = unpack(response)
         checksMeta.total_amount = numeric(response.data?.meta?.total_amount)
@@ -818,52 +860,36 @@ async function loadChecks() {
         checksMeta.project_totals = response.data?.meta?.project_totals || []
         checksMeta.without_project_total = numeric(response.data?.meta?.without_project_total)
     } catch (error) {
-        console.error('loadChecks error:', error)
+        if (request === checksRequest) checksError.value = 'Не удалось загрузить чеки. Повторите обновление.'
     } finally {
-        loadingChecks.value = false
+        if (request === checksRequest) loadingChecks.value = false
     }
 }
 
 async function loadDictionaries() {
-    const [
-        entitiesResponse,
-        commoditiesResponse,
-        servicesResponse,
-        warehousesResponse,
-        measuresResponse,
-        articlesResponse,
-        projectsResponse,
-    ] = await Promise.all([
-        axios.get(route('entities.index'), { params: { itemsPerPage: 1000 } }),
-        axios.get(route('commodities.index'), {
-            params: {
-                per_page: 500,
-                sort_by: 'name',
-                sort_desc: false,
-            },
-        }),
-        axios.get(route('services.index')),
-        axios.get(route('warehouses.index')),
-        axios.get(route('measures.index')),
-        axios.get(route('expense-articles.index')),
-        axios.get(route('projects.index')),
-    ])
+    const request = ++dictionariesRequest
+    dictionariesController?.abort()
+    dictionariesController = new AbortController()
+    dictionariesLoading.value = true
+    dictionaryErrors.value = []
+    const dictionaries = [
+        ['Товары', commodities, 'commodities.index', { per_page: 500, sort_by: 'name', sort_desc: false }],
+        ['Услуги', services, 'services.index'],
+        ['Склады', warehouses, 'warehouses.index'],
+        ['Меры', measures, 'measures.index'],
+        ['Статьи расходов', expenseArticles, 'expense-articles.index'],
+        ['Проекты', projects, 'projects.index'],
+    ]
+    const results = await Promise.allSettled(dictionaries.map(async ([name, target, resource, params]) => {
+        const rows = await loadCheckDictionary((...args) => axios.get(...args), route(resource), params, dictionariesController.signal)
+        if (request === dictionariesRequest) target.value = rows
+    }))
+    if (request !== dictionariesRequest) return
+    dictionaryErrors.value = results.flatMap((result, index) => result.status === 'rejected' ? [dictionaries[index][0]] : [])
+    dictionariesLoading.value = false
 
-    entities.value = unpack(entitiesResponse)
-    commodities.value = unpack(commoditiesResponse)
-    services.value = unpack(servicesResponse)
-    warehouses.value = unpack(warehousesResponse)
-    measures.value = unpack(measuresResponse)
-    expenseArticles.value = unpack(articlesResponse)
-    projects.value = unpack(projectsResponse)
-
-    if (!lineForm.warehouse_id) {
-        lineForm.warehouse_id = defaultWarehouseId.value
-    }
-
-    if (!draftCommodityForm.warehouse_id) {
-        draftCommodityForm.warehouse_id = defaultWarehouseId.value
-    }
+    if (!lineForm.warehouse_id) lineForm.warehouse_id = defaultWarehouseId.value
+    if (!draftCommodityForm.warehouse_id) draftCommodityForm.warehouse_id = defaultWarehouseId.value
 }
 
 function resetCheckForm() {
@@ -958,10 +984,7 @@ async function createEntity() {
             name,
         })
 
-        entities.value = [
-            ...entities.value.filter((item) => Number(item.id) !== Number(entity.id)),
-            entity,
-        ].sort((left, right) => left.name.localeCompare(right.name, 'ru'))
+        entityLookup.remember(entity)
         checkForm.entity_id = entity.id
         entitySearch.value = ''
         entityCreatorOpen.value = false
@@ -1205,7 +1228,8 @@ function openEditCheck(check) {
     resetCheckForm()
     checkForm.id = check.id
     checkForm.date = check.date || today()
-    checkForm.entity_id = check.entity_id || null
+    entityLookup.remember(check.entity)
+    checkForm.entity_id = check.entity_id || check.entity?.id || null
     checkForm.amount = numeric(check.amount)
     checkDialog.value = true
 }
@@ -1274,26 +1298,31 @@ async function deleteCheck(check) {
 }
 
 async function loadCheck(id) {
+    const request = ++detailRequest
+    detailController?.abort()
+    detailController = new AbortController()
     selectedCheckLoading.value = true
+    selectedCheckError.value = ''
 
     try {
-        const response = await axios.get(route('checks.show', id))
-
-        selectedCheck.value = response.data.data || response.data
+        const response = await axios.get(route('checks.show', id), { signal: detailController.signal })
+        if (request === detailRequest) selectedCheck.value = response.data.data || response.data
     } catch (error) {
-        console.error('loadCheck error:', error)
+        if (request === detailRequest) selectedCheckError.value = 'Не удалось загрузить чек. Откройте его повторно.'
     } finally {
-        selectedCheckLoading.value = false
+        if (request === detailRequest) selectedCheckLoading.value = false
     }
 }
 
 async function openCheck(check) {
+    selectedCheck.value = null
     detailDialog.value = true
     resetLineForm()
     await loadCheck(check.id)
 }
 
 function resetLineForm() {
+    lineError.value = ''
     lineForm.kind = 'commodity'
     lineForm.id = null
     lineForm.commodity_id = null
@@ -1339,10 +1368,12 @@ function editReceiptRow(row) {
 }
 
 async function saveLine() {
-    if (!selectedCheck.value?.id) {
+    if (!selectedCheck.value?.id || selectedCheckLoading.value || savingLine.value) {
         return
     }
 
+    const checkId = selectedCheck.value.id
+    lineError.value = ''
     savingLine.value = true
 
     const payload = {
@@ -1359,7 +1390,7 @@ async function saveLine() {
             if (lineForm.id) {
                 await axios.patch(route('check-services.update', lineForm.id), payload)
             } else {
-                await axios.post(route('checks.services.store', selectedCheck.value.id), payload)
+                await axios.post(route('checks.services.store', checkId), payload)
             }
         } else {
             payload.commodity_id = lineForm.commodity_id
@@ -1368,23 +1399,26 @@ async function saveLine() {
             if (lineForm.id) {
                 await axios.patch(route('check-commodities.update', lineForm.id), payload)
             } else {
-                await axios.post(route('checks.commodities.store', selectedCheck.value.id), payload)
+                await axios.post(route('checks.commodities.store', checkId), payload)
             }
         }
 
-        resetLineForm()
+        if (selectedCheck.value?.id === checkId) resetLineForm()
         await Promise.all([
-            loadCheck(selectedCheck.value.id),
+            selectedCheck.value?.id === checkId && detailDialog.value ? loadCheck(checkId) : Promise.resolve(),
             loadChecks(),
         ])
     } catch (error) {
-        console.error('saveLine error:', error)
+        if (selectedCheck.value?.id === checkId) lineError.value = error.response?.data?.message || 'Не удалось сохранить строку чека.'
     } finally {
         savingLine.value = false
     }
 }
 
 async function deleteReceiptRow(row) {
+    const checkId = selectedCheck.value?.id
+    if (!checkId || selectedCheckLoading.value) return
+    lineError.value = ''
     if (!confirm(`Удалить строку "${rowTitle(row)}" из чека?`)) {
         return
     }
@@ -1397,11 +1431,11 @@ async function deleteReceiptRow(row) {
         }
 
         await Promise.all([
-            loadCheck(selectedCheck.value.id),
+            selectedCheck.value?.id === checkId && detailDialog.value ? loadCheck(checkId) : Promise.resolve(),
             loadChecks(),
         ])
     } catch (error) {
-        console.error('deleteLine error:', error)
+        if (selectedCheck.value?.id === checkId) lineError.value = error.response?.data?.message || 'Не удалось удалить строку чека.'
     }
 }
 
@@ -1493,6 +1527,8 @@ onMounted(async () => {
     await Promise.all([
         loadChecks(),
         loadDictionaries(),
+        entityLookup.refresh(),
+        filterEntityLookup.refresh(),
     ])
 
     const checkId = new URL(window.location.href).searchParams.get('check')
@@ -1503,6 +1539,13 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+    window.clearTimeout(filtersTimer)
+    checksRequest += 1
+    detailRequest += 1
+    dictionariesRequest += 1
+    checksController?.abort()
+    detailController?.abort()
+    dictionariesController?.abort()
     stopEntityColumnResize()
 })
 </script>
@@ -1516,6 +1559,11 @@ onBeforeUnmount(() => {
         <Head title="Checks" />
 
         <div class="checks-shell">
+            <v-alert v-if="checksError" type="error" class="ma-3" :text="checksError" />
+            <v-alert v-if="dictionaryErrors.length" type="error" class="ma-3">
+                Не удалось загрузить справочники: {{ dictionaryErrors.join(', ') }}.
+                <v-btn variant="text" :loading="dictionariesLoading" @click="loadDictionaries">Повторить</v-btn>
+            </v-alert>
             <header class="checks-toolbar">
                 <div class="checks-toolbar__title">
                     <span>Checks</span>
@@ -1664,15 +1712,26 @@ onBeforeUnmount(() => {
                     </v-menu>
                     <v-autocomplete
                         v-model="filters.entity_id"
-                        :items="entities"
+                        v-model:search="filterEntitySearch"
+                        :items="filterEntityItems"
+                        :loading="filterEntitiesLoading"
+                        :error-messages="filterEntitiesError"
+                        no-filter
+                        no-data-text="Entity не найден"
                         :item-title="entitySearchLabel"
                         item-value="id"
                         label="Контрагент"
                         variant="solo-filled"
                         density="compact"
                         clearable
-                        hide-details
+                        hide-details="auto"
                     >
+                        <template #append-item>
+                            <v-list-item v-if="filterEntitiesHaveMore" @click="filterEntityLookup.loadMore">
+                                <v-list-item-title>{{ filterEntitiesLoading ? 'Загрузка…' : 'Показать ещё' }}</v-list-item-title>
+                            </v-list-item>
+                            <v-list-item v-if="filterEntitiesError" title="Повторить поиск" @click="filterEntityLookup.refresh" />
+                        </template>
                         <template #item="{ props, item }">
                             <v-list-item v-bind="props" :title="item.raw.name">
                                 <template #prepend>
@@ -1893,6 +1952,10 @@ onBeforeUnmount(() => {
                 </v-card-title>
 
                 <v-card-text class="check-form-body">
+                    <v-alert v-if="dictionaryErrors.length" type="error" class="mb-3">
+                        Не удалось загрузить справочники: {{ dictionaryErrors.join(', ') }}.
+                        <v-btn variant="text" :loading="dictionariesLoading" @click="loadDictionaries">Повторить</v-btn>
+                    </v-alert>
                     <div class="check-form-overview">
                         <section class="check-form-section check-form-section--details">
                             <div class="check-form-section__title">
@@ -1919,7 +1982,9 @@ onBeforeUnmount(() => {
                                         <v-autocomplete
                                             v-model="checkForm.entity_id"
                                             v-model:search="entitySearch"
-                                            :items="entities"
+                                            :items="entityItems"
+                                            :loading="entitiesLoading"
+                                            no-filter
                                             :item-title="entitySearchLabel"
                                             item-value="id"
                                             label="Entity"
@@ -1929,8 +1994,14 @@ onBeforeUnmount(() => {
                                             prepend-inner-icon="mdi-domain"
                                             clearable
                                             no-data-text="Entity не найден"
-                                            :error-messages="validationMessage(checkErrors, 'entity_id')"
+                                            :error-messages="entitiesError || validationMessage(checkErrors, 'entity_id')"
                                         >
+                                            <template #append-item>
+                                                <v-list-item v-if="entitiesHaveMore" @click="entityLookup.loadMore">
+                                                    <v-list-item-title>{{ entitiesLoading ? 'Загрузка…' : 'Показать ещё' }}</v-list-item-title>
+                                                </v-list-item>
+                                                <v-list-item v-if="entitiesError" title="Повторить поиск" @click="entityLookup.refresh" />
+                                            </template>
                                             <template #item="{ props, item }">
                                                 <v-list-item v-bind="props" :title="item.raw.name">
                                                     <template #prepend>
@@ -2381,7 +2452,13 @@ onBeforeUnmount(() => {
                         class="mb-3"
                     />
 
-                    <div class="line-editor">
+
+                    <v-alert v-if="dictionaryErrors.length" type="error" class="mb-3">
+                        Не удалось загрузить справочники: {{ dictionaryErrors.join(', ') }}.
+                        <v-btn variant="text" :loading="dictionariesLoading" @click="loadDictionaries">Повторить</v-btn>
+                    </v-alert>
+                    <v-alert v-if="selectedCheckError || lineError" type="error" class="mb-3" :text="selectedCheckError || lineError" />
+                    <div v-if="selectedCheck && !selectedCheckLoading" class="line-editor">
                         <v-row dense align="center">
                             <v-col cols="12" md="2">
                                 <v-btn-toggle

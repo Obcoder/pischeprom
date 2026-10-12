@@ -35,6 +35,7 @@ use App\Http\Controllers\API\CatalogController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CheckCommodityController;
 use App\Http\Controllers\API\CheckController;
+use App\Http\Controllers\API\CheckEntityLookupController;
 use App\Http\Controllers\API\CheckServiceController;
 use App\Http\Controllers\API\CityController;
 use App\Http\Controllers\API\CityPopulationController;
@@ -834,6 +835,7 @@ Route::patch('check-services/{checkService}', [CheckServiceController::class, 'u
     ->name('check-services.update');
 Route::delete('check-services/{checkService}', [CheckServiceController::class, 'destroy'])
     ->name('check-services.destroy');
+Route::get('checks/entities', CheckEntityLookupController::class)->name('checks.entities.index');
 Route::apiResource('checks', CheckController::class);
 Route::apiResource('components', ComponentController::class);
 Route::apiResource('countries', CountryController::class);

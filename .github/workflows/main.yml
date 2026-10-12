@@ -191,6 +191,7 @@ jobs:
             app/Http/Controllers/Controller.php \
             app/Http/Controllers/API/CheckCommodityController.php \
             app/Http/Controllers/API/CheckController.php \
+            app/Http/Controllers/API/CheckEntityLookupController.php \
             app/Http/Controllers/API/CheckServiceController.php \
             app/Http/Controllers/API/Logistics \
             app/Http/Middleware/EnforceLogisticsAuthorization.php \
@@ -203,6 +204,7 @@ jobs:
             app/Models/Logistics*.php \
             app/Models/Vehicle.php \
             app/Models/Check.php \
+            app/Models/Commodity.php \
             app/Models/City.php \
             app/Models/Entity.php \
             app/Models/User.php \
@@ -229,6 +231,7 @@ jobs:
             routes/web.php \
             tests/Feature/Logistics \
             tests/Feature/CheckCreationTest.php \
+            tests/Feature/CheckEntityLookupTest.php \
             tests/Unit/LogisticsTripMetricsTest.php \
             tests/Unit/LogisticsRoutingSupportTest.php \
             tests/Unit/ValhallaRoutingProviderTest.php
@@ -669,6 +672,7 @@ jobs:
             tests/Feature/EntityConsumptionApiTest.php \
             tests/Feature/EntityTableActivityTest.php \
             tests/Feature/CheckCreationTest.php \
+            tests/Feature/CheckEntityLookupTest.php \
             tests/Feature/IncomingMailMaxNotificationTest.php \
             --compact
 

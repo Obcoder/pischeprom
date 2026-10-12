@@ -151,6 +151,6 @@ class Commodity extends Model
             ? 'desc'
             : 'asc';
 
-        return $query->orderBy($column, $direction);
+        return $query->orderBy($column, $direction)->orderBy('commodities.id');
     }
 }

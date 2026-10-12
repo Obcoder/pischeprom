@@ -94,7 +94,15 @@ class CheckController extends Controller
      */
     public function update(Request $request, Check $check)
     {
-        $check->update($this->validated($request, true));
+        $data = $this->validated($request, true);
+
+        DB::transaction(function () use ($check, $data) {
+            $check->update($data);
+
+            if ($check->wasChanged('date')) {
+                $this->checkCommodityService->syncCheckDate($check);
+            }
+        });
 
         return new CheckResource($this->findForResponse($check->id));
     }
@@ -110,7 +118,7 @@ class CheckController extends Controller
             ], 409);
         }
 
-        $check->delete();
+        DB::transaction(fn () => $check->delete());
 
         return response()->json(null, 204);
     }
@@ -148,7 +156,13 @@ class CheckController extends Controller
             ];
         }
 
-        return $request->validate($rules);
+        $data = $request->validate($rules);
+
+        if (array_key_exists('amount', $data)) {
+            $data['amount'] ??= 0;
+        }
+
+        return $data;
     }
 
     private function filteredChecksQuery(Request $request)
