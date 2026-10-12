@@ -1,6 +1,6 @@
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CitySelector from '@/Components/Location/CitySelector.vue'
 import OrderCartStrip from '@/Components/Orders/OrderCartStrip.vue'
 import CatalogNodeAvatar from '@/Components/Catalog/CatalogNodeAvatar.vue'
@@ -11,6 +11,7 @@ const props = defineProps({ categories: { type: Array, default: () => [] } })
 const page = usePage()
 const { route } = useAppRoute()
 const accountMenu = ref(false)
+const categoryDropdown = ref(null)
 const logoFailed = ref(false)
 const logoUrl = 'https://storage.yandexcloud.net/pps/images/logo_%D0%BF%D0%B8%D1%89%D0%B5%D0%BF%D1%80%D0%BE%D0%BC-%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_1200%D1%851207.jpg'
 const contacts = [
@@ -40,6 +41,20 @@ function pathOf(url) {
     catch { return '/' }
 }
 function isCurrent(url) { return pathOf(page.url || '/') === pathOf(url) }
+function closeCategories() {
+    if (categoryDropdown.value) categoryDropdown.value.open = false
+}
+function dismissCategories(event) {
+    if (!categoryDropdown.value?.contains(event.target)) closeCategories()
+}
+function escapeCategories() {
+    if (!categoryDropdown.value?.open) return
+    closeCategories()
+    categoryDropdown.value.querySelector('summary')?.focus()
+}
+watch(() => page.url, closeCategories)
+onMounted(() => document.addEventListener('click', dismissCategories))
+onBeforeUnmount(() => document.removeEventListener('click', dismissCategories))
 function logout() {
     if (!hasRoute('logout')) return
     accountMenu.value = false
@@ -91,10 +106,17 @@ function logout() {
             <v-container class="app-header__container">
                 <nav class="app-header__nav" aria-label="Разделы магазина">
                     <Link :href="homeUrl" class="app-header__nav-link" :class="{ 'app-header__nav-link--active': isCurrent(homeUrl) }" :aria-current="isCurrent(homeUrl) ? 'page' : undefined"><v-icon icon="mdi-home-outline" size="19" />Начало</Link>
-                    <Link :href="catalogUrl" class="app-header__nav-link" :class="{ 'app-header__nav-link--active': isCurrent(catalogUrl) }" :aria-current="isCurrent(catalogUrl) ? 'page' : undefined"><v-icon icon="mdi-view-grid-outline" size="18" />Каталог</Link>
-                    <Link v-for="category in availableCategories" :key="category.id" :href="categoryUrl(category)" class="app-header__nav-link app-header__quick-link" :class="{ 'app-header__nav-link--active': isCurrent(categoryUrl(category)) }" :aria-current="isCurrent(categoryUrl(category)) ? 'page' : undefined">
-                        <CatalogNodeAvatar :node="category" :size="20" /><span>{{ category.name }}</span>
-                    </Link>
+                    <div class="app-header__catalog">
+                        <Link :href="catalogUrl" class="app-header__nav-link" :class="{ 'app-header__nav-link--active': isCurrent(catalogUrl), 'app-header__catalog-link--split': availableCategories.length }" :aria-current="isCurrent(catalogUrl) ? 'page' : undefined"><v-icon icon="mdi-view-grid-outline" size="18" />Каталог</Link>
+                        <details v-if="availableCategories.length" ref="categoryDropdown" class="app-header__category-dropdown" @keydown.esc.stop.prevent="escapeCategories">
+                            <summary class="app-header__category-toggle" aria-label="Категории каталога" title="Категории каталога"><v-icon icon="mdi-chevron-down" size="19" /></summary>
+                            <div class="app-header__category-menu" aria-label="Категории каталога">
+                                <Link v-for="category in availableCategories" :key="category.id" :href="categoryUrl(category)" class="app-header__category-link" :class="{ 'app-header__category-link--active': isCurrent(categoryUrl(category)) }" :aria-current="isCurrent(categoryUrl(category)) ? 'page' : undefined" @click="closeCategories">
+                                    <CatalogNodeAvatar :node="category" :size="24" /><span>{{ category.name }}</span>
+                                </Link>
+                            </div>
+                        </details>
+                    </div>
                 </nav>
             </v-container>
         </div>
@@ -130,15 +152,25 @@ function logout() {
 .app-header__user span { overflow: hidden; text-overflow: ellipsis; }
 .app-header__profile { color: inherit; text-decoration: none; }
 .app-header__navigation { background: linear-gradient(110deg, #f8eeeb, #fffaf6 55%, #f4e7e4); border-bottom: 1px solid #eadbd5; }
-.app-header__nav { display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 2px 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #ccb1a8 transparent; }
-.app-header__nav-link { position: relative; isolation: isolate; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 16px; border: 1px solid #fffaf7; border-bottom-color: #dfc7be; border-radius: 12px; background: linear-gradient(160deg, #ffffffed, #fff8f2a8 55%, #ecd7d066); color: #684239; box-shadow: inset 0 1px 0 #fff, inset 0 -2px 3px #cdaaa22b, 0 3px 0 #d5beb5, 0 5px 9px #63322912; backdrop-filter: blur(12px); text-decoration: none; font-size: 13px; font-weight: 650; line-height: 1.3; white-space: nowrap; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
-.app-header__nav-link::before { content: ''; position: absolute; z-index: -1; inset: 1px 12% auto; height: 40%; border-radius: 20px; background: linear-gradient(#ffffff85, #fff0); pointer-events: none; }
-.app-header__nav-link:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #d5beb5, 0 7px 13px #6332291f; }
-.app-header__nav-link:active { transform: translateY(2px); box-shadow: inset 0 1px 3px #63322920, 0 1px 0 #d5beb5; }
+.app-header__nav { position: relative; display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 9px 2px 12px; }
+.app-header__nav-link, .app-header__category-toggle { position: relative; isolation: isolate; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 16px; border: 1px solid #fffaf7; border-bottom-color: #dfc7be; border-radius: 12px; background: linear-gradient(160deg, #ffffffed, #fff8f2a8 55%, #ecd7d066); color: #684239; box-shadow: inset 0 1px 0 #fff, inset 0 -2px 3px #cdaaa22b, 0 3px 0 #d5beb5, 0 5px 9px #63322912; backdrop-filter: blur(12px); text-decoration: none; font-size: 13px; font-weight: 650; line-height: 1.3; white-space: nowrap; transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.app-header__nav-link::before, .app-header__category-toggle::before { content: ''; position: absolute; z-index: -1; inset: 1px 12% auto; height: 40%; border-radius: 20px; background: linear-gradient(#ffffff85, #fff0); pointer-events: none; }
+.app-header__nav-link:hover, .app-header__category-toggle:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #d5beb5, 0 7px 13px #6332291f; }
+.app-header__nav-link:active, .app-header__category-toggle:active { transform: translateY(2px); box-shadow: inset 0 1px 3px #63322920, 0 1px 0 #d5beb5; }
 .app-header__nav-link--active { border-color: #b45448; border-top-color: #d17d6d; background: linear-gradient(155deg, #ad3f32, #800000 70%); color: #fff; box-shadow: inset 0 1px 0 #ffffff66, inset 0 -2px 3px #50000060, 0 3px 0 #5f1511, 0 5px 10px #80000026; }
 .app-header__nav-link--active:hover { box-shadow: inset 0 1px 0 #ffffff66, 0 4px 0 #5f1511, 0 7px 13px #80000030; }
+.app-header__catalog { position: relative; display: flex; align-items: stretch; }
+.app-header__catalog-link--split { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; }
+.app-header__category-toggle { height: 100%; min-width: 40px; padding-inline: 10px; border-radius: 0 12px 12px 0; border-left-color: #d5beb5; list-style: none; cursor: pointer; }
+.app-header__category-toggle::-webkit-details-marker { display: none; }
+.app-header__category-dropdown[open] .app-header__category-toggle > .v-icon { transform: rotate(180deg); }
+.app-header__category-menu { position: absolute; z-index: 30; top: calc(100% + 10px); left: 0; width: 320px; max-width: calc(100vw - 28px); max-height: min(360px, 50vh); overflow-y: auto; overscroll-behavior: contain; padding: 7px; border: 1px solid #fffaf7; border-radius: 14px; background: linear-gradient(145deg, #fffaf8f7, #f3e6e0f2); box-shadow: inset 0 1px 0 #fff, 0 4px 0 #d5beb5, 0 12px 28px #49232226; backdrop-filter: blur(16px); }
+.app-header__category-link { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 11px; border-radius: 8px; color: #684239; text-decoration: none; font-size: 14px; line-height: 1.4; }
+.app-header__category-link span { min-width: 0; overflow-wrap: anywhere; }
+.app-header__category-link:hover, .app-header__category-link--active { background: #8000000d; color: #800000; }
+.app-header__category-link--active { font-weight: 700; }
 .app-header__cart-row { padding-block: 7px; }
-.app-header :is(a, button):focus-visible, .app-header__city :deep(button:focus-visible) { outline: 3px solid #dbaf68; outline-offset: 3px; }
+.app-header :is(a, button, summary):focus-visible, .app-header__city :deep(button:focus-visible) { outline: 3px solid #dbaf68; outline-offset: 3px; }
 @media (max-width: 1279px) and (min-width: 960px) {
     .app-header__top-inner { grid-template-columns: minmax(200px, 1fr) auto minmax(160px, 220px) auto; gap: 12px; }
     .app-header__contacts { flex-direction: column; align-items: flex-start; gap: 3px; }
@@ -151,7 +183,7 @@ function logout() {
     .app-header__city { grid-area: city; justify-self: end; max-width: 280px; }
     .app-header__account { grid-area: account; }
     .app-header__brand-text small { max-width: none; }
-    .app-header__nav-link { min-height: 40px; }
+    .app-header__nav-link, .app-header__category-toggle { min-height: 40px; }
 }
 @media (max-width: 599px) {
     .app-header__container { padding-inline: 14px; }
@@ -168,6 +200,8 @@ function logout() {
     .app-header__user { max-width: 145px; padding-inline: 8px; }
     .app-header__nav { gap: 8px; padding-top: 8px; }
     .app-header__nav-link { padding-inline: 13px; font-size: 12px; }
+    .app-header__catalog { position: static; }
+    .app-header__category-menu { top: calc(100% - 2px); width: 100%; }
 }
 @media (max-width: 399px) {
     .app-header__top-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -177,5 +211,5 @@ function logout() {
     .app-header__user { max-width: 94px; }
     .app-header__user > .v-icon:last-child { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .app-header__nav-link { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .app-header__nav-link, .app-header__category-toggle { transition: none; } }
 </style>

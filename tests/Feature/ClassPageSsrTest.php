@@ -348,7 +348,10 @@ class ClassPageSsrTest extends TestCase
     {
         $document = new DOMDocument;
         @$document->loadHTML('<?xml encoding="UTF-8">'.$response->getContent(), LIBXML_NONET);
-        $links = (new DOMXPath($document))->query('//header//a[contains(@class,"app-header__quick-link") and normalize-space(.)="Рыба"]');
+        $xpath = new DOMXPath($document);
+        $navigation = $xpath->query('//header//nav[@aria-label="Разделы магазина"]//a[contains(concat(" ", normalize-space(@class), " "), " app-header__nav-link ")]');
+        $this->assertSame(['Начало', 'Каталог'], array_map(fn ($link) => trim($link->textContent), iterator_to_array($navigation)));
+        $links = $xpath->query('//header//details[not(@open)]//a[contains(@class,"app-header__category-link") and normalize-space(.)="Рыба"]');
         $this->assertSame(1, $links->length);
         $this->assertSame(url('/catalog/ryba'), $links->item(0)->getAttribute('href'));
     }

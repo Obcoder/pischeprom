@@ -66,14 +66,15 @@ test('home featured category keeps its structural icon beside the resolved categ
     assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
 })
 
-test('header navigation retains canonical category destinations and avatars', t => {
+test('header dropdown retains canonical category destinations and avatars', t => {
     const h = harness(t, 'resources/js/Components/Layout/AppHeader.vue', { categories: [category] })
     const navigation = findVNode(h.render(), node => node.type === 'nav')
-    const link = findVNode(navigation, node => hasClass(node, 'app-header__quick-link'))
+    const dropdown = findVNode(navigation, node => node.type === 'details')
+    const link = findVNode(dropdown, node => hasClass(node, 'app-header__category-link'))
     assert.equal(link.props.href, '/catalog/fish')
     assert.equal(findVNode(link, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
     h.props.categories = []
-    assert.equal(findVNode(h.render(), node => hasClass(node, 'app-header__quick-link')), null)
+    assert.equal(findVNode(h.render(), node => hasClass(node, 'app-header__category-link')), null)
     assert.equal(findVNode(h.render(), node => node.type === 'CatalogNodeAvatar'), null)
 })
 

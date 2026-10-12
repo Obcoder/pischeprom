@@ -18,6 +18,7 @@ function harness(t, { categories = [], pageProps = {}, url = '/', routeUrls = {}
     const urls = { home: '/', 'public.goods.index': '/g', login: '/login', register: '/register', 'customer.profile.edit': '/dashboard/profile', 'profile.show': '/user/profile', dashboard: '/dashboard', logout: '/logout', ...routeUrls }
     const environment = {
         ...Vue, Link: 'Link', CitySelector: 'CitySelector', OrderCartStrip: 'OrderCartStrip', CatalogNodeAvatar: 'CatalogNodeAvatar', publicCategoryUrl,
+        onMounted() {}, onBeforeUnmount() {},
         usePage: () => page,
         useAppRoute: () => ({ route: (name, parameter) => name === 'category.show' ? `/category/${parameter}` : urls[name] }),
         router: { post: (...args) => requests.push(args) },
@@ -45,9 +46,10 @@ function textOf(root) {
 }
 
 const navLinks = tree => allNodes(tree, node => hasClass(node, 'app-header__nav-link'))
+const categoryLinks = tree => allNodes(tree, node => hasClass(node, 'app-header__category-link'))
 const fish = { id: 25, name: 'Рыба', slug: 'fish', public_url: '/old-fish', image: '/fish.png' }
 
-test('navigation is separate from top contacts and uses only supplied categories with their canonical links and avatars', t => {
+test('navigation has only home and catalog, with supplied categories and canonical links in a closed dropdown', t => {
     const h = harness(t, {
         categories: [fish, { id: 26, name: 'Специи', public_url: '/catalog/spices' }, { id: 27, name: 'Мука', slug: 'flour' }, null, { id: 28 }, { name: 'Без идентификатора' }],
         pageProps: { publicCategoryUrls: { 25: '/catalog/fish' } },
@@ -60,9 +62,16 @@ test('navigation is separate from top contacts and uses only supplied categories
     assert.equal(findVNode(top, node => node.type === 'nav'), null)
     assert.equal(findVNode(navigation, node => node.type === 'nav').props['aria-label'], 'Разделы магазина')
     assert.deepEqual(navLinks(navigation).map(link => [link.props.href, textOf(link)]), [
-        ['/', 'Начало'], ['/g', 'Каталог'], ['/catalog/fish', 'Рыба'], ['/catalog/spices', 'Специи'], ['/category/flour', 'Мука'],
+        ['/', 'Начало'], ['/g', 'Каталог'],
     ])
-    const fishLink = navLinks(navigation)[2]
+    const dropdown = findVNode(navigation, node => node.type === 'details')
+    assert.ok(dropdown)
+    assert.equal(dropdown.props.open, undefined)
+    assert.equal(findVNode(dropdown, node => node.type === 'summary').props['aria-label'], 'Категории каталога')
+    assert.deepEqual(categoryLinks(dropdown).map(link => [link.props.href, textOf(link)]), [
+        ['/catalog/fish', 'Рыба'], ['/catalog/spices', 'Специи'], ['/category/flour', 'Мука'],
+    ])
+    const fishLink = categoryLinks(dropdown)[0]
     assert.equal(findVNode(fishLink, node => node.type === 'CatalogNodeAvatar').props.node.image, '/fish.png')
     assert.equal(findVNode(top, node => hasClass(node, 'app-header__brand')).props.href, '/')
     assert.equal(findVNode(top, node => node.type === 'CitySelector').props.compact, '')
@@ -70,8 +79,10 @@ test('navigation is separate from top contacts and uses only supplied categories
 
     h.props.categories = []
     assert.deepEqual(navLinks(h.render()).map(textOf), ['Начало', 'Каталог'])
+    assert.equal(findVNode(h.render(), node => node.type === 'details'), null)
     h.props.categories = [{ id: 90, name: 'Добавленная категория' }]
-    assert.deepEqual(navLinks(h.render()).map(link => link.props.href), ['/', '/g', '/category/90'])
+    assert.deepEqual(navLinks(h.render()).map(link => link.props.href), ['/', '/g'])
+    assert.deepEqual(categoryLinks(h.render()).map(link => link.props.href), ['/category/90'])
 })
 
 test('current navigation ignores queries and trailing slashes for relative and absolute URLs', t => {
@@ -88,9 +99,9 @@ test('current navigation ignores queries and trailing slashes for relative and a
         ['/g/some-product', null],
     ]) {
         h.page.url = url
-        const links = navLinks(h.render())
+        const links = [...navLinks(h.render()), ...categoryLinks(h.render())]
         assert.deepEqual(links.filter(link => link.props['aria-current'] === 'page').map(textOf), selected ? [selected] : [])
-        assert.deepEqual(links.filter(link => hasClass(link, 'app-header__nav-link--active')).map(textOf), selected ? [selected] : [])
+        assert.deepEqual(links.filter(link => hasClass(link, 'app-header__nav-link--active') || hasClass(link, 'app-header__category-link--active')).map(textOf), selected ? [selected] : [])
     }
 })
 
