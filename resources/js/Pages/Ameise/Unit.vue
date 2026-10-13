@@ -189,6 +189,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
                 <div class="unit-page__actions">
+                    <a :href="'/Ameise/suppliers?unit_id=' + unit.id" class="unit-page__supplier-control"><v-icon icon="mdi-account-tie-outline" size="16" /> Контроль поставщика</a>
                     <button v-if="permissions.unit?.send_mail" type="button" class="unit-page__write" @click="openMailComposer"><v-icon icon="mdi-email-outline" size="16" /> Написать</button>
                     <button type="button" @click="detailsPanel?.openUnitDialog()"><v-icon icon="mdi-pencil-outline" size="16" /> Изменить Unit</button>
                     <button type="button" :disabled="loading.unit || loading.dict" title="Обновить данные" aria-label="Обновить данные Unit" @click="refreshAll"><v-icon icon="mdi-refresh" size="18" :class="{ 'unit-page__refreshing': loading.unit }" /></button>
@@ -273,9 +274,9 @@ onBeforeUnmount(() => {
 .unit-page__back:hover { color: #352345; background: #fff; }
 .unit-page__roles { display: flex; gap: 6px; flex-wrap: wrap; }
 .unit-page__roles span { border-left: 2px solid #352345; padding-left: 7px; color: #66606c; font-size: 10px; white-space: nowrap; }
-.unit-page__actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.unit-page__actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 9px; border: 1px solid var(--unit-line); background: #fff; color: var(--unit-purple); font-size: 11px; font-weight: 600; }
-.unit-page__actions button:hover { background: #eeecef; }
+.unit-page__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.unit-page__actions button, .unit-page__supplier-control { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 6px 9px; border: 1px solid var(--unit-line); background: #fff; color: var(--unit-purple); font-size: 11px; font-weight: 600; text-decoration: none; }
+.unit-page__actions button:hover, .unit-page__supplier-control:hover { background: #eeecef; }
 .unit-page__actions button.unit-page__write { background: #352345; color: #fff; border-color: #352345; }
 .unit-page__actions button:disabled { opacity: .5; }
 .unit-page__navigation { border-top: 1px solid var(--unit-line); border-bottom: 1px solid var(--unit-line); background: #fff; }

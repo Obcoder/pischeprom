@@ -809,6 +809,20 @@ Route::prefix('units/{unit}')->group(function () {
 
 Route::apiResource('units', UnitController::class)->except(['show']);
 
+// The control register contains only explicitly selected supplier Units.
+Route::prefix('suppliers')->name('api.suppliers.')->middleware('verified')->group(function () {
+    Route::get('/', [\App\Http\Controllers\API\SupplierRegistryController::class, 'index'])->name('index');
+    Route::get('/options', [\App\Http\Controllers\API\SupplierProfileController::class, 'options'])->name('options');
+    Route::get('/export', [\App\Http\Controllers\API\SupplierRegistryController::class, 'export'])->name('export');
+    Route::post('/', [\App\Http\Controllers\API\SupplierProfileController::class, 'store'])->name('store');
+    Route::get('/{unit}', [\App\Http\Controllers\API\SupplierRegistryController::class, 'show'])->whereNumber('unit')->name('show');
+    Route::get('/{unit}/analytics', [\App\Http\Controllers\API\SupplierAnalyticsController::class, 'show'])->whereNumber('unit')->name('analytics');
+    Route::patch('/{unit}/profile', [\App\Http\Controllers\API\SupplierProfileController::class, 'update'])->whereNumber('unit')->name('profile');
+    Route::post('/{unit}/reviews', [\App\Http\Controllers\API\SupplierProfileController::class, 'review'])->whereNumber('unit')->name('reviews');
+    Route::post('/{unit}/notes', [\App\Http\Controllers\API\SupplierProfileController::class, 'note'])->whereNumber('unit')->name('notes');
+    Route::get('/{unit}/events', [\App\Http\Controllers\API\SupplierProfileController::class, 'events'])->whereNumber('unit')->name('events');
+});
+
 // Supplier orders are commitments; receipts continue to use purchases.
 Route::middleware('verified')->group(function () {
     Route::get('units/{unit}/supplier-order-context', [\App\Http\Controllers\API\SupplierOrderContextController::class, 'show'])->name('api.units.supplier-order-context');

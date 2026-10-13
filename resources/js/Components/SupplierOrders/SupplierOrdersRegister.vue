@@ -5,6 +5,7 @@ import { Link } from '@inertiajs/vue3'
 import SupplierOrderComposer from '@/Components/Unit/Mail/SupplierOrderComposer.vue'
 
 const props = defineProps({ unitId: { type: [Number, String], default: null }, unitName: { type: String, default: '' }, unitFiles: { type: Array, default: () => [] } })
+const emit = defineEmits(['changed'])
 const rows = ref([]), loading = ref(false), loadError = ref(''), operationError = ref(''), notice = ref('')
 const search = ref(''), status = ref(''), supplierFilter = ref(null)
 const meta = reactive({ current_page: 1, last_page: 1, total: 0, per_page: 25 })
@@ -56,8 +57,8 @@ function openDocument(row = null, unit = null) {
 }
 function create() { if (props.unitId) openDocument(); else openPicker('create') }
 function closeComposer() { composerOpen.value = false; selectedDocument.value = null }
-function saved(document) { notice.value = `Заказ ${document.number || ''} сохранён.`; load() }
-function sent(document) { notice.value = `Заказ ${document.number || ''} отправлен.`; load() }
+function saved(document) { notice.value = `Заказ ${document.number || ''} сохранён.`; load(); emit('changed') }
+function sent(document) { notice.value = `Заказ ${document.number || ''} отправлен.`; load(); emit('changed') }
 
 function openPicker(purpose) {
     pickerPurpose.value = purpose; supplierSearch.value = ''; supplierOptions.value = []; supplierError.value = ''; pickerOpen.value = true
@@ -89,6 +90,7 @@ async function mutate(row, action) {
         if (disposed || version !== mutationGeneration) return
         confirmation.value = null
         notice.value = action === 'delete' ? `Черновик ${row.number} удалён.` : `Статус заказа ${row.number} изменён.`
+        emit('changed')
         await load()
     } catch (failure) { if (!disposed && version === mutationGeneration) operationError.value = message(failure) }
     finally { if (!disposed && version === mutationGeneration) busyId.value = null }

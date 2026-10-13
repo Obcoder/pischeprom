@@ -183,6 +183,18 @@ jobs:
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php
 
+      - name: Check supplier registry and monitoring PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/SupplierRegistryController.php \
+            app/Http/Controllers/API/SupplierProfileController.php \
+            app/Http/Controllers/API/SupplierAnalyticsController.php \
+            app/Models/SupplierProfile.php app/Models/SupplierProfileEvent.php \
+            app/Services/Suppliers \
+            database/migrations/2026_10_13_120000_create_supplier_profiles.php \
+            database/migrations/2026_10_13_120100_add_supplier_analytics_indexes.php \
+            tests/Feature/Suppliers
+
       - name: Check supplier orders and mail constructor PHP style
         run: |
           vendor/bin/pint --test \
@@ -630,6 +642,7 @@ jobs:
             tests/Feature/Mail \
             tests/Feature/SupplierOrderTest.php \
             tests/Feature/SupplierOrders \
+            tests/Feature/Suppliers \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
             tests/Feature/LoginPortalsTest.php \
             tests/Feature/TelegramIntegrationRetiredTest.php \

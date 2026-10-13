@@ -384,6 +384,13 @@ Route::get('/Ameise/Commerce', function () {
 Route::get('/Ameise/supplier-orders', fn () => Inertia::render('Ameise/SupplierOrders'))
     ->middleware('verified')->name('Ameise.supplier-orders');
 
+Route::get('/Ameise/suppliers', function (\Illuminate\Http\Request $request) {
+    $input = $request->validate(['unit_id' => ['nullable', 'integer', 'min:1']]);
+
+    return Inertia::render('Ameise/Suppliers', ['initialUnitId' => isset($input['unit_id']) ? (int) $input['unit_id'] : null]);
+})
+    ->middleware('verified')->name('Ameise.suppliers');
+
 Route::get('/Ameise/Purchases/', function () {
     return to_route('Ameise.commerce', [], 301);
 })->name('Ameise.purchases');

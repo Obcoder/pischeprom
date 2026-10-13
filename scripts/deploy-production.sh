@@ -565,6 +565,14 @@ if ! php artisan app:deploy-smoke --path=/api/supplier-orders --status=401 >/dev
     fail 'Anonymous access to supplier orders was not rejected.'
 fi
 
+if ! php artisan app:deploy-smoke --path=/Ameise/suppliers --status=302 >/dev/null 2>&1; then
+    fail 'Anonymous access to the supplier control register was not redirected to login.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/suppliers --status=401 >/dev/null 2>&1; then
+    fail 'Anonymous access to the supplier control register was not rejected.'
+fi
+
 for private_mail_api in /api/mailboxes /api/mail-messages; do
     if ! php artisan app:deploy-smoke --path="$private_mail_api" --status=401 >/dev/null 2>&1; then
         fail 'Anonymous access to the mail API was not rejected.'
