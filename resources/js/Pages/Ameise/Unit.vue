@@ -14,6 +14,7 @@ import UnitBusinessContextsPanel from '@/Components/Unit/AiSales/UnitBusinessCon
 import AiControlPlanePanel from '@/Components/Unit/AiSales/AiControlPlanePanel.vue'
 import UnitProspectingDossierPanel from '@/Components/Unit/AiSales/UnitProspectingDossierPanel.vue'
 import UnitOutreachPanel from '@/Components/Unit/AiSales/UnitOutreachPanel.vue'
+import SupplierOrdersRegister from '@/Components/SupplierOrders/SupplierOrdersRegister.vue'
 
 defineOptions({
     layout: VerwalterLayout,
@@ -64,6 +65,7 @@ const aiSection = ref('research')
 const sectionTabs = [
     { value: 'communications', title: 'Коммуникации', icon: 'mdi-message-outline' },
     { value: 'entities', title: 'Entities', icon: 'mdi-account-group-outline' },
+    { value: 'supplier-orders', title: 'Заказы поставщику', icon: 'mdi-truck-plus-outline' },
     { value: 'relations', title: 'Продукты и товары', icon: 'mdi-package-variant-closed' },
     { value: 'classification', title: 'Классификация и сегментация', icon: 'mdi-tag-outline' },
     { value: 'logistics', title: 'Логистика', icon: 'mdi-truck-outline' },
@@ -221,6 +223,9 @@ onBeforeUnmount(() => {
                             :can-create-orders="permissions.orders?.create"
                             @refresh="refreshAll"
                         />
+                    </v-window-item>
+                    <v-window-item value="supplier-orders">
+                        <SupplierOrdersRegister :unit-id="Number(unit.id)" :unit-name="unit.name" :unit-files="files" />
                     </v-window-item>
                     <v-window-item value="relations">
                         <UnitTradeTabsCard

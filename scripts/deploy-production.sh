@@ -557,6 +557,14 @@ if ! php artisan app:deploy-smoke --path=/Ameise/Mail --status=302 >/dev/null 2>
     fail 'Anonymous access to the mail workspace was not redirected to login.'
 fi
 
+if ! php artisan app:deploy-smoke --path=/Ameise/supplier-orders --status=302 >/dev/null 2>&1; then
+    fail 'Anonymous access to the supplier order register was not redirected to login.'
+fi
+
+if ! php artisan app:deploy-smoke --path=/api/supplier-orders --status=401 >/dev/null 2>&1; then
+    fail 'Anonymous access to supplier orders was not rejected.'
+fi
+
 for private_mail_api in /api/mailboxes /api/mail-messages; do
     if ! php artisan app:deploy-smoke --path="$private_mail_api" --status=401 >/dev/null 2>&1; then
         fail 'Anonymous access to the mail API was not rejected.'

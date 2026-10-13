@@ -183,6 +183,19 @@ jobs:
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php
 
+      - name: Check supplier orders and mail constructor PHP style
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/SupplierOrder*.php \
+            app/Http/Requests/Mail/SendSupplierOrderMailRequest.php \
+            app/Models/SupplierOrder.php app/Models/SupplierOrderItem.php \
+            app/Services/SupplierOrders \
+            app/Services/Mail/PreparedMailContent.php \
+            app/Services/Mail/AuthorizedMailDispatchService.php \
+            database/migrations/2026_10_13_100000_create_supplier_orders.php \
+            tests/Feature/SupplierOrderTest.php tests/Feature/SupplierOrders \
+            tests/Unit/SupplierOrderMailRendererTest.php
+
       - name: Check product pricing, history and entity privacy PHP style
         run: |
           vendor/bin/pint --test \
@@ -615,6 +628,8 @@ jobs:
             tests/Feature/AiPriceLists \
             tests/Feature/Avito \
             tests/Feature/Mail \
+            tests/Feature/SupplierOrderTest.php \
+            tests/Feature/SupplierOrders \
             tests/Feature/StaffAuthenticationBoundaryTest.php \
             tests/Feature/LoginPortalsTest.php \
             tests/Feature/TelegramIntegrationRetiredTest.php \

@@ -809,6 +809,25 @@ Route::prefix('units/{unit}')->group(function () {
 
 Route::apiResource('units', UnitController::class)->except(['show']);
 
+// Supplier orders are commitments; receipts continue to use purchases.
+Route::middleware('verified')->group(function () {
+    Route::get('units/{unit}/supplier-order-context', [\App\Http\Controllers\API\SupplierOrderContextController::class, 'show'])->name('api.units.supplier-order-context');
+    Route::get('supplier-order-units', [\App\Http\Controllers\API\SupplierOrderController::class, 'units'])->name('api.supplier-orders.units');
+    Route::prefix('supplier-orders')->name('api.supplier-orders.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\API\SupplierOrderController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\API\SupplierOrderController::class, 'store'])->name('store');
+        Route::post('/preview', [\App\Http\Controllers\API\SupplierOrderMailController::class, 'preview'])->name('preview');
+        Route::get('/{supplierOrder}', [\App\Http\Controllers\API\SupplierOrderController::class, 'show'])->whereNumber('supplierOrder')->name('show');
+        Route::get('/{supplierOrder}/preview', [\App\Http\Controllers\API\SupplierOrderMailController::class, 'previewSaved'])->whereNumber('supplierOrder')->name('preview-saved');
+        Route::patch('/{supplierOrder}', [\App\Http\Controllers\API\SupplierOrderController::class, 'update'])->whereNumber('supplierOrder')->name('update');
+        Route::delete('/{supplierOrder}', [\App\Http\Controllers\API\SupplierOrderController::class, 'destroy'])->whereNumber('supplierOrder')->name('destroy');
+        Route::post('/{supplierOrder}/status', [\App\Http\Controllers\API\SupplierOrderController::class, 'updateStatus'])->whereNumber('supplierOrder')->name('status');
+        Route::post('/{supplierOrder}/send', [\App\Http\Controllers\API\SupplierOrderMailController::class, 'send'])->whereNumber('supplierOrder')
+            ->middleware(['can:mail.send', 'throttle:mail-send'])->name('send');
+        Route::post('/{supplierOrder}/reconcile', [\App\Http\Controllers\API\SupplierOrderMailController::class, 'reconcile'])->whereNumber('supplierOrder')->name('reconcile');
+    });
+});
+
 // E N D  U N I T S
 
 Route::apiResource('brands', BrandController::class);

@@ -381,6 +381,9 @@ Route::get('/Ameise/Commerce', function () {
     return Inertia::render('Ameise/Commerce');
 })->name('Ameise.commerce');
 
+Route::get('/Ameise/supplier-orders', fn () => Inertia::render('Ameise/SupplierOrders'))
+    ->middleware('verified')->name('Ameise.supplier-orders');
+
 Route::get('/Ameise/Purchases/', function () {
     return to_route('Ameise.commerce', [], 301);
 })->name('Ameise.purchases');

@@ -592,6 +592,17 @@ onMounted(fetchWorkingLeads)
                 </Link>
 
                 <Link
+                    :href="route('Ameise.supplier-orders')"
+                    class="ameise-header-control ameise-nav-link"
+                    :class="{ 'is-active': isActiveUrl(route('Ameise.supplier-orders')) }"
+                    title="Заказы поставщикам"
+                    aria-label="Заказы поставщикам"
+                >
+                    <v-icon icon="mdi-truck-plus-outline" size="19" />
+                    <span class="ameise-nav-link__label">Поставщикам</span>
+                </Link>
+
+                <Link
                     v-if="canViewOrders"
                     :href="route('Ameise.orders.index')"
                     class="ameise-header-control ameise-nav-link ameise-orders-icon"

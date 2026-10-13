@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import axios from 'axios'
 import MailTemplatesDialog from '@/Components/Contacts/Emails/MailTemplatesDialog.vue'
+import SupplierOrderComposer from './SupplierOrderComposer.vue'
 
 const model = defineModel({
     type: Boolean,
@@ -38,9 +39,17 @@ const props = defineProps({
         default: () => [],
     },
     sending: Boolean,
+    initialSupplierOrderId: { type: [Number, String], default: null },
+    initialMode: { type: String, default: 'supplier_order' },
 })
 
-const emit = defineEmits(['sent'])
+const emit = defineEmits(['sent', 'saved'])
+const mode = ref('supplier_order'), supplierMounted = ref(false), supplierComposer = ref(null), supplierState = ref({ dirty: false, busy: false })
+const submitting = ref(false), sendError = ref(''), closeConfirmation = ref(false), mailInitialized = ref(false), mailLoading = ref(false), mailBaseline = ref('')
+let session = 0
+const mailSnapshot = () => JSON.stringify({ to: to.value, cc: cc.value, subject: subject.value, body: body.value, mailbox: selectedMailbox.value, storage: storageFiles.value, files: localFiles.value.map(file => [file.name, file.size, file.lastModified]) })
+const mailDirty = computed(() => mailInitialized.value && mailSnapshot() !== mailBaseline.value)
+
 
 const to = ref([])
 const cc = ref([])
@@ -117,29 +126,32 @@ const storageFileItems = computed(() => {
 })
 
 async function fetchTemplates() {
+    const version = session
     loadingTemplates.value = true
 
     try {
         const { data } = await axios.get('/api/mail-templates')
+        if (version !== session || !model.value) return
         templates.value = (data ?? []).filter((template) => template.is_active !== false)
     } catch (error) {
-        console.error('Templates loading error:', error)
+        if (version === session) sendError.value = 'Не удалось загрузить шаблоны.'
     } finally {
-        loadingTemplates.value = false
+        if (version === session) loadingTemplates.value = false
     }
 }
 
 async function fetchMailboxes() {
+    const version = session
     if (props.mailboxes.length) {
         return
     }
 
     try {
         const { data } = await axios.get('/api/mailboxes')
+        if (version !== session || !model.value) return
         availableMailboxes.value = data.data ?? data ?? []
     } catch (error) {
-        console.error('Mailboxes loading error:', error)
-        availableMailboxes.value = []
+        if (version === session) { sendError.value = 'Не удалось загрузить почтовые ящики.'; availableMailboxes.value = [] }
     }
 }
 
@@ -247,6 +259,9 @@ function removeLocalFile(index) {
 }
 
 async function submit() {
+    if (submitting.value || props.sending) return
+    const version = session
+    submitting.value = true; sendError.value = ''
     const formData = new FormData()
 
     formData.append('idempotency_key', idempotencyKey.value)
@@ -273,21 +288,39 @@ async function submit() {
         formData.append('reply_to_mail_message_id', props.replyContext.id)
     }
 
-    await axios.post(`/api/units/${props.unitId}/mail/send`, formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-    })
-
-    emit('sent')
-    close()
+    try {
+        await axios.post(`/api/units/${props.unitId}/mail/send`, formData)
+        if (version !== session) return
+        emit('sent'); model.value = false
+    } catch (failure) {
+        if (version === session) sendError.value = Object.values(failure.response?.data?.errors || {}).flat().join(' ') || failure.response?.data?.message || 'Не удалось отправить письмо. Черновик сохранён в этом окне; повторите попытку.'
+    } finally { if (version === session) submitting.value = false }
 }
 
 function close() {
-    model.value = false
+    if (submitting.value || props.sending || supplierState.value.busy) return
+    if (mode.value === 'supplier_order' || supplierState.value.dirty) { mode.value = 'supplier_order'; supplierComposer.value?.requestClose(); return }
+    if (mailDirty.value) closeConfirmation.value = true
+    else model.value = false
+}
+function closeSupplier() {
+    if (mailDirty.value) closeConfirmation.value = true
+    else model.value = false
+}
+async function prepareMail() {
+    if (mailInitialized.value || mailLoading.value || !model.value) return
+    const version = session; mailLoading.value = true
+    await fetchMailboxes()
+    if (version !== session || !model.value) return
+    storageFiles.value = [...props.initialStorageFiles]
+    selectedMailbox.value = props.replyContext?.mailbox || mailboxItems.value[0]?.value || null
+    if (props.replyContext) applyReplyContext(); else to.value = normalizeInitialTo()
+    mailBaseline.value = mailSnapshot(); mailInitialized.value = true; mailLoading.value = false
+    await fetchTemplates()
 }
 
 function resetForm() {
+    mailInitialized.value = false; mailLoading.value = false; sendError.value = ''; closeConfirmation.value = false; submitting.value = false; supplierMounted.value = false; supplierState.value = { dirty: false, busy: false }
     to.value = []
     cc.value = []
     subject.value = ''
@@ -305,22 +338,19 @@ function resetForm() {
 }
 
 watch(model, async (value) => {
+    session++
     if (value) {
-        await fetchMailboxes()
-        storageFiles.value = [...props.initialStorageFiles]
-        selectedMailbox.value = props.replyContext?.mailbox || mailboxItems.value[0]?.value || null
-
-        if (props.replyContext) {
-            applyReplyContext()
-        } else {
-            to.value = normalizeInitialTo()
-        }
-
-        await fetchTemplates()
-    } else {
-        resetForm()
-    }
+        mode.value = props.replyContext ? 'mail' : props.initialMode === 'mail' ? 'mail' : 'supplier_order'
+        if (mode.value === 'supplier_order') supplierMounted.value = true
+        else await prepareMail()
+    } else resetForm()
+}, { immediate: true })
+watch(mode, value => {
+    if (!model.value) return
+    if (value === 'supplier_order') supplierMounted.value = true
+    else prepareMail()
 })
+onScopeDispose(() => { session++ })
 
 watch(selectedTemplateId, applyTemplate)
 
@@ -351,11 +381,15 @@ watch(() => props.initialTo, () => {
 </script>
 
 <template>
-    <v-dialog v-model="model" max-width="980" scrollable>
-        <v-card class="rounded border border-blue-900 bg-slate-950">
+    <v-dialog v-model="model" :width="mode === 'supplier_order' ? '96vw' : 'min(1100px, 96vw)'" max-width="1800" persistent scrollable>
+        <v-card class="unit-mail-composer">
+            <div v-if="!isReply" class="composer-mode-bar" role="group" aria-label="Режим сообщения"><button :aria-pressed="mode === 'supplier_order'" :disabled="submitting || sending || supplierState.busy" @click="mode = 'supplier_order'">Заказ поставщику</button><button :aria-pressed="mode === 'mail'" :disabled="submitting || sending || supplierState.busy" @click="mode = 'mail'">Письмо</button><span>Черновики сохраняются при переключении</span></div>
+            <div v-if="closeConfirmation" class="mail-close-confirmation"><span>В обычном письме есть несохранённые изменения. Закрыть окно?</span><button @click="closeConfirmation = false">Продолжить работу</button><button @click="model = false">Закрыть без сохранения</button></div>
+            <SupplierOrderComposer v-if="supplierMounted && model" v-show="mode === 'supplier_order'" ref="supplierComposer" :unit-id="unitId" :order-id="initialSupplierOrderId" :recipients="recipients" :mailboxes="mailboxes" :unit-files="unitFiles" :initial-to="initialTo" :initial-storage-files="initialStorageFiles" @state="supplierState = $event" @close="closeSupplier" @saved="emit('saved', $event)" @sent="emit('sent', $event)" />
+            <div v-show="mode === 'mail'" class="ordinary-mail">
             <v-card-title class="d-flex justify-space-between align-center">
                 <div>
-                    <div class="text-blue-lighten-3">
+                    <div class="ordinary-mail-title">
                         {{ isReply ? 'Ответить на письмо' : 'Написать письмо' }}
                     </div>
 
@@ -374,6 +408,8 @@ watch(() => props.initialTo, () => {
             <v-divider />
 
             <v-card-text>
+                <p v-if="sendError" class="mail-error" role="alert">{{ sendError }}</p>
+                <fieldset :disabled="submitting || sending" class="ordinary-fields">
                 <v-row dense>
                     <v-col
                         v-if="isReply"
@@ -532,6 +568,7 @@ watch(() => props.initialTo, () => {
                         </div>
                     </v-col>
                 </v-row>
+                </fieldset>
             </v-card-text>
 
             <v-card-actions>
@@ -547,13 +584,14 @@ watch(() => props.initialTo, () => {
                 <v-btn
                     color="blue"
                     variant="elevated"
-                    :loading="sending"
-                    :disabled="!selectedMailbox || !to.length || !subject || !body"
+                    :loading="submitting || sending"
+                    :disabled="submitting || sending || !selectedMailbox || !to.length || !subject || !body"
                     @click="submit"
                 >
                     {{ isReply ? 'Отправить ответ' : 'Отправить' }}
                 </v-btn>
             </v-card-actions>
+            </div>
         </v-card>
     </v-dialog>
 
@@ -562,3 +600,8 @@ watch(() => props.initialTo, () => {
         @changed="fetchTemplates"
     />
 </template>
+
+
+<style scoped>
+.unit-mail-composer { background: #fff !important; color: #463b50 !important; max-height: 96vh; border: 1px solid #dad3e3; border-radius: 8px !important; }.composer-mode-bar { display: flex; align-items: center; gap: 3px; padding: 6px 12px; background: #ece8f1; border-bottom: 1px solid #dad3e3; }.composer-mode-bar button, .mail-close-confirmation button { border: 1px solid transparent; border-radius: 4px; padding: 4px 11px; color: #80718e; font: 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }.composer-mode-bar button[aria-pressed=true] { border-color: #dcd4e5; background: #fff; color: #665175; box-shadow: 0 1px 2px #4020500b; }.composer-mode-bar span { margin-left: auto; color: #9b8aa8; font-size: 9px; }.ordinary-mail { overflow-y: auto; }.ordinary-mail-title { color: #665175; font-size: 15px; }.ordinary-fields { border: 0; padding: 0; margin: 0; min-width: 0; }.ordinary-mail :deep(.v-field) { font-size: 12px; }.ordinary-mail :deep(.v-label) { font-size: 11px; }.ordinary-mail :deep(.v-card-text) { padding-top: 10px; padding-bottom: 8px; }.ordinary-mail :deep(.v-btn) { font-size: 11px; text-transform: none; letter-spacing: normal; }.mail-error { background: #fff0f2; border: 1px solid #efcdd5; color: #a43e51; padding: 8px; margin-bottom: 10px; font-size: 11px; }.mail-close-confirmation { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; background: #fff8ec; color: #9b7640; font-size: 10px; }.mail-close-confirmation button { border-color: #e2d4bc; background: #fff; }.composer-mode-bar button:focus-visible, .mail-close-confirmation button:focus-visible { outline: 2px solid #ac93cf; outline-offset: 2px; }@media(max-width:650px) { .composer-mode-bar span { display: none; } }
+</style>

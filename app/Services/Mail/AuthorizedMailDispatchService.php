@@ -53,11 +53,15 @@ class AuthorizedMailDispatchService
         string $routeName,
         ?Unit $unit = null,
         ?Entity $entity = null,
+        ?PreparedMailContent $preparedContent = null,
     ): array {
         $this->authorize($actor, $unit);
         $body = (string) ($data['body'] ?? '');
         $html = nl2br(e($body));
-        if (! empty($data['offer']) || (string) ($data['quoted_body'] ?? '') !== '') {
+        if ($preparedContent !== null) {
+            $html = $preparedContent->html;
+            $body = $preparedContent->text;
+        } elseif (! empty($data['offer']) || (string) ($data['quoted_body'] ?? '') !== '') {
             $rendered = $this->offerRenderer->render(
                 $body,
                 $this->offerCatalog->resolve($data['offer']['items'] ?? []),
@@ -103,7 +107,7 @@ class AuthorizedMailDispatchService
             unit: $unit,
             routeName: $routeName,
             idempotencyKey: (string) $data['idempotency_key'],
-            requestHash: $this->requestHash($data, $recipients, $storagePaths),
+            requestHash: $this->requestHash($data, $recipients, $storagePaths, $preparedContent),
             recipientCount: count($recipients['all']),
             attachmentCount: $attachments->count() + count($storagePaths),
         );
@@ -355,7 +359,7 @@ class AuthorizedMailDispatchService
         })->values()->all();
     }
 
-    private function requestHash(array $data, array $recipients, array $storagePaths): string
+    private function requestHash(array $data, array $recipients, array $storagePaths, ?PreparedMailContent $preparedContent = null): string
     {
         // Preserve hashes of ordinary pre-offer requests, including retries across a deployment.
         $offerContent = [];
@@ -364,6 +368,11 @@ class AuthorizedMailDispatchService
         }
         if ((string) ($data['quoted_body'] ?? '') !== '') {
             $offerContent['quoted_body_hash'] = hash('sha256', (string) $data['quoted_body']);
+        }
+        if ($preparedContent !== null) {
+            $offerContent['prepared_content_hash'] = hash('sha256', json_encode([
+                $preparedContent->html, $preparedContent->text,
+            ], JSON_THROW_ON_ERROR));
         }
 
         return hash('sha256', json_encode([
