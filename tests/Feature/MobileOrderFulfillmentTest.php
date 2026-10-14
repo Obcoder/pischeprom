@@ -15,6 +15,7 @@ use App\Models\Region;
 use App\Models\Telephone;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\Orders\OrderFulfillmentService;
 use App\Services\Orders\OrderWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -428,20 +429,36 @@ class MobileOrderFulfillmentTest extends TestCase
         $this->assertEquals(7, $this->balance());
     }
 
-    public function test_existing_sale_endpoints_cannot_append_goods_to_a_shipped_order_sale(): void
+    public function test_existing_sale_endpoints_allow_warehouse_staff_to_append_goods_without_changing_the_shipped_order(): void
     {
         $order = $this->order();
         $prepared = $this->prepare($order);
-        $saleId = $this->postJson($this->url($order).'/ship', ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()])
+        $shipment = ['version' => $prepared['version'], 'request_id' => (string) Str::uuid()];
+        $saleId = $this->postJson($this->url($order).'/ship', $shipment)
             ->assertOk()->json('data.sale.id');
+        $orderBefore = $order->fresh()->getAttributes();
+        $itemsBefore = $order->fresh('items')->items->map->getAttributes()->all();
         $this->withHeader('Authorization', '')->actingAs($this->employee);
-        foreach (["/api/sales/{$saleId}/goods", '/api/goodsales', '/web/goodsale/store'] as $endpoint) {
-            $this->postJson($endpoint, ['sale_id' => $saleId, 'good_id' => $this->good->id, 'measure_id' => $this->measure->id, 'quantity' => 1, 'price' => 100])
-                ->assertConflict();
+        $this->assertFalse($this->employee->hasRole('admin', 'crm'));
+        foreach (["/api/sales/{$saleId}/goods", '/api/goodsales', '/web/goodsale/store'] as $index => $endpoint) {
+            $payload = [
+                'request_id' => (string) Str::uuid(), 'sale_id' => $saleId, 'good_id' => $this->good->id,
+                'measure_id' => $this->measure->id, 'quantity' => 0.25, 'price' => 100,
+            ];
+            $this->postJson($endpoint, $payload)->assertCreated()->assertJsonPath('data.total', 325 + 25 * $index);
+            $this->postJson($endpoint, $payload)->assertCreated();
         }
-        $this->assertDatabaseCount('good_sale', 1);
-        $this->assertDatabaseHas('sales', ['id' => $saleId, 'total' => 300]);
-        $this->assertEquals(7, $this->balance());
+        $this->assertDatabaseCount('good_sale', 4);
+        $this->assertSame(4, GoodStockMovement::query()->where('sale_id', $saleId)->count());
+        $this->assertDatabaseHas('sales', ['id' => $saleId, 'total' => 375, 'outstanding_amount' => 375]);
+        $this->assertEqualsWithDelta(6.25, $this->balance(), 0.000001);
+        $retried = app(OrderFulfillmentService::class)->ship($order, $shipment, $this->employee);
+        $this->assertSame($orderBefore, $retried->getAttributes());
+        $this->assertSame($itemsBefore, $retried->items->map->getAttributes()->all());
+        $this->assertSame($saleId, $retried->shipped_sale_id);
+        $this->assertSame('375.00', $retried->shippedSale->total);
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('sale_stock_requests', 4);
     }
 
     public function test_stock_consumed_by_another_order_is_rechecked_when_shipping(): void

@@ -14,9 +14,12 @@ use App\Models\Good;
 use App\Models\GoodStockMovement;
 use App\Models\Measure;
 use App\Models\Order;
+use App\Models\OrderStatus;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\Orders\OrderFulfillmentService;
+use App\Services\Orders\OrderWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -554,13 +557,183 @@ class SaleAdminCrudTest extends TestCase
         $this->assertDatabaseCount('good_stock_movements', 1);
     }
 
-    public function test_shipment_sale_cannot_be_rewritten_or_deleted(): void
+    public function test_shipment_sale_weight_corrections_reconcile_stock_and_payments_without_rewriting_the_order_or_replaying_shipment(): void
     {
-        $sale = $this->createSale([$this->line($this->good, 3, 100)]);
-        $order = Order::query()->create(['entity_id' => $this->entity->id, 'created_by_user_id' => $this->admin->id]);
-        $order->forceFill(['shipped_sale_id' => $sale->id, 'shipped_at' => now()])->save();
+        $this->receipt($this->good, 20, 20);
+        [$order, $shipment] = $this->shipOrder([$this->line($this->good, 7.4, 100)]);
+        $sale = $order->shippedSale;
+        $lineId = $sale->goods->sole()->pivot->id;
+        $movementId = GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->id;
+        $orderBefore = $order->getAttributes();
+        $itemsBefore = $order->items->map->getAttributes()->all();
+        $requestBefore = DB::table('sale_stock_requests')->where('request_id', $shipment['request_id'])->sole();
+        $allocation = $this->allocate($sale, '700.00');
+        $allocationBefore = $allocation->getAttributes();
+        // A later receipt changes today's average cost; correcting the sold weight keeps its original cost.
+        $this->receipt($this->good, 10, 50);
 
-        $this->patchJson("/api/sales/{$sale->id}", ['date' => '2026-10-02', 'goods' => []])->assertConflict();
+        foreach ([
+            [8.125, 812.5, 'partially_paid', '112.50', '0.00'],
+            [6.25, 625, 'overpaid', '0.00', '75.00'],
+            [7, 700, 'paid', '0.00', '0.00'],
+        ] as [$quantity, $total, $status, $outstanding, $overpaid]) {
+            $payload = [
+                'date' => '2026-10-15',
+                'goods' => [['id' => $lineId, ...$this->line($this->good, $quantity, 100)]],
+            ];
+            $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk()
+                ->assertJsonPath('data.total', $total)
+                ->assertJsonPath('data.payment_status', $status)
+                ->assertJsonPath('data.goods.0.pivot.id', $lineId)
+                ->assertJsonPath('data.goods.0.pivot.quantity', $quantity);
+            $this->patchJson("/api/sales/{$sale->id}", $payload)->assertOk();
+
+            $sale->refresh();
+            $this->assertSame('700.00', $sale->paid_amount);
+            $this->assertSame($outstanding, $sale->outstanding_amount);
+            $this->assertSame($overpaid, $sale->overpaid_amount);
+            $this->assertDatabaseHas('good_stock_movements', [
+                'id' => $movementId,
+                'sale_id' => $sale->id,
+                'source_id' => $lineId,
+                'quantity_delta' => -$quantity,
+                'unit_price' => 20,
+            ]);
+            $this->assertEqualsWithDelta(30 - $quantity, $this->balance($this->good), 0.000001);
+            $this->assertSame(1, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+
+            $retried = app(OrderFulfillmentService::class)->ship($order, $shipment, $this->admin);
+            $this->assertSame($sale->id, $retried->shipped_sale_id);
+            $this->assertSame($sale->total, $retried->shippedSale->total);
+            $this->assertEqualsWithDelta($quantity, $retried->shippedSale->goods->sole()->pivot->quantity, 0.000001);
+            $this->assertSame($orderBefore, $retried->getAttributes());
+            $this->assertSame($itemsBefore, $retried->items->map->getAttributes()->all());
+            $this->assertEquals($requestBefore, DB::table('sale_stock_requests')->where('request_id', $shipment['request_id'])->sole());
+            $this->assertSame($allocationBefore, $allocation->fresh()->getAttributes());
+            $this->assertDatabaseCount('sales', 1);
+            $this->assertDatabaseCount('sale_stock_requests', 1);
+        }
+    }
+
+    public function test_shipment_sale_composition_and_customer_can_be_corrected_while_the_order_keeps_its_original_plan(): void
+    {
+        $removed = Good::query()->create(['name' => 'Сахар', 'measure_id' => $this->measure->id]);
+        $added = Good::query()->create(['name' => 'Соль', 'measure_id' => $this->measure->id]);
+        $pieces = Measure::query()->firstOrCreate(['name' => 'шт']);
+        $replacement = Good::query()->create(['name' => 'Коробка', 'measure_id' => $pieces->id]);
+        $this->receipt($this->good, 10, 20);
+        $this->receipt($removed, 8, 5);
+        $this->receipt($added, 7, 12);
+        $this->receipt($replacement, 6, 35);
+        [$order, $shipment] = $this->shipOrder([$this->line($this->good, 3, 100), $this->line($removed, 2, 20)]);
+        $sale = $order->shippedSale;
+        $lines = DB::table('good_sale')->where('sale_id', $sale->id)->orderBy('id')->get();
+        $movementId = GoodStockMovement::query()->where('source_type', GoodStockMovement::SOURCE_GOOD_SALE)
+            ->where('source_id', $lines[0]->id)->sole()->id;
+        $orderBefore = $order->getAttributes();
+        $itemsBefore = $order->items->map->getAttributes()->all();
+        $otherEntity = Entity::query()->create(['name' => 'Фактический покупатель']);
+
+        $this->patchJson("/api/sales/{$sale->id}", [
+            'date' => '2026-10-15',
+            'entity_id' => $otherEntity->id,
+            'goods' => [
+                ['id' => $lines[0]->id, ...$this->line($replacement, 2, 80)],
+                $this->line($added, 1.5, 40),
+            ],
+        ])->assertOk()->assertJsonPath('data.total', 220)
+            ->assertJsonPath('data.entity.id', $otherEntity->id)->assertJsonCount(2, 'data.goods');
+
+        $this->assertDatabaseHas('good_stock_movements', [
+            'id' => $movementId, 'good_id' => $replacement->id, 'measure_id' => $pieces->id,
+            'quantity_delta' => -2, 'unit_price' => 35,
+        ]);
+        $this->assertDatabaseMissing('good_sale', ['id' => $lines[1]->id]);
+        $this->assertDatabaseMissing('good_stock_movements', [
+            'source_type' => GoodStockMovement::SOURCE_GOOD_SALE, 'source_id' => $lines[1]->id,
+        ]);
+        $this->assertEqualsWithDelta(10, $this->balance($this->good), 0.000001);
+        $this->assertEqualsWithDelta(8, $this->balance($removed), 0.000001);
+        $this->assertEqualsWithDelta(4, $this->balance($replacement), 0.000001);
+        $this->assertEqualsWithDelta(5.5, $this->balance($added), 0.000001);
+        $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+        $retried = app(OrderFulfillmentService::class)->ship($order, $shipment, $this->admin);
+        $this->assertSame($orderBefore, $retried->getAttributes());
+        $this->assertSame($itemsBefore, $retried->items->map->getAttributes()->all());
+        $this->assertSame($otherEntity->id, $retried->shippedSale->entity_id);
+        $this->assertSame('220.00', $retried->shippedSale->total);
+    }
+
+    public function test_shipment_sale_with_bank_payment_rejects_customer_change_atomically(): void
+    {
+        $this->receipt($this->good, 10, 20);
+        [$order] = $this->shipOrder([$this->line($this->good, 3, 100)]);
+        $sale = $order->shippedSale;
+        $allocation = $this->allocate($sale, '100.00');
+        $allocationBefore = $allocation->getAttributes();
+        $saleBefore = $sale->fresh()->getAttributes();
+        $lineBefore = DB::table('good_sale')->where('sale_id', $sale->id)->sole();
+        $movementBefore = GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->getAttributes();
+        $otherEntity = Entity::query()->create(['name' => 'Другой покупатель']);
+
+        $this->patchJson("/api/sales/{$sale->id}", [
+            'date' => '2026-10-15',
+            'entity_id' => $otherEntity->id,
+            'goods' => [['id' => $lineBefore->id, ...$this->line($this->good, 4.25, 100)]],
+        ])->assertConflict();
+
+        $this->assertSame($saleBefore, $sale->fresh()->getAttributes());
+        $this->assertEquals($lineBefore, DB::table('good_sale')->where('sale_id', $sale->id)->sole());
+        $this->assertSame($movementBefore, GoodStockMovement::query()->where('sale_id', $sale->id)->sole()->getAttributes());
+        $this->assertSame($allocationBefore, $allocation->fresh()->getAttributes());
+        $this->assertSame($sale->id, $order->fresh()->shipped_sale_id);
+    }
+
+    #[DataProvider('shipmentAppendEndpoints')]
+    public function test_admin_can_append_goods_to_a_shipment_sale_without_replaying_stock_or_changing_the_order(string $endpoint): void
+    {
+        $this->receipt($this->good, 10, 20);
+        $added = Good::query()->create(['name' => 'Соль', 'measure_id' => $this->measure->id]);
+        $this->receipt($added, 5, 12);
+        [$order, $shipment] = $this->shipOrder([$this->line($this->good, 2.5, 100)]);
+        $sale = $order->shippedSale;
+        $orderBefore = $order->getAttributes();
+        $itemsBefore = $order->items->map->getAttributes()->all();
+        $payload = ['sale_id' => $sale->id, 'request_id' => (string) Str::uuid(), ...$this->line($added, 1.25, 80)];
+        $endpoint = str_replace('{sale}', (string) $sale->id, $endpoint);
+
+        $this->postJson($endpoint, $payload)->assertCreated()->assertJsonPath('data.total', 350);
+        $this->postJson($endpoint, $payload)->assertCreated()->assertJsonPath('data.total', 350);
+
+        $this->assertSame(2, DB::table('good_sale')->where('sale_id', $sale->id)->count());
+        $this->assertSame(2, GoodStockMovement::query()->where('sale_id', $sale->id)->count());
+        $this->assertDatabaseHas('good_stock_movements', [
+            'sale_id' => $sale->id, 'good_id' => $added->id, 'quantity_delta' => -1.25, 'unit_price' => 12,
+        ]);
+        $this->assertEqualsWithDelta(7.5, $this->balance($this->good), 0.000001);
+        $this->assertEqualsWithDelta(3.75, $this->balance($added), 0.000001);
+        $retried = app(OrderFulfillmentService::class)->ship($order, $shipment, $this->admin);
+        $this->assertSame('350.00', $retried->shippedSale->total);
+        $this->assertSame($orderBefore, $retried->getAttributes());
+        $this->assertSame($itemsBefore, $retried->items->map->getAttributes()->all());
+        $this->assertDatabaseCount('sales', 1);
+        $this->assertDatabaseCount('sale_stock_requests', 2);
+    }
+
+    public static function shipmentAppendEndpoints(): array
+    {
+        return [
+            'sale goods' => ['/api/sales/{sale}/goods'],
+            'goodsale API' => ['/api/goodsales'],
+            'legacy web goodsale' => ['/web/goodsale/store'],
+        ];
+    }
+
+    public function test_shipment_sale_cannot_be_deleted(): void
+    {
+        [$order] = $this->shipOrder([$this->line($this->good, 3, 100)]);
+        $sale = $order->shippedSale;
+
         $this->deleteJson("/api/sales/{$sale->id}")->assertConflict();
 
         $this->assertDatabaseHas('sales', ['id' => $sale->id, 'total' => 300]);
@@ -583,6 +756,31 @@ class SaleAdminCrudTest extends TestCase
         $this->assertFalse($allocation->fresh()->is_active);
         $this->assertDatabaseHas('sales', ['id' => $sale->id, 'entity_id' => $this->entity->id, 'total' => 300]);
         $this->assertDatabaseHas('good_stock_movements', ['sale_id' => $sale->id, 'quantity_delta' => -3]);
+    }
+
+    /** @return array{Order, array{version: string, request_id: string}} */
+    private function shipOrder(array $lines): array
+    {
+        $order = app(OrderWriter::class)->save(null, [
+            'entity_id' => $this->entity->id,
+            'order_status_id' => OrderStatus::query()->where('code', OrderStatus::OPEN)->sole()->id,
+            'created_by_user_id' => $this->admin->id,
+            'currency_code' => 'RUB',
+            'items' => array_map(fn (array $line) => [
+                'good_id' => $line['good_id'], 'quantity' => $line['quantity'], 'unit_price' => $line['price'],
+            ], $lines),
+        ]);
+        $fulfillment = app(OrderFulfillmentService::class);
+        $order->load($fulfillment->relations());
+        $prepared = $fulfillment->prepare($order, [
+            'version' => $fulfillment->version($order),
+            'items' => $order->items->map(fn ($item) => [
+                'id' => $item->id, 'quantity' => $item->quantity, 'measure_id' => $item->measure_id,
+            ])->all(),
+        ], $this->admin);
+        $shipment = ['version' => $fulfillment->version($prepared), 'request_id' => (string) Str::uuid()];
+
+        return [$fulfillment->ship($prepared, $shipment, $this->admin), $shipment];
     }
 
     private function createSale(array $lines): Sale

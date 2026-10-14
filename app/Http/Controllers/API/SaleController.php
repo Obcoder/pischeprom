@@ -196,10 +196,6 @@ class SaleController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_if(Order::query()->where('shipped_sale_id', $lockedSale->id)
-                ->lockForUpdate()->first(['id']) !== null, 409,
-                'Продажа создана отгрузкой заказа. Добавлять позиции в неё нельзя.');
-
             $this->assertCurrentUnits([$line]);
 
             $lockedSale->goods()->attach($line['good_id'], [
@@ -323,12 +319,8 @@ class SaleController extends Controller
                 : (string) $sale->total;
             $totalChanged = DecimalMoney::compare((string) $sale->total, $total) !== 0;
 
-            if ($goodsChanged || $entityChanged || $totalChanged) {
-                abort_if(Order::query()->where('shipped_sale_id', $sale->id)
-                    ->lockForUpdate()->first(['id']) !== null, 409,
-                    'Продажа создана отгрузкой заказа. Изменение покупателя, суммы и позиций такой продажи недоступно.');
-            }
-
+            // A sale records the actual goods and weight, including after order shipment.
+            // Keep the source order and its shipment link as the original plan/history.
             if ($entityChanged) {
                 abort_if($sale->activeBankAllocations()->lockForUpdate()->first(['id']) !== null, 409,
                     'Нельзя изменить покупателя продажи с привязанной оплатой. Сначала отмените распределение оплаты в банковском учёте.');

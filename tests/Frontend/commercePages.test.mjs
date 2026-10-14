@@ -507,6 +507,51 @@ test('Admin sale save updates headers, retained lines and new goods in one PATCH
     assert.equal(api.totalAmount.value, 150)
 })
 
+test('a shipped order sale accepts its final fractional weight and recalculates the sale at the agreed price', async () => {
+    const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
+    const { api, requests, renderModelControl } = harness
+    const sale = {
+        ...editableSale(),
+        id: 252,
+        order_id: 604,
+        total: '3981.00',
+        goods: [{
+            id: 132,
+            name: 'Тресковые породы филе-кубики зам.',
+            pivot: { id: 71, measure_id: 1, quantity: '7.400000', price: '537.972973', total: '3981.00' },
+        }],
+    }
+    await loadEditableSale(harness, sale)
+    assert.equal(api.saleForm.manualTotal, false)
+    const line = api.saleForm.goods[0]
+    const control = renderModelControl('line.quantity', { line, index: 0 })
+    assert.notEqual(control.props.readonly, true)
+    assert.notEqual(control.props.disabled, true)
+    assert.equal(control.props.step, 'any', 'the quantity control accepts fractional weights')
+    for (const update of [].concat(control.props['onUpdate:modelValue'])) update('7.625')
+    assert.equal(line.quantity, '7.625')
+    assert.equal(line.price, '537.972973', 'changing weight preserves the agreed unit price')
+    assert.equal(line.total, 4102.04)
+    assert.equal(api.effectiveSaleTotal.value, 4102.04)
+    assert.equal(api.canSubmitSale.value, true)
+    assert.equal(sale.goods[0].pivot.quantity, '7.400000', 'the draft leaves the original snapshot untouched')
+
+    const pending = api.submitSale()
+    assert.equal(requests[2].method, 'PATCH')
+    assert.equal(requests[2].url, '/api/sales/252')
+    assert.equal(requests[2].body.total, null, 'the saved sale total is derived from its actual lines')
+    assert.deepEqual(requests[2].body.goods, [{
+        id: 71, good_id: 132, measure_id: 1, quantity: 7.625, price: 537.972973, total: 4102.04,
+    }])
+    assert.equal('order_id' in requests[2].body, false, 'editing a sale cannot overwrite its source order link')
+    requests[2].resolve({ data: { ...sale, total: 4102.04 } })
+    await Promise.resolve()
+    requests[3].resolve({ data: [{ ...sale, total: 4102.04 }], meta: { total: 1, total_amount: 4102.04 } })
+    await pending
+    assert.equal(api.dialog.value, false)
+    assert.equal(api.totalAmount.value, 4102.04)
+})
+
 test('sale unit selector is editable for Admin corrections and locked for new sales or missing permission', async () => {
     const harness = pageHarness('resources/js/Components/Grossbuch/GrossbuchSales.vue', { manageSales: true })
     const { api, page, renderModelControl } = harness
