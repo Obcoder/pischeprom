@@ -160,6 +160,21 @@ class BuildingFloorManagementTest extends TestCase
         $this->getJson('/api/building-entity-options?search=1234567890')->assertOk()->assertJsonPath('0.id', $entity->id);
     }
 
+    public function test_registry_paginates_newest_buildings_first_with_stable_order_for_equal_dates(): void
+    {
+        $new = Building::create(['address' => 'Ясная, 1']);
+        $old = Building::create(['address' => 'Арбат, 2']);
+        $sameDate = Building::create(['address' => 'Мира, 3']);
+        $new->forceFill(['created_at' => '2026-10-14 12:00:00'])->save();
+        $old->forceFill(['created_at' => '2025-01-01 12:00:00'])->save();
+        $sameDate->forceFill(['created_at' => '2026-10-14 12:00:00'])->save();
+
+        foreach ([$sameDate, $new, $old] as $index => $building) {
+            $this->getJson('/api/buildings?structure=1&per_page=1&page='.($index + 1))
+                ->assertOk()->assertJsonPath('data.0.id', $building->id)->assertJsonPath('meta.total', 3);
+        }
+    }
+
     public function test_migration_backfills_only_valid_explicit_room_links_without_inventing_floors(): void
     {
         $migration = require database_path('migrations/2026_10_14_120000_create_building_floors_and_apartment_entities.php');

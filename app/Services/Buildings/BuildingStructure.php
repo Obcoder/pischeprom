@@ -39,7 +39,7 @@ class BuildingStructure
             'entities' => DB::table('apartment_entity')->join('apartments', 'apartments.id', '=', 'apartment_entity.apartment_id')
                 ->whereIn('apartments.building_id', clone $ids)->distinct()->count('entity_id'),
         ];
-        $page = $this->relations($query)->orderBy('address')->orderBy('id')->paginate($input['per_page'] ?? 50);
+        $page = $this->relations($query)->orderByDesc('created_at')->orderByDesc('id')->paginate($input['per_page'] ?? 50);
 
         return ['data' => $page->items(), 'summary' => $summary,
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(), 'per_page' => $page->perPage()]];

@@ -100,3 +100,22 @@ test('floor plan buttons expose room types and Entity links in accessible labels
     harness(t, 'resources/js/Components/Geography/Buildings/BuildingFloorPlan.vue', { building: structure() })
     assert.match(floors.roomTitle(structure().apartments[0]), /офис 12А.*Entity 7.*Вход со двора/)
 })
+
+test('clearing search restores the first page immediately and ignores the previous search response', async t => {
+    const { api, requests } = harness(t, workspace)
+    api.filters.city_id = 4; await tick()
+    requests[0].resolve({ data: [], summary: {}, meta: { current_page: 1, last_page: 1, total: 0, per_page: 50 } }); await tick()
+    api.filters.search = 'Мира'; await tick()
+    const searching = api.loadBuildings(2)
+    api.clearSearch(); await tick()
+    assert.equal(api.filters.search, '')
+    assert.equal(requests[2].body.params.search, undefined)
+    assert.equal(requests[2].body.params.page, 1)
+    assert.equal(requests[2].body.params.city_id, 4)
+    const restored = { data: [structure(), { id: 9, address: 'Другое здание' }], summary: { buildings: 2 }, meta: { current_page: 1, last_page: 1, total: 2, per_page: 50 } }
+    requests[2].resolve(restored); await tick()
+    requests[1].resolve({ ...restored, data: [structure()], summary: { buildings: 1 }, meta: { ...restored.meta, total: 1, current_page: 2 } }); await searching
+    assert.equal(api.buildings.value.length, 2)
+    assert.equal(api.meta.current_page, 1)
+    assert.equal(api.summary.value.buildings, 2)
+})

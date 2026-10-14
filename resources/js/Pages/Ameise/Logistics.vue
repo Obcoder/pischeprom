@@ -168,7 +168,7 @@ provide('logisticsPermissions', permissions)
                 </keep-alive>
             </div>
 
-            <footer class="logistics-attribution">
+            <footer v-if="activeTab !== 'buildings'" class="logistics-attribution">
                 Дорожные расчёты при включённом routing: Valhalla. Данные карт: © OpenStreetMap contributors, ODbL. Живые пробки не учитываются.
             </footer>
         </div>
@@ -327,8 +327,8 @@ provide('logisticsPermissions', permissions)
     .logistics-toolbar__actions { width: 100%; }
     .logistics-toolbar__actions .v-btn { flex: 1; }
 }
-.logistics-page--buildings { padding: 8px 12px 16px; }
-.logistics-page--buildings .logistics-page__shell { width: 100%; }
+.logistics-page--buildings { height: calc(100dvh - var(--v-layout-top, 58px)); min-height: 0; padding: 8px 12px 24px; overflow: hidden; box-sizing: border-box; }
+.logistics-page--buildings .logistics-page__shell { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .logistics-page--buildings .logistics-page__header { margin-bottom: 6px; align-items: center; gap: 8px; }
 .logistics-page--buildings .logistics-page__header h1 { font-size: 16px; margin: 0; }
 .logistics-page--buildings .logistics-page__header p, .logistics-page--buildings .logistics-page__eyebrow { display: none; }
@@ -336,7 +336,7 @@ provide('logisticsPermissions', permissions)
 .logistics-page--buildings .logistics-tabs { border-radius: 5px !important; }
 .logistics-page--buildings .v-tabs { --v-tabs-height: 32px; }
 .logistics-page--buildings .logistics-tabs .v-tab { font-size: 11px; min-width: 70px; padding-inline: 10px; }
-.logistics-page--buildings .logistics-tab-content { margin-top: 7px; }
-.logistics-page--buildings .logistics-attribution { font-size: 10px; margin-top: 7px; }
+.logistics-page--buildings .logistics-page__header, .logistics-page--buildings .logistics-tabs { flex-shrink: 0; }
+.logistics-page--buildings .logistics-tab-content { margin-top: 7px; flex: 1; min-height: 0; display: flex; }
 @media (max-width: 700px) { .logistics-page--buildings .logistics-page__header { flex-direction: row; } }
 </style>
