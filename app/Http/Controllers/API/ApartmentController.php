@@ -19,7 +19,16 @@ class ApartmentController extends Controller
 
     public function store(Request $request, Building $building): JsonResponse
     {
-        return response()->json($building->apartments()->create($this->validated($request, $building)), 201);
+        $data = $this->validated($request, $building);
+        $apartment = DB::transaction(function () use ($building, $data): Apartment {
+            Building::withoutEagerLoads()->whereKey($building->id)->lockForUpdate()->firstOrFail();
+            $this->assertFloor($building, $data);
+            abort_if($building->apartments()->where('number', $data['number'])->where('type', $data['type'])->exists(), 409, 'Помещение с таким номером уже существует.');
+
+            return $building->apartments()->create($data);
+        });
+
+        return response()->json($apartment, 201);
     }
 
     public function show(Building $building, Apartment $apartment): JsonResponse
@@ -33,8 +42,11 @@ class ApartmentController extends Controller
     {
         abort_unless($apartment->building_id === $building->id, 404);
         $data = $this->validated($request, $building, $apartment);
-        $apartment = DB::transaction(function () use ($apartment, $data): Apartment {
+        $apartment = DB::transaction(function () use ($building, $apartment, $data): Apartment {
+            Building::withoutEagerLoads()->whereKey($building->id)->lockForUpdate()->firstOrFail();
+            $this->assertFloor($building, $data);
             $locked = Apartment::query()->whereKey($apartment->id)->lockForUpdate()->firstOrFail();
+            abort_if($building->apartments()->where('number', $data['number'])->where('type', $data['type'])->whereKeyNot($locked->id)->exists(), 409, 'Помещение с таким номером уже существует.');
             $locked->fill($data);
 
             if ($locked->isDirty(['number', 'type'])) {
@@ -64,8 +76,10 @@ class ApartmentController extends Controller
     {
         abort_unless($apartment->building_id === $building->id, 404);
 
-        DB::transaction(function () use ($apartment): void {
+        DB::transaction(function () use ($building, $apartment): void {
+            Building::withoutEagerLoads()->whereKey($building->id)->lockForUpdate()->firstOrFail();
             $locked = Apartment::query()->whereKey($apartment->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->entities()->exists(), 409, 'Помещение связано с Entity. Сначала удалите привязки.');
             foreach (['building_order', 'building_unit', 'building_entities'] as $table) {
                 abort_if(DB::table($table)->where('apartment_id', $locked->id)->exists(), 409,
                     'Помещение используется в заказе, организации или компании. Сначала удалите его привязки.');
@@ -91,6 +105,15 @@ class ApartmentController extends Controller
                     ->ignore($apartment?->id),
             ],
             'type' => ['bail', 'required', 'string', Rule::in(Apartment::TYPES)],
+            'building_floor_id' => ['sometimes', 'nullable', 'integer', Rule::exists('building_floors', 'id')->where('building_id', $building->id)],
+            'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
         ]);
+    }
+
+    private function assertFloor(Building $building, array $data): void
+    {
+        if (! empty($data['building_floor_id'])) {
+            abort_unless($building->floors()->whereKey($data['building_floor_id'])->exists(), 409, 'Этаж удалён. Обновите список и выберите другой этаж.');
+        }
     }
 }

@@ -197,6 +197,9 @@ class AvitoCrmService
             $entity->buildings()->syncWithoutDetaching([
                 $building->id => $apartment ? ['apartment_id' => $apartment->id] : [],
             ]);
+            app(\App\Services\Buildings\ApartmentEntityLinks::class)->remember($entity, [
+                $building->id => ['apartment_id' => $apartment?->id],
+            ]);
 
             if ($candidate) {
                 $candidate->update([

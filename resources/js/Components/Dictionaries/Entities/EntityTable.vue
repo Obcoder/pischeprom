@@ -187,6 +187,11 @@ const geographyGroups = (entity) => {
         const group = groupFor(building.city)
         group.addresses.push(building)
     }
+    for (const room of entity.apartments || []) {
+        if ((entity.buildings || []).some(building => Number(building.apartment_id ?? building.pivot?.apartment_id) === Number(room.id))) continue
+        const group = groupFor(room.geography)
+        group.addresses.push({ id: `room-${room.id}`, address: room.address, postcode: room.postcode, apartment: room })
+    }
 
     const result = [...groups.values()]
     const country = entity.country?.name || entity.country_name

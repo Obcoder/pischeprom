@@ -138,6 +138,11 @@ class CustomerOrderController extends Controller
             if ($canManageEntity && ! $entity->buildings()->whereKey($building->id)->exists()) {
                 $entity->buildings()->attach($building->id, ['apartment_id' => $apartment?->id]);
             }
+            if ($canManageEntity && $apartment) {
+                app(\App\Services\Buildings\ApartmentEntityLinks::class)->remember($entity, [
+                    $building->id => ['apartment_id' => $apartment->id],
+                ]);
+            }
 
             $order = Order::query()->create([
                 'number' => Order::generateNumber(),

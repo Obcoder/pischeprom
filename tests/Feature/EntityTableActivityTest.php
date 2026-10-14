@@ -122,8 +122,21 @@ class EntityTableActivityTest extends TestCase
         Schema::create('apartments', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('building_id');
+            $table->unsignedBigInteger('building_floor_id')->nullable();
             $table->string('number');
             $table->string('type');
+            $table->timestamps();
+        });
+        Schema::create('building_floors', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('building_id');
+            $table->smallInteger('number');
+            $table->string('name')->nullable();
+        });
+        Schema::create('apartment_entity', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('apartment_id');
+            $table->unsignedBigInteger('entity_id');
             $table->timestamps();
         });
 

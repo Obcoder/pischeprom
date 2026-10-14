@@ -99,6 +99,7 @@ const regionNames = (item) => {
     const regions = [
         ...(item.cities || []).map(city => city.region),
         ...(item.buildings || []).map(building => building.city?.region),
+        ...(item.apartments || []).map(room => room.geography?.region),
     ].filter(region => region?.id || region?.name)
 
     return [...new Map(regions.map(region => [region.id || region.name, region.name])).values()]
@@ -110,6 +111,7 @@ const cityNames = (item) => {
     const cities = [
         ...(item.cities || []),
         ...(item.buildings || []).map(building => building.city),
+        ...(item.apartments || []).map(room => room.geography),
     ].filter(city => city?.id || city?.name)
 
     return [...new Map(cities.map(city => [city.id || city.name, city.name])).values()]

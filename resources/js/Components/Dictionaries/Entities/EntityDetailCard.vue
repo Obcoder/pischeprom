@@ -259,11 +259,14 @@ function paymentDraftUrl() {
                         </div>
 
                         <div class="entity-address-list">
+                            <a v-for="room in entity?.apartments || []" :key="`room-${room.id}`" :href="`/Ameise/logistics?tab=buildings&building_id=${room.building_id}`">
+                                {{ [room.city, room.address, room.floor ? `${room.floor.number} эт.` : 'Без этажа', room.label].filter(Boolean).join(', ') }}
+                            </a>
                             <div v-for="building in buildings" :key="building.id">
                                 {{ building.address }}
                             </div>
 
-                            <span v-if="emptyText(buildings)" class="entity-empty">Здания не указаны</span>
+                            <span v-if="emptyText(buildings) && !entity?.apartments?.length" class="entity-empty">Адреса не указаны</span>
                         </div>
                     </section>
 

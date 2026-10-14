@@ -220,9 +220,13 @@ class EntityController extends Controller
             }
 
             $ids = $this->relationIds($request, $relation);
-            $entity->{$relation}()->sync($relation === 'buildings'
+            $pivots = $relation === 'buildings'
                 ? app(BuildingApartmentSelection::class)->forBuildings($ids, $request->input('building_apartments', []))
-                : $ids);
+                : $ids;
+            $entity->{$relation}()->sync($pivots);
+            if ($relation === 'buildings') {
+                app(\App\Services\Buildings\ApartmentEntityLinks::class)->remember($entity, $pivots);
+            }
         }
     }
 

@@ -221,6 +221,9 @@ class MailMessageCrmService
         $pivot = $apartment ? ['apartment_id' => $apartment->id] : [];
         if (! empty($data['entity_id'])) {
             $building->entities()->syncWithoutDetaching([$data['entity_id'] => $pivot]);
+            if ($apartment) {
+                $apartment->entities()->syncWithoutDetaching([$data['entity_id']]);
+            }
         }
         if (! empty($data['unit_id'])) {
             $building->units()->syncWithoutDetaching([$data['unit_id'] => $pivot]);

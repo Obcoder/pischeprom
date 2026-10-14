@@ -846,6 +846,11 @@ Route::middleware('verified')->group(function () {
 
 Route::apiResource('brands', BrandController::class);
 Route::apiResource('buildings', BuildingController::class);
+Route::get('building-entity-options', [\App\Http\Controllers\API\BuildingStructureController::class, 'entities']);
+Route::get('buildings/{building}/structure', [\App\Http\Controllers\API\BuildingStructureController::class, 'show']);
+Route::apiResource('buildings.floors', \App\Http\Controllers\API\BuildingFloorController::class)->except('show');
+Route::post('buildings/{building}/apartments/{apartment}/entities', [\App\Http\Controllers\API\BuildingStructureController::class, 'attach']);
+Route::delete('buildings/{building}/apartments/{apartment}/entities/{entity}', [\App\Http\Controllers\API\BuildingStructureController::class, 'detach'])->whereNumber('entity');
 Route::apiResource('buildings.apartments', ApartmentController::class)->names('api.buildings.apartments');
 Route::apiResource('building-types', BuildingTypeController::class)
     ->parameters(['building-types' => 'buildingType']);

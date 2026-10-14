@@ -32,6 +32,11 @@ class Building extends Model
 
     protected $appends = ['apartment'];
 
+    public function floors(): HasMany
+    {
+        return $this->hasMany(BuildingFloor::class)->orderByDesc('number');
+    }
+
     public function apartments(): HasMany
     {
         return $this->hasMany(Apartment::class)->orderBy('number')->orderBy('id');

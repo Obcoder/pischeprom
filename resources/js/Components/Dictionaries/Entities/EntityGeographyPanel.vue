@@ -7,7 +7,7 @@ const props = defineProps({
 })
 
 const cities = computed(() => {
-    const items = [...(props.entity?.cities || []), ...(props.entity?.buildings || []).map(building => building.city)]
+    const items = [...(props.entity?.cities || []), ...(props.entity?.buildings || []).map(building => building.city), ...(props.entity?.apartments || []).map(room => room.geography)]
     return [...new Map(items.filter(city => city?.id).map(city => [city.id, city])).values()]
 })
 const buildings = computed(() => props.entity?.buildings || [])
@@ -32,7 +32,13 @@ const buildings = computed(() => props.entity?.buildings || [])
                 <span>{{ [building.postcode, building.city?.name, building.address, buildingApartmentLabel(building)].filter(Boolean).join(', ') }}</span>
             </div>
         </div>
-        <p v-else class="entity-geography__empty">Здания не указаны</p>
+        <div v-if="entity?.apartments?.length" class="entity-geography__addresses">
+            <a v-for="room in entity.apartments" :key="room.id" class="entity-geography__address" :href="`/Ameise/logistics?tab=buildings&building_id=${room.building_id}`">
+                <v-icon icon="mdi-door" size="15" />
+                <span>{{ [room.city, room.address, room.floor ? `${room.floor.number} эт.` : 'Без этажа', room.label].filter(Boolean).join(', ') }}</span>
+            </a>
+        </div>
+        <p v-if="!buildings.length && !entity?.apartments?.length" class="entity-geography__empty">Адреса не указаны</p>
     </section>
 </template>
 

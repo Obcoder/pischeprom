@@ -76,6 +76,21 @@ class EntityResource extends JsonResource
                 ],
             ])),
 
+            'apartments' => $this->whenLoaded('apartments', fn () => $this->apartments->map(fn ($room) => [
+                'id' => $room->id, 'number' => $room->number, 'type' => $room->type, 'label' => $room->label,
+                'building_id' => $room->building_id, 'building_floor_id' => $room->building_floor_id,
+                'floor' => $room->floor ? ['id' => $room->floor->id, 'number' => $room->floor->number, 'name' => $room->floor->name] : null,
+                'address' => $room->building?->address, 'city' => $room->building?->city?->name,
+                'postcode' => $room->building?->postcode,
+                'geography' => $room->building?->city ? [
+                    'id' => $room->building->city->id, 'name' => $room->building->city->name,
+                    'region' => $room->building->city->region ? [
+                        'id' => $room->building->city->region->id, 'name' => $room->building->city->region->name,
+                        'country' => $room->building->city->region->country?->only(['id', 'name']),
+                    ] : null,
+                ] : null,
+            ])->values()),
+
             'emails' => $this->whenLoaded('emails', fn () => $this->emails->map(fn ($item) => [
                 'id' => $item->id,
                 'address' => $item->address,
@@ -146,6 +161,10 @@ class EntityResource extends JsonResource
                     ->map(fn ($building) => $building->city?->region)
                     ->filter(fn ($region) => $region?->id)
             );
+        }
+
+        if ($this->relationLoaded('apartments')) {
+            $regions = $regions->merge($this->apartments->map(fn ($room) => $room->building?->city?->region)->filter(fn ($region) => $region?->id));
         }
 
         return $regions

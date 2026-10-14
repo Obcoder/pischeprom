@@ -55,6 +55,11 @@ class Entity extends Model
         return $this->belongsToMany(Building::class, 'building_entities')->withPivot('apartment_id');
     }
 
+    public function apartments(): BelongsToMany
+    {
+        return $this->belongsToMany(Apartment::class)->withTimestamps();
+    }
+
     public function chats(): BelongsToMany
     {
         return $this->belongsToMany(Chat::class);
@@ -197,6 +202,8 @@ class Entity extends Model
             'country',
             'buildings.city.region.country',
             'buildings.buildingType',
+            'apartments.floor',
+            'apartments.building' => fn ($query) => $query->withoutEagerLoads()->with('city.region.country'),
             'cities.region.country',
             'emails',
             'telephones',
@@ -244,7 +251,8 @@ class Entity extends Model
                 ->orWhereHas('telephones', fn (Builder $sq) => $sq->where('number', 'like', "%{$search}%"))
                 ->orWhereHas('units', fn (Builder $sq) => $sq->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('chats', fn (Builder $sq) => $sq->where('numbers', 'like', "%{$search}%"))
-                ->orWhereHas('buildings', fn (Builder $sq) => $sq->where('address', 'like', "%{$search}%"));
+                ->orWhereHas('buildings', fn (Builder $sq) => $sq->where('address', 'like', "%{$search}%"))
+                ->orWhereHas('apartments.building', fn (Builder $sq) => $sq->where('address', 'like', "%{$search}%"));
         });
     }
 
@@ -275,25 +283,29 @@ class Entity extends Model
                 $q->where(function (Builder $geography) use ($countryIds) {
                     $geography->whereIn('entities.country_id', $countryIds)
                         ->orWhereHas('cities.region', fn (Builder $region) => $region->whereIn('regions.country_id', $countryIds))
-                        ->orWhereHas('buildings.city.region', fn (Builder $region) => $region->whereIn('regions.country_id', $countryIds));
+                        ->orWhereHas('buildings.city.region', fn (Builder $region) => $region->whereIn('regions.country_id', $countryIds))
+                        ->orWhereHas('apartments.building.city.region', fn (Builder $region) => $region->whereIn('regions.country_id', $countryIds));
                 });
             })
             ->when(! empty($filters['region_ids']), function (Builder $q) use ($filters) {
                 $regionIds = (array) $filters['region_ids'];
                 $q->where(function (Builder $geography) use ($regionIds) {
                     $geography->whereHas('cities.region', fn (Builder $region) => $region->whereIn('regions.id', $regionIds))
-                        ->orWhereHas('buildings.city.region', fn (Builder $region) => $region->whereIn('regions.id', $regionIds));
+                        ->orWhereHas('buildings.city.region', fn (Builder $region) => $region->whereIn('regions.id', $regionIds))
+                        ->orWhereHas('apartments.building.city.region', fn (Builder $region) => $region->whereIn('regions.id', $regionIds));
                 });
             })
             ->when(! empty($filters['city_ids']), function (Builder $q) use ($filters) {
                 $cityIds = (array) $filters['city_ids'];
                 $q->where(function (Builder $geography) use ($cityIds) {
                     $geography->whereHas('cities', fn (Builder $city) => $city->whereIn('cities.id', $cityIds))
-                        ->orWhereHas('buildings.city', fn (Builder $city) => $city->whereIn('cities.id', $cityIds));
+                        ->orWhereHas('buildings.city', fn (Builder $city) => $city->whereIn('cities.id', $cityIds))
+                        ->orWhereHas('apartments.building.city', fn (Builder $city) => $city->whereIn('cities.id', $cityIds));
                 });
             })
             ->when(! empty($filters['building_ids']), function (Builder $q) use ($filters) {
-                $q->whereHas('buildings', fn (Builder $sq) => $sq->whereIn('buildings.id', (array) $filters['building_ids']));
+                $q->where(fn (Builder $q) => $q->whereHas('buildings', fn (Builder $sq) => $sq->whereIn('buildings.id', (array) $filters['building_ids']))
+                    ->orWhereHas('apartments', fn (Builder $sq) => $sq->whereIn('apartments.building_id', (array) $filters['building_ids'])));
             })
             ->when(! empty($filters['email_ids']), function (Builder $q) use ($filters) {
                 $q->whereHas('emails', fn (Builder $sq) => $sq->whereIn('emails.id', (array) $filters['email_ids']));

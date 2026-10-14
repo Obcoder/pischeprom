@@ -126,6 +126,7 @@ jobs:
             database/migrations/2026_09_28_121000_add_apartment_details_to_good_inquiries.php \
             database/migrations/2026_10_11_130000_allow_orders_with_multiple_currencies.php \
             tests/Feature/BuildingApartmentManagementTest.php \
+            tests/Feature/BuildingFloorManagementTest.php \
             tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/OrderManagementTest.php \
             tests/Feature/OrderInlineEditingTest.php \
@@ -182,6 +183,17 @@ jobs:
             tests/Feature/GoodMeasurementTest.php \
             tests/Feature/GoodMeasurementWorkflowTest.php \
             tests/Feature/PublicGoodLandingTest.php
+
+      - name: Check building floors and apartment Entity links
+        run: |
+          vendor/bin/pint --test \
+            app/Http/Controllers/API/BuildingFloorController.php \
+            app/Http/Controllers/API/BuildingStructureController.php \
+            app/Http/Controllers/API/BuildingController.php \
+            app/Models/BuildingFloor.php \
+            app/Services/Buildings \
+            database/migrations/2026_10_14_120000_create_building_floors_and_apartment_entities.php \
+            tests/Feature/BuildingFloorManagementTest.php
 
       - name: Check supplier registry and monitoring PHP style
         run: |
@@ -693,6 +705,7 @@ jobs:
             tests/Feature/OrderStatusManagementTest.php \
             tests/Feature/Mobile \
             tests/Feature/BuildingApartmentManagementTest.php \
+            tests/Feature/BuildingFloorManagementTest.php \
             tests/Feature/CustomerOrderApartmentTest.php \
             tests/Feature/MobileOrderFulfillmentTest.php \
             tests/Feature/RegistrationTest.php \

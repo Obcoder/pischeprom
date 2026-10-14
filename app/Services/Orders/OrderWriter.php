@@ -128,6 +128,7 @@ class OrderWriter
                     $id => $buildingPivots[$id],
                 ])->all();
                 $entity->buildings()->syncWithoutDetaching($newBuildings);
+                app(\App\Services\Buildings\ApartmentEntityLinks::class)->remember($entity, $buildingPivots);
             }
 
             return $order->fresh($this->relations());
