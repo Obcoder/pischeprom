@@ -62,6 +62,7 @@ const canApplyPrice = computed(() => Boolean(
     props.mutationsEnabled
     && confirmed.value
     && preview.value?.price?.can_apply
+    && preview.value?.source_fingerprint
     && !applying.value,
 ))
 
@@ -73,10 +74,10 @@ watch(
     { immediate: true },
 )
 watch(goodsSearch, () => debouncedGoodsSearch())
-watch(selectedFields, invalidatePreview, { deep: true })
-watch(priceValueId, invalidatePreview)
-watch(mediaIds, invalidatePreview, { deep: true })
-watch(includeFacts, invalidatePreview)
+watch(selectedFields, invalidatePreview, { deep: true, flush: 'sync' })
+watch(priceValueId, invalidatePreview, { flush: 'sync' })
+watch(mediaIds, invalidatePreview, { deep: true, flush: 'sync' })
+watch(includeFacts, invalidatePreview, { flush: 'sync' })
 onBeforeUnmount(() => debouncedGoodsSearch.cancel())
 
 async function loadLink() {
@@ -180,6 +181,7 @@ async function applyGoodPrice() {
             {
                 ...transferPayload(),
                 confirmed: true,
+                expected_fingerprint: preview.value.source_fingerprint,
                 connection_id: positiveInteger(props.authConnectionId) || undefined,
             },
         )
@@ -191,7 +193,8 @@ async function applyGoodPrice() {
         emit('price-applied', { price, transfer: data.transfer })
         emit('notice', `Цена из Good применена в Avito: ${formatMoney(price, 'RUB')}.`)
     } catch (exception) {
-        showError(exception, 'Avito не применил цену из Good.')
+        invalidatePreview()
+        showError(exception, 'Ответ не получен. Проверьте цену в Avito перед повторной отправкой.')
     } finally {
         applying.value = false
     }
@@ -322,6 +325,10 @@ function formatMoney(value, currency = 'RUB') {
         currency: String(currency || 'RUB').toUpperCase(),
         maximumFractionDigits: 2,
     }).format(Number(value))
+}
+
+function formatQuantity(value) {
+    return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 8 })
 }
 
 function formatDate(value) {
@@ -481,11 +488,14 @@ function formatDate(value) {
                     <header><strong>Цена</strong><v-chip size="x-small" color="success" variant="tonal">API</v-chip></header>
                     <div class="compare-grid">
                         <small>Avito сейчас</small><span>{{ formatMoney(preview.price.avito_current_value, 'RUB') }}</span>
-                        <small>Good · {{ preview.price.price_type }}</small><strong>{{ formatMoney(preview.price.good_value, preview.price.currency_code) }}</strong>
-                        <small>Будет передано</small><strong>{{ formatMoney(preview.price.avito_value, 'RUB') }}</strong>
+                        <small>Good · {{ preview.price.price_type }}</small><strong>{{ formatMoney(preview.price.good_value, preview.price.currency_code) }} / {{ preview.price.unit_label || preview.price.measurement?.unit_label || 'ед.' }}</strong>
+                        <small>Единица продажи</small><strong>1 {{ preview.price.sale_unit_label || preview.price.unit_label || 'ед.' }} = {{ formatQuantity(preview.price.price_basis?.quantity ?? 1) }} {{ preview.price.unit_label || 'ед.' }}</strong>
+                        <small>Будет передано</small><strong>{{ formatMoney(preview.price.avito_value, 'RUB') }} / {{ preview.price.sale_unit_label || preview.price.unit_label || 'ед.' }}</strong>
                     </div>
+                    <p v-if="preview.price.formula" class="transfer-note">{{ preview.price.formula }}</p>
+                    <p class="transfer-note">Проверьте единицу продажи в объявлении. Передаётся только сумма; текст и название упаковки обновляются отдельно.</p>
                     <v-alert v-if="!mutationsEnabled" type="info" variant="tonal" density="compact" class="transfer-alert">Изменения Avito отключены серверным флагом.</v-alert>
-                    <v-checkbox v-model="confirmed" density="compact" color="warning" hide-details label="Подтверждаю изменение цены в Avito" />
+                    <v-checkbox v-model="confirmed" density="compact" color="warning" hide-details :label="`Подтверждаю ${formatMoney(preview.price.avito_value, 'RUB')} / ${preview.price.sale_unit_label || preview.price.unit_label || 'ед.'} (${formatQuantity(preview.price.price_basis?.quantity ?? 1)} ${preview.price.unit_label || 'ед.'}) в Avito`" />
                     <v-btn block size="small" color="success" :disabled="!canApplyPrice" :loading="applying" prepend-icon="mdi-cloud-upload-outline" @click="applyGoodPrice">
                         Применить цену Good в Avito
                     </v-btn>

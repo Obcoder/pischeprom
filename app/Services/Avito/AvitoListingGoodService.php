@@ -27,6 +27,7 @@ class AvitoListingGoodService
     public function __construct(
         private readonly AvitoCrmOutboundService $goods,
         private readonly AvitoListingService $listings,
+        private readonly AvitoPriceBasis $priceBasis,
     ) {}
 
     public function searchGoods(?string $search): array
@@ -140,6 +141,7 @@ class AvitoListingGoodService
             $link->fill([
                 'good_id' => $good->id,
                 'last_price_value_id' => null,
+                'price_basis' => null,
                 'last_selected_fields' => null,
                 'last_media_ids' => null,
                 'include_facts' => true,
@@ -188,6 +190,7 @@ class AvitoListingGoodService
                 'selected_fields' => $transfer->selected_fields ?: [],
                 'applied_fields' => $transfer->applied_fields ?: [],
                 'manual_fields' => $transfer->manual_fields ?: [],
+                'price' => Arr::only((array) Arr::get($transfer->source_snapshot, 'price', []), ['good_value', 'avito_value', 'price_basis', 'formula']),
                 'created_at' => $transfer->created_at?->toIso8601String(),
             ])
             ->values();
@@ -200,6 +203,7 @@ class AvitoListingGoodService
                 'good_id' => $link->good_id,
                 'good' => $this->goodPayload($link->good, $link),
                 'last_price_value_id' => $link->last_price_value_id,
+                'price_basis' => $link->price_basis,
                 'last_selected_fields' => $link->last_selected_fields ?: [],
                 'last_media_ids' => $link->last_media_ids ?: [],
                 'include_facts' => $link->include_facts,
@@ -345,6 +349,7 @@ class AvitoListingGoodService
             }
             $current->update([
                 'last_price_value_id' => $preview['price']['price_value_id'],
+                'price_basis' => $preview['price']['price_basis'],
                 'last_selected_fields' => $selectedFields,
                 'last_media_ids' => collect($preview['images'] ?? [])->pluck('id')->values()->all(),
                 'include_facts' => (bool) ($input['include_facts'] ?? true),
@@ -396,6 +401,7 @@ class AvitoListingGoodService
             throw new AvitoException('Связанный товар удалён. Обновите данные объявления.', 'good_transfer_stale', 409);
         }
         $good = $this->goodPayload($link->good, $link);
+        $basis = $input['price_basis'] ?? $link->price_basis ?? ['mode' => 'unit'];
         $selectedFields = collect($input['fields'] ?? [])
             ->filter(fn ($field): bool => in_array($field, self::FIELDS, true))
             ->unique()
@@ -416,14 +422,14 @@ class AvitoListingGoodService
         }
 
         $description = $selectedFields->contains('description')
-            ? $this->description($good, (bool) ($input['include_facts'] ?? true))
+            ? $this->description($good, (bool) ($input['include_facts'] ?? true), $basis)
             : null;
         if ($selectedFields->contains('description') && $description === '') {
             $warnings[] = 'В Good нет описания или дополнительных фактов.';
         }
 
         $price = $selectedFields->contains('price')
-            ? $this->price($good, (int) ($input['price_value_id'] ?? 0), $warnings)
+            ? $this->price($good, (int) ($input['price_value_id'] ?? 0), $warnings, $basis)
             : null;
         if ($price !== null) {
             $publication = AvitoPublication::query()
@@ -484,6 +490,7 @@ class AvitoListingGoodService
 
         $result['source_fingerprint'] = hash('sha256', json_encode([
             'link' => [$link->id, $link->good_id, $link->avito_account_id, $link->avito_item_id],
+            'saved_price_basis' => $link->price_basis,
             'fields' => $selectedFields->all(),
             'title' => $title,
             'description' => $description,
@@ -494,7 +501,7 @@ class AvitoListingGoodService
         return $result;
     }
 
-    private function price(array $good, int $priceValueId, array &$warnings): array
+    private function price(array $good, int $priceValueId, array &$warnings, array $basis): array
     {
         $price = collect($good['prices'] ?? [])->firstWhere('id', $priceValueId);
         if (! $price) {
@@ -528,13 +535,12 @@ class AvitoListingGoodService
             $blockReason = 'Срок действия выбранной цены завершён.';
         }
 
-        $avitoValue = is_numeric($amount) ? (int) round((float) $amount) : null;
-        if ($canApply && ($avitoValue < 0 || $avitoValue > 999999999999)) {
-            $canApply = false;
-            $blockReason = 'Цена выходит за допустимый диапазон Avito.';
-        }
-        if ($canApply && abs((float) $amount - (float) $avitoValue) > 0.00001) {
-            $warnings[] = "Avito принимает целую цену: {$amount} RUB будет округлено до {$avitoValue} RUB.";
+        $calculated = $this->priceBasis->calculate($good, $amount, $basis);
+        $canApply = $canApply && $calculated['can_apply'];
+        $blockReason ??= $calculated['block_reason'];
+        $avitoValue = $calculated['avito_value'];
+        if ($canApply && abs($calculated['total_unrounded'] - (float) $avitoValue) > 0.00001) {
+            $warnings[] = "Avito принимает целую цену: итог {$calculated['total_unrounded']} RUB будет округлён до {$avitoValue} RUB.";
         }
         if ($blockReason) {
             $warnings[] = $blockReason;
@@ -555,7 +561,7 @@ class AvitoListingGoodService
             'basis' => 'good_unit',
             'valid_from' => $price['valid_from'] ?? null,
             'valid_to' => $price['valid_to'] ?? null,
-        ];
+        ] + Arr::except($calculated, ['can_apply', 'block_reason', 'avito_value']);
     }
 
     private function images(array $good, array $mediaIds): array
@@ -580,7 +586,7 @@ class AvitoListingGoodService
         })->values()->all();
     }
 
-    private function description(array $good, bool $includeFacts): string
+    private function description(array $good, bool $includeFacts, array $basis): string
     {
         $parts = array_values(array_filter([
             trim((string) ($good['description'] ?? '')),
@@ -589,7 +595,10 @@ class AvitoListingGoodService
         if ($includeFacts) {
             $facts = [];
             if (filled(Arr::get($good, 'measurement.unit_label'))) {
-                $facts[] = 'Единица количества и цены: '.Arr::get($good, 'measurement.unit_label');
+                $facts[] = 'Единица учёта товара: '.Arr::get($good, 'measurement.unit_label');
+            }
+            if ($priceFact = $this->priceBasis->descriptionFact($good, $basis)) {
+                $facts[] = $priceFact;
             }
             if (is_numeric($good['denominator'] ?? null)) {
                 $facts[] = 'Фасовка: '.$this->number((float) $good['denominator']).' кг';
@@ -616,6 +625,7 @@ class AvitoListingGoodService
     public function goodPayload(Good $good, ?AvitoListingGoodLink $link = null): array
     {
         $payload = $this->goods->goodPayload($good);
+        $payload['avito_price_basis'] = $this->priceBasis->options($payload);
         // The public listing must never inherit wholesale/private price types or
         // an assumed RUB currency from the CRM messaging payload.
         $payload['prices'] = $good->priceTypeValues()

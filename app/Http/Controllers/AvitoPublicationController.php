@@ -8,6 +8,7 @@ use App\Models\AvitoConnection;
 use App\Models\AvitoPublication;
 use App\Models\Good;
 use App\Services\Avito\AvitoAutoloadApiService;
+use App\Services\Avito\AvitoPriceBasis;
 use App\Services\Avito\AvitoPublicationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -245,7 +246,7 @@ class AvitoPublicationController extends Controller
 
     private function draftRules(): array
     {
-        return $this->accountRules() + [
+        return $this->accountRules() + AvitoPriceBasis::rules() + [
             'connection_id' => ['nullable', 'integer', 'exists:avito_connections,id'],
             'category_node_slug' => ['nullable', 'string', 'max:180', 'regex:/^[a-z0-9][a-z0-9_-]*$/i'],
             'category_name' => ['nullable', 'string', 'max:255'],

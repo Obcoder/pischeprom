@@ -7,6 +7,7 @@ use App\Models\AvitoConnection;
 use App\Models\Good;
 use App\Models\GoodMedia;
 use App\Services\Avito\AvitoListingGoodService;
+use App\Services\Avito\AvitoPriceBasis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -86,10 +87,11 @@ class AvitoListingGoodController extends Controller
         int $item,
         AvitoListingGoodService $transfers,
     ): JsonResponse {
-        $validated = $request->validate($this->transferRules() + [
+        $validated = $request->validate(array_replace($this->transferRules(), [
             'confirmed' => ['accepted'],
+            'expected_fingerprint' => ['required', 'string', 'size:64'],
             'connection_id' => ['nullable', 'integer', 'exists:avito_connections,id'],
-        ]);
+        ]));
         $link = $transfers->requireLink((int) $validated['account_id'], $item);
         $connection = isset($validated['connection_id'])
             ? AvitoConnection::query()->findOrFail($validated['connection_id'])
@@ -139,7 +141,7 @@ class AvitoListingGoodController extends Controller
 
     private function transferRules(): array
     {
-        return $this->accountRules() + [
+        return $this->accountRules() + AvitoPriceBasis::rules() + [
             'fields' => ['required', 'array', 'min:1', 'max:4'],
             'fields.*' => [
                 'required',

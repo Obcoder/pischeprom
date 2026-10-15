@@ -38,6 +38,7 @@ class AvitoPublicationService
         private readonly AvitoCrmOutboundService $goods,
         private readonly AvitoAutoloadApiService $autoload,
         private readonly AvitoListingGoodService $links,
+        private readonly AvitoPriceBasis $priceBasis,
     ) {}
 
     public function feedFor(int $accountId, ?AvitoConnection $connection = null): AvitoAutoloadFeed
@@ -148,6 +149,7 @@ class AvitoPublicationService
         $draft = array_replace((array) $publication->draft_payload, Arr::only($input, [
             'selected_fields',
             'price_value_id',
+            'price_basis',
             'media_ids',
             'include_facts',
             'title_override',
@@ -176,6 +178,12 @@ class AvitoPublicationService
             ->values()
             ->all();
         $draft['category_fields'] = $this->sanitizeCategoryFields((array) ($draft['category_fields'] ?? []));
+        if (array_key_exists('price_basis', $input) && $publication->good) {
+            $resolved = $this->priceBasis->resolve($this->links->goodPayload($publication->good), $input['price_basis']);
+            if ($resolved['available']) {
+                $draft['price_basis'] = Arr::except($resolved, ['available', 'block_reason']);
+            }
+        }
 
         $publication->update([
             'avito_connection_id' => array_key_exists('connection_id', $input)
@@ -463,7 +471,11 @@ class AvitoPublicationService
             $publication->feed->update(['last_synced_at' => now()]);
 
             if ($resolvedAvitoItemId && $publication->good) {
-                $this->links->link($publication->avito_account_id, $resolvedAvitoItemId, $publication->good);
+                $link = $this->links->link($publication->avito_account_id, $resolvedAvitoItemId, $publication->good);
+                $basis = $publication->currentRevision->payload_snapshot['price_basis'] ?? null;
+                if ($basis && in_array($status, ['published', 'warning'], true)) {
+                    $link->update(['price_basis' => $basis]);
+                }
             }
         });
 
@@ -582,6 +594,7 @@ class AvitoPublicationService
         return [
             'selected_fields' => ['title', 'description', 'price', 'images'],
             'price_value_id' => $price['id'] ?? null,
+            'price_basis' => ['mode' => 'unit'],
             'media_ids' => collect($payload['media'] ?? [])
                 ->take((int) config('avito.autoload.max_images', 10))
                 ->pluck('id')
@@ -631,9 +644,10 @@ class AvitoPublicationService
         }
         $description = trim((string) ($draft['description_override'] ?? ''));
         if ($description === '' && in_array('description', $selected, true)) {
-            $description = $this->description($source, (bool) ($draft['include_facts'] ?? true));
+            $description = $this->description($source, (bool) ($draft['include_facts'] ?? true), $draft['price_basis'] ?? ['mode' => 'unit']);
         }
-        $price = $this->price($source, $draft, $selected);
+        $priceDetails = $this->priceDetails($source, $draft, $selected);
+        $price = $priceDetails['can_apply'] ? $priceDetails['avito_value'] : null;
         $mediaIds = in_array('images', $selected, true)
             ? collect((array) ($draft['media_ids'] ?? []))->map(fn ($id): int => (int) $id)->filter()->unique()->values()
             : collect();
@@ -658,6 +672,8 @@ class AvitoPublicationService
             'title' => $title,
             'description' => $description,
             'price' => $price,
+            'price_basis' => $priceDetails['price_basis'],
+            'price_details' => $priceDetails,
             'address' => trim((string) ($draft['address'] ?? '')),
             'contact_phone' => trim((string) ($draft['contact_phone'] ?? '')),
             'manager_name' => trim((string) ($draft['manager_name'] ?? '')),
@@ -671,6 +687,9 @@ class AvitoPublicationService
             ])->all(),
         ];
         [$errors, $warnings] = $this->validatePreview($publication, $good, $draft, $payload, $mediaIds, $mediaModels);
+        if ($priceDetails['block_reason']) {
+            $errors['price'] = [$priceDetails['block_reason']];
+        }
 
         return [
             'selected_fields' => $selected,
@@ -678,11 +697,14 @@ class AvitoPublicationService
                 'source_of_truth' => 'good',
                 'good' => Arr::only($source, [
                     'id', 'name', 'slug', 'description', 'denominator', 'is_published',
-                    'country', 'availability', 'public_url', 'prices', 'media',
+                    'country', 'availability', 'public_url', 'prices', 'media', 'measurement',
                 ]),
+                'price_basis' => $priceDetails['price_basis'],
+                'price_details' => $priceDetails,
                 'captured_at' => now()->toIso8601String(),
             ],
             'payload' => $payload,
+            'price_details' => $priceDetails,
             'media_models' => $mediaModels,
             'errors' => $errors,
             'warnings' => $warnings,
@@ -774,38 +796,44 @@ class AvitoPublicationService
         ];
     }
 
-    private function price(array $source, array $draft, array $selected): ?int
+    private function priceDetails(array $source, array $draft, array $selected): array
     {
+        $settings = $draft['price_basis'] ?? ['mode' => 'unit'];
         if (filled($draft['price_override'] ?? null) && is_numeric($draft['price_override'])) {
-            return (int) round((float) $draft['price_override']);
-        }
-        if (! in_array('price', $selected, true)) {
-            return null;
+            return $this->priceBasis->calculate($source, $draft['price_override'], $settings, true) + ['good_value' => null];
         }
         $price = collect($source['prices'] ?? [])->firstWhere('id', (int) ($draft['price_value_id'] ?? 0));
-        if (! $price || strtoupper((string) ($price['currency_code'] ?? '')) !== 'RUB'
-            || empty($source['measurement']['measure_id'])) {
-            return null;
+        $details = $this->priceBasis->calculate($source, $price['amount'] ?? null, $settings) + ['good_value' => $price['amount'] ?? null];
+        $error = null;
+        if (! in_array('price', $selected, true) || ! $price || strtoupper((string) ($price['currency_code'] ?? '')) !== 'RUB') {
+            $error = 'Выберите сохранённую общедоступную цену в RUB или задайте итоговую цену объявления вручную.';
         }
         if (($price['valid_from'] ?? null)
             && CarbonImmutable::today()->lt(CarbonImmutable::parse($price['valid_from'])->startOfDay())) {
-            return null;
+            $error = 'Срок действия выбранной цены ещё не начался.';
         }
         if (($price['valid_to'] ?? null)
             && CarbonImmutable::today()->gt(CarbonImmutable::parse($price['valid_to'])->startOfDay())) {
-            return null;
+            $error = 'Срок действия выбранной цены завершён.';
+        }
+        if ($error) {
+            $details['can_apply'] = false;
+            $details['block_reason'] = $error;
         }
 
-        return is_numeric($price['amount'] ?? null) ? (int) round((float) $price['amount']) : null;
+        return $details;
     }
 
-    private function description(array $good, bool $includeFacts): string
+    private function description(array $good, bool $includeFacts, array $basis): string
     {
         $parts = array_values(array_filter([
             trim((string) ($good['description'] ?? '')),
         ], fn (string $value): bool => $value !== ''));
         if ($includeFacts) {
             $facts = [];
+            if ($priceFact = $this->priceBasis->descriptionFact($good, $basis)) {
+                $facts[] = $priceFact;
+            }
             if (is_numeric($good['denominator'] ?? null)) {
                 $facts[] = 'Фасовка: '.$this->number((float) $good['denominator']).' кг';
             }

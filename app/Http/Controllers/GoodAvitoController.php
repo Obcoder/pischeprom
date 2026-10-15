@@ -6,6 +6,7 @@ use App\Domain\Avito\Exceptions\AvitoException;
 use App\Models\AvitoListingGoodLink;
 use App\Models\Good;
 use App\Services\Avito\AvitoListingGoodService;
+use App\Services\Avito\AvitoPriceBasis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,7 +91,7 @@ class GoodAvitoController extends Controller
 
     private function transferRules(): array
     {
-        return [
+        return AvitoPriceBasis::rules() + [
             'fields' => ['required', 'array', 'min:1', 'max:4'],
             'fields.*' => ['required', 'string', Rule::in(AvitoListingGoodService::FIELDS), 'distinct'],
             'price_value_id' => ['nullable', 'integer', 'exists:good_price_type_values,id'],

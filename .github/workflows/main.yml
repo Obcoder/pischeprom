@@ -325,6 +325,7 @@ jobs:
             app/Models/AvitoCapabilitySetting.php \
             app/Models/AvitoContactCandidate.php \
             app/Models/AvitoConnection.php \
+            app/Models/AvitoListingGoodLink.php \
             app/Models/AvitoMessage.php \
             app/Models/AvitoMessageAttachment.php \
             app/Models/AvitoMessageTemplate.php \
@@ -346,6 +347,7 @@ jobs:
             database/migrations/2026_08_10_170000_create_avito_workspace_settings_table.php \
             database/migrations/2026_09_21_100000_repair_avito_unread_counts.php \
             database/migrations/2026_09_21_120000_add_waiting_list_to_avito_chats.php \
+            database/migrations/2026_10_15_230000_add_price_basis_to_avito_listing_good_links.php \
             database/seeders/AvitoMessageTemplateSeeder.php \
             scripts/update-production-avito-env.php \
             scripts/check-production-avito.php \

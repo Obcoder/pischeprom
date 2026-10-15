@@ -19,7 +19,9 @@ function harness(t, name, initial) {
     const props = Vue.reactive(initial)
     const env = {
         ...Vue,
+        onBeforeUnmount: callback => Vue.onScopeDispose(callback),
         ...goodAvito,
+        debounce: callback => Object.assign(callback, { cancel() {} }),
         GoodAvitoPriceDialog: { name: 'GoodAvitoPriceDialog' },
         GoodAvitoPublications: { name: 'GoodAvitoPublications' },
         AvitoPublications: { name: 'AvitoPublications' },
@@ -37,9 +39,14 @@ function harness(t, name, initial) {
 }
 
 const measurement = { measure_id: 1, unit_label: 'кг', kilograms_per_unit: 1 }
+const basisOptions = {
+    unit: { mode: 'unit', quantity: 1, label: 'кг', available: true },
+    package: { mode: 'package', quantity: 10, label: 'упаковка', package_kg: 10, available: true },
+    custom: { mode: 'custom', available: true },
+}
 const publicPrice = { id: 7, revision: 3, name: 'Розничная', code: 'retail', amount: 233.2, currency_code: 'RUB', is_public: true }
 const link = { id: 15, avito_account_id: 120, avito_item_id: 501, good_id: 42, history: [] }
-const context = (goodId = 42) => ({ good_id: goodId, good: { id: goodId, name: 'Изюм', prices: [publicPrice], measurement }, measurement, links: [{ ...link, good_id: goodId }], publications: [] })
+const context = (goodId = 42) => ({ good_id: goodId, good: { id: goodId, name: 'Изюм', denominator: 10, prices: [publicPrice], measurement, avito_price_basis: structuredClone(basisOptions) }, measurement, links: [{ ...link, good_id: goodId }], publications: [] })
 const status = { enabled: true, configured: true, mutations_enabled: true, connections: 1, active_connections: 1 }
 const preview = () => ({ source_fingerprint: 'approved-price-revision-3', selected_fields: ['price'], price: { price_value_id: 7, revision: 3, good_value: 233.2, avito_value: 233, currency_code: 'RUB', unit_label: 'кг', measurement, can_apply: true }, warnings: ['Avito принимает целую цену: 233,2 RUB будет округлено до 233 RUB.'] })
 
@@ -51,6 +58,38 @@ test('the catalog Avito badge identifies linked goods and exposes the number of 
     const badge = findVNode(h.render(), node => node.type === 'span' && node.props?.['aria-label'])
     assert.equal(badge.props['aria-label'], 'Авито: связанных объявлений 2')
     assert.equal(badge.props.title, 'Связанных объявлений Авито: 2')
+})
+
+test('the legacy listing editor sends the reviewed price fingerprint and shows the sale quantity', async t => {
+    const h = harness(t, '../Avito/AvitoListingGoodLink', { item: { id: 501, title: 'Изюм', price: 100 }, accountId: 120, authConnectionId: null, mutationsEnabled: true })
+    h.requests[0].resolve({ link: { ...link, good: { ...context().good, media: [] } }, history: [] })
+    await flush()
+    h.api.selectedFields.value = ['price']
+    const preparing = h.api.prepareTransfer()
+    const prepared = { ...preview(), price: { ...preview().price, avito_value: 2332, sale_unit_label: 'упаковка', price_basis: { mode: 'package', quantity: 10, label: 'упаковка', measurement }, formula: '233,2 RUB / кг × 10 кг = 2 332 RUB / упаковка' } }
+    h.requests.at(-1).resolve({ preview: prepared })
+    await preparing
+    h.api.confirmed.value = true
+    assert.ok(h.api.canApplyPrice.value)
+    const confirmation = findVNode(h.render(), node => node.type === 'v-checkbox' && node.props?.label?.includes('Подтверждаю'))
+    assert.match(confirmation.props.label, /упаковка \(10 кг\)/)
+    const fingerprint = h.api.preview.value.source_fingerprint
+    delete h.api.preview.value.source_fingerprint
+    const count = h.requests.length
+    await h.api.applyGoodPrice()
+    assert.equal(h.requests.length, count, 'A legacy panel cannot publish an unreviewed price without its fingerprint')
+    h.api.preview.value.source_fingerprint = fingerprint
+    const applying = h.api.applyGoodPrice()
+    const request = h.requests.at(-1)
+    assert.equal(request.url, '/api/avito/listings/501/good-transfer/apply')
+    assert.equal(request.body.expected_fingerprint, fingerprint)
+    assert.equal(request.body.price_value_id, 7)
+    assert.equal('price' in request.body, false, 'The authoritative source price must stay on the server')
+    request.reject({ response: { status: 409, data: { message: 'Объём объявления изменился. Повторите предпросмотр.' } } })
+    await applying
+    assert.equal(h.api.preview.value, null)
+    assert.equal(h.api.confirmed.value, false)
+    assert.match(h.api.localError.value, /Объём объявления изменился/)
 })
 
 function dialog(t, props = {}) {
@@ -78,7 +117,7 @@ test('price transfer requires a server preview and unit confirmation, then sends
     assert.equal(h.requests.length, reads, 'Opening a dialog cannot change a public listing')
     const pending = h.api.prepare(), request = h.requests.at(-1)
     assert.equal(request.url, '/api/avito/goods/42/links/15/preview')
-    assert.deepEqual(request.body, { fields: ['price'], price_value_id: 7 })
+    assert.deepEqual(request.body, { fields: ['price'], price_value_id: 7, price_basis: { mode: 'unit' } })
     request.resolve({ preview: preview() })
     await pending
     assert.equal(h.api.unit.value, 'кг')
@@ -88,7 +127,7 @@ test('price transfer requires a server preview and unit confirmation, then sends
     h.api.confirmed.value = true
     const apply = h.api.apply(), mutation = h.requests.at(-1)
     assert.equal(mutation.url, '/api/avito/goods/42/links/15/apply')
-    assert.deepEqual(mutation.body, { fields: ['price'], price_value_id: 7, expected_fingerprint: 'approved-price-revision-3', confirmed: true })
+    assert.deepEqual(mutation.body, { fields: ['price'], price_value_id: 7, price_basis: { mode: 'unit' }, expected_fingerprint: 'approved-price-revision-3', confirmed: true })
     await h.api.apply()
     assert.equal(h.requests.length, reads + 2, 'Double-clicking cannot submit duplicate price changes')
     mutation.resolve({ transfer: { price: { avito_value: 233 } } })
@@ -223,6 +262,180 @@ test('explicit missing price and listing IDs never silently fall back to differe
     assert.equal(h.api.selectedLink.value, null)
     assert.equal(Boolean(h.api.canPreview.value), false)
     assert.ok(h.api.error.value)
+})
+
+const basisPreview = (mode, quantity, label) => ({
+    ...preview(), source_fingerprint: `price-7-${mode}-${quantity}-${label}`,
+    price: { ...preview().price, price_basis: { mode, quantity, label, measurement }, sale_unit_label: label, total_unrounded: Number((233.2 * quantity).toFixed(4)), avito_value: Math.round(233.2 * quantity), formula: `233,2 RUB × ${quantity} кг = ${Number((233.2 * quantity).toFixed(4))} RUB / ${label}` },
+})
+const vnodeText = node => typeof node === 'string' ? node : Array.isArray(node) ? node.map(vnodeText).join(' ') : node && vnodeText(node.children) || ''
+
+test('price basis restores each listing snapshot and switches between a saved package and custom lot', async t => {
+    const h = dialog(t), data = context()
+    const packageBasis = { mode: 'package', quantity: 10, label: 'упаковка', measurement, package_kg: 10 }
+    const customBasis = { mode: 'custom', quantity: 6.5, label: 'коробка', measurement }
+    data.links[0].price_basis = packageBasis
+    data.links.push({ ...link, id: 16, avito_item_id: 502, price_basis: customBasis })
+    await resolveContext(h, data)
+    assert.equal(h.api.basisMode.value, 'package')
+    assert.deepEqual(h.api.body().price_basis, packageBasis)
+    assert.equal(h.api.selectedBasis.value.quantity, 10)
+    await prepareDialog(h, basisPreview('package', 10, 'упаковка'))
+    h.api.confirmed.value = true
+    h.api.selectedLink.value = 16
+    assert.equal(h.api.preview.value, null, 'Switching listings invalidates confirmation synchronously')
+    assert.equal(h.api.confirmed.value, false)
+    assert.equal(h.api.basisMode.value, 'custom')
+    assert.equal(Number(h.api.basisQuantity.value), 6.5)
+    assert.equal(h.api.basisLabel.value, 'коробка')
+    assert.deepEqual(h.api.body().price_basis, customBasis)
+    h.api.basisQuantity.value = 4
+    h.api.editBasis()
+    assert.equal(h.api.basisSnapshot.value, null)
+    assert.equal(customBasis.quantity, 6.5, 'Editing a draft must not mutate the stored link snapshot')
+    h.api.selectedLink.value = 15
+    assert.deepEqual(h.api.body().price_basis, packageBasis)
+})
+
+test('unit, package and custom lot use the server preview total and send basis identity without a trusted amount', async t => {
+    const h = dialog(t)
+    await resolveContext(h)
+    for (const selection of [
+        { mode: 'unit', quantity: 1, label: 'кг', body: { mode: 'unit' } },
+        { mode: 'package', quantity: 10, label: 'упаковка', body: { mode: 'package' } },
+        { mode: 'custom', quantity: 6.5, label: 'коробка', body: { mode: 'custom', quantity: 6.5, label: 'коробка' } },
+    ]) {
+        h.api.basisMode.value = selection.mode
+        h.api.basisQuantity.value = selection.quantity
+        h.api.basisLabel.value = selection.label
+        h.api.editBasis()
+        const pending = h.api.prepare(), request = h.requests.at(-1)
+        assert.deepEqual(request.body.price_basis, selection.body)
+        assert.equal('amount' in request.body, false)
+        const result = basisPreview(selection.mode, selection.quantity, selection.label)
+        request.resolve({ preview: result })
+        await pending
+        assert.equal(h.api.quantity.value, selection.quantity)
+        assert.equal(h.api.saleUnit.value, selection.label)
+        const rendered = h.render()
+        const resultRow = findVNode(rendered, node => node.type === 'tr' && node.props?.class === 'total')
+        assert.ok(vnodeText(resultRow).includes(goodAvito.avitoMoney(result.price.avito_value)))
+        assert.match(vnodeText(resultRow), new RegExp(selection.label))
+        const confirmation = findVNode(rendered, node => node.type === 'label' && node.props?.class === 'confirmation')
+        assert.ok(vnodeText(confirmation).includes(goodAvito.avitoMoney(result.price.avito_value)))
+        assert.ok(vnodeText(confirmation).includes(selection.label))
+    }
+    h.api.confirmed.value = true
+    const applying = h.api.apply(), request = h.requests.at(-1)
+    assert.deepEqual(request.body.price_basis, { mode: 'custom', quantity: 6.5, label: 'коробка' })
+    assert.equal(request.body.expected_fingerprint, 'price-7-custom-6.5-коробка')
+    assert.equal('amount' in request.body, false)
+    assert.equal('avito_value' in request.body, false)
+    const result = basisPreview('custom', 6.5, 'коробка')
+    request.resolve({ transfer: { price: result.price }, link: { ...link, price_basis: result.price.price_basis } })
+    await applying
+    assert.match(h.api.notice.value, /1\s?516 RUB передана в Авито\. Объём: 1 коробка \(6,5 кг\)/)
+    assert.deepEqual(h.api.basisSnapshot.value, result.price.price_basis)
+})
+
+test('basis mode, quantity and label edits revoke both the preview and its confirmation before another click', async t => {
+    const h = dialog(t)
+    await resolveContext(h)
+    h.api.basisMode.value = 'custom'
+    h.api.basisQuantity.value = 6.5
+    h.api.basisLabel.value = 'коробка'
+    h.api.editBasis()
+    for (const edit of [
+        () => { h.api.basisQuantity.value = 7 },
+        () => { h.api.basisLabel.value = 'партия' },
+        () => { h.api.basisMode.value = 'package' },
+    ]) {
+        await prepareDialog(h, basisPreview('custom', 6.5, 'коробка'))
+        h.api.confirmed.value = true
+        const before = h.requests.length
+        edit()
+        assert.equal(h.api.preview.value, null)
+        assert.equal(h.api.confirmed.value, false)
+        await h.api.apply()
+        assert.equal(h.requests.length, before)
+    }
+    const pending = h.api.prepare(), old = h.requests.at(-1)
+    h.api.basisMode.value = 'unit'
+    h.api.editBasis()
+    old.resolve({ preview: basisPreview('package', 10, 'упаковка') })
+    await pending
+    assert.equal(h.api.preview.value, null, 'A late package preview cannot approve a newly selected per-kg price')
+    assert.equal(h.api.canApply.value, false)
+})
+
+test('unknown packaging and invalid custom quantities cannot trigger a preview, while a 10 kg package can equal one Good unit', async t => {
+    const h = dialog(t), data = context()
+    data.good.avito_price_basis.package = { mode: 'package', quantity: null, label: 'упаковка', available: false, block_reason: 'Фасовка не задана.' }
+    await resolveContext(h, data)
+    h.api.basisMode.value = 'package'
+    const count = h.requests.length
+    await h.api.prepare()
+    assert.equal(h.requests.length, count)
+    assert.match(h.api.basisError.value, /Фасовка/)
+    h.api.basisMode.value = 'custom'
+    for (const quantity of [0, -1, '', 'NaN']) {
+        h.api.basisQuantity.value = quantity
+        await h.api.prepare()
+        assert.equal(h.requests.length, count)
+        assert.ok(h.api.basisError.value)
+    }
+    h.api.basisQuantity.value = 2
+    h.api.basisLabel.value = '  '
+    await h.api.prepare()
+    assert.equal(h.requests.length, count)
+    h.api.basisQuantity.value = 0.000001
+    h.api.basisLabel.value = 'проба'
+    assert.match(h.api.example.value, /× 0,000001 кг/, 'A valid small sale quantity must never be displayed as zero')
+    const box = { measure_id: 2, unit_label: 'кор.', kilograms_per_unit: 10 }
+    h.api.context.value.measurement = box
+    h.api.context.value.good.measurement = box
+    h.api.context.value.good.avito_price_basis.package = { mode: 'package', quantity: 1, label: 'упаковка', package_kg: 10, available: true }
+    h.api.basisMode.value = 'package'
+    h.api.editBasis()
+    assert.equal(h.api.selectedBasis.value.quantity, 1, 'A package of 10 kg must not multiply a price already defined per 10 kg box by ten again')
+    assert.equal(h.api.basisError.value, '')
+    assert.match(h.api.example.value, /× 1 кор\./)
+})
+
+test('changed product measurement requires an explicit basis acknowledgement and retains the original snapshot until then', async t => {
+    const h = dialog(t), data = context()
+    const oldMeasurement = { measure_id: 2, unit_label: 'кор.', kilograms_per_unit: 10 }
+    const saved = { mode: 'custom', quantity: 2, label: 'партия', measurement: oldMeasurement }
+    data.links[0].price_basis = saved
+    await resolveContext(h, data)
+    assert.equal(h.api.basisChanged.value, true)
+    assert.deepEqual(h.api.body().price_basis, saved)
+    const reads = h.requests.length
+    await h.api.prepare()
+    assert.equal(h.requests.length, reads)
+    const acknowledge = findVNode(h.render(), node => node.type === 'button' && node.children === 'Использовать текущую единицу')
+    assert.ok(acknowledge)
+    acknowledge.props.onClick()
+    assert.equal(h.api.basisChanged.value, false)
+    assert.deepEqual(h.api.body().price_basis, { mode: 'custom', quantity: 2, label: 'партия' })
+    assert.deepEqual(saved.measurement, oldMeasurement, 'Acknowledging a new unit does not rewrite history or silently convert quantity')
+})
+
+test('a stale Good context cannot overwrite a manually edited price basis in the current dialog', async t => {
+    const h = dialog(t), oldRequests = [...h.requests]
+    h.props.goodId = 88
+    await Vue.nextTick()
+    await resolveContext(h, context(88), status, h.requests.slice(oldRequests.length))
+    h.api.basisMode.value = 'custom'
+    h.api.basisQuantity.value = 3
+    h.api.basisLabel.value = 'минимальная партия'
+    h.api.editBasis()
+    const stale = context()
+    stale.links[0].price_basis = { mode: 'package', quantity: 10, label: 'упаковка', package_kg: 10, measurement }
+    await resolveContext(h, stale, status, oldRequests)
+    assert.equal(h.api.context.value.good.id, 88)
+    assert.deepEqual(h.api.body().price_basis, { mode: 'custom', quantity: 3, label: 'минимальная партия' })
+    assert.equal(h.api.basisSnapshot.value, null)
 })
 
 async function connectedTab(t, data = context(), props = {}) {

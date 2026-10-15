@@ -101,6 +101,7 @@ const editor = reactive({
     title_override: '',
     description_override: '',
     price_override: null,
+    price_basis: { mode: 'unit' },
     address: '',
     contact_phone: '',
     manager_name: '',
@@ -118,6 +119,53 @@ const priceOptions = computed(() => (good.value?.prices || []).map((item) => ({
     title: `${item.name} · ${formatMoney(item.amount)} ${item.currency_code}${good.value?.measurement?.unit_label ? ` / ${good.value.measurement.unit_label}` : ''}${item.is_public ? ' · публичная' : ''}`,
     value: item.id,
 })))
+const priceBasisOptions = computed(() => [
+    { title: `За единицу товара · ${good.value?.measurement?.unit_label || 'единица не задана'}`, value: 'unit' },
+    { title: good.value?.avito_price_basis?.package?.available
+        ? `За упаковку · ${formatQuantity(good.value.avito_price_basis.package.quantity)} ${good.value?.measurement?.unit_label || ''}`
+        : 'За упаковку · фасовка или единица не настроена', value: 'package', props: { disabled: !good.value?.avito_price_basis?.package?.available } },
+    { title: 'За выбранное количество / партию', value: 'custom' },
+])
+const selectedPriceBasis = computed(() => {
+    const mode = editor.price_basis?.mode || 'unit'
+    if (mode === 'custom') return { ...editor.price_basis, quantity: Number(editor.price_basis.quantity), label: String(editor.price_basis.label || '').trim() }
+    return good.value?.avito_price_basis?.[mode] || { mode, quantity: mode === 'unit' ? 1 : null, label: good.value?.measurement?.unit_label, available: mode === 'unit' }
+})
+const priceBasisStale = computed(() => {
+    const stored = editor.price_basis?.measurement
+    const current = good.value?.measurement
+    const storedKg = stored?.kilograms_per_unit ?? null
+    const currentKg = current?.kilograms_per_unit ?? null
+    const changedMeasurement = Boolean(stored && (
+        Number(stored.measure_id) !== Number(current?.measure_id)
+        || (storedKg === null || currentKg === null ? storedKg !== currentKg : Math.abs(Number(storedKg) - Number(currentKg)) >= 0.0000001)
+    ))
+    const savedPackage = editor.price_basis?.package_kg
+    const changedPackage = editor.price_basis?.mode === 'package' && savedPackage != null
+        && Math.abs(Number(savedPackage) - Number(good.value?.denominator || 0)) > 0.0000001
+    return changedMeasurement || changedPackage
+})
+const priceBasisIssue = computed(() => {
+    const current = good.value?.measurement
+    if (!current?.measure_id || !current?.unit_label) return 'Задайте единицу товара, чтобы определить объём для цены Avito.'
+    if (priceBasisStale.value) return 'Единица товара или фасовка изменились. Проверьте количество и подтвердите текущий объём.'
+    return selectedPriceBasis.value.block_reason || ''
+})
+const priceCalculation = computed(() => {
+    if (priceBasisIssue.value) return null
+    const basis = selectedPriceBasis.value
+    const quantity = Number(basis.quantity)
+    if (basis.available === false || !Number.isFinite(quantity) || quantity <= 0 || !basis.label) return null
+    if (editor.price_override !== null && editor.price_override !== '') {
+        const amount = Number(editor.price_override)
+        return Number.isFinite(amount) && amount >= 0 ? { manual: true, amount, total: Math.round(amount), basis } : null
+    }
+    if (!editor.selected_fields.includes('price')) return null
+    const price = (good.value?.prices || []).find(item => Number(item.id) === Number(editor.price_value_id))
+    const amount = Number(price?.amount)
+    if (!price || price.amount == null || price.currency_code !== 'RUB' || !Number.isFinite(amount) || amount < 0) return null
+    return { manual: false, amount, total: Math.round(amount * quantity), unrounded: amount * quantity, basis }
+})
 const categoryOptions = computed(() => {
     const needle = categorySearch.value.trim().toLocaleLowerCase('ru')
     const leaves = categories.value.filter((item) => item.is_leaf !== false)
@@ -269,6 +317,7 @@ function hydrate(data) {
         title_override: draft.title_override || '',
         description_override: draft.description_override || '',
         price_override: draft.price_override ?? null,
+        price_basis: Object.keys(cloneRecord(draft.price_basis)).length ? cloneRecord(draft.price_basis) : { mode: 'unit' },
         address: draft.address || '',
         contact_phone: draft.contact_phone || '',
         manager_name: draft.manager_name || '',
@@ -339,6 +388,7 @@ function editorPayload() {
         title_override: editor.title_override || null,
         description_override: editor.description_override || null,
         price_override: editor.price_override === '' ? null : editor.price_override,
+        price_basis: cloneRecord(editor.price_basis),
         address: editor.address || null,
         contact_phone: editor.contact_phone || null,
         manager_name: editor.manager_name || null,
@@ -349,6 +399,27 @@ function editorPayload() {
         category_fields: cleanCategoryFields(editor.category_fields),
         category_schema: editor.category_schema,
     }
+}
+
+function changePriceBasis(mode) {
+    editor.price_basis = mode === 'custom'
+        ? { mode, quantity: 1, label: 'партия' }
+        : { mode }
+}
+
+function changeCustomBasis(field, value) {
+    // A new explicit quantity/label choice resets the saved measurement snapshot.
+    editor.price_basis = {
+        mode: 'custom',
+        quantity: editor.price_basis?.quantity ?? 1,
+        label: editor.price_basis?.label || '',
+        [field]: value,
+    }
+}
+
+function renewPriceBasis() {
+    if (editor.price_basis?.mode === 'custom') changeCustomBasis('quantity', editor.price_basis.quantity)
+    else changePriceBasis(editor.price_basis?.mode || 'unit')
 }
 
 async function preparePreview() {
@@ -812,6 +883,11 @@ function formatMoney(value) {
     return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(value))
 }
 
+function formatQuantity(value) {
+    if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '—'
+    return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 6 }).format(Number(value))
+}
+
 function formatDate(value) {
     if (!value) return '—'
     return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -933,7 +1009,22 @@ function showError(exception, fallback) {
                             <div class="form-grid">
                                 <v-text-field v-model="editor.title_override" label="Название: пусто = из Good" density="compact" variant="outlined" :disabled="!canEdit" counter="100" />
                                 <v-select v-model="editor.price_value_id" :items="priceOptions" label="Цена Good" density="compact" variant="outlined" clearable :disabled="!canEdit" />
-                                <v-text-field v-model.number="editor.price_override" label="Своя цена, ₽ (необязательно)" type="number" min="0" density="compact" variant="outlined" :disabled="!canEdit" />
+                                <v-select :model-value="editor.price_basis.mode" :items="priceBasisOptions" label="Цена на Avito указана за" density="compact" variant="outlined" :disabled="!canEdit" @update:model-value="changePriceBasis" />
+                                <v-text-field v-model.number="editor.price_override" label="Своя итоговая цена за выбранный объём, ₽" hint="Необязательно. Указанная сумма не умножается на количество." persistent-hint type="number" min="0" density="compact" variant="outlined" :disabled="!canEdit" />
+                                <div v-if="editor.price_basis.mode === 'custom'" class="price-basis-custom span-2">
+                                    <v-text-field :model-value="editor.price_basis.quantity" :label="`Количество, ${good?.measurement?.unit_label || 'ед. товара'}`" type="number" min="0.000001" step="any" density="compact" variant="outlined" :disabled="!canEdit" @update:model-value="changeCustomBasis('quantity', $event)" />
+                                    <v-text-field :model-value="editor.price_basis.label" label="Обозначение объёма: партия, мешок…" counter="80" maxlength="80" density="compact" variant="outlined" :disabled="!canEdit" @update:model-value="changeCustomBasis('label', $event)" />
+                                </div>
+                                <div class="price-basis-calculation span-2" aria-live="polite">
+                                    <template v-if="priceCalculation">
+                                        <span v-if="priceCalculation.manual">Итог задан вручную · {{ formatQuantity(priceCalculation.amount) }} ₽</span>
+                                        <span v-else>{{ formatQuantity(priceCalculation.amount) }} ₽ / {{ good?.measurement?.unit_label }} × {{ formatQuantity(priceCalculation.basis.quantity) }} {{ good?.measurement?.unit_label }} = {{ formatQuantity(priceCalculation.unrounded) }} ₽</span>
+                                        <strong>На Avito: {{ formatMoney(priceCalculation.total) }} ₽ / {{ priceCalculation.basis.label }}</strong>
+                                        <small>Округление до целого рубля после расчёта. Точный результат и единица будут проверены в предпросмотре.</small>
+                                    </template>
+                                    <span v-else>{{ priceBasisIssue || 'Выберите цену в RUB и задайте положительное количество с обозначением объёма.' }}</span>
+                                    <v-btn v-if="priceBasisStale" size="x-small" variant="outlined" :disabled="!canEdit || !good?.measurement?.measure_id" @click="renewPriceBasis">Подтвердить текущий объём</v-btn>
+                                </div>
                                 <v-switch v-model="editor.include_facts" label="Добавить фасовку, страну, наличие и ссылку" density="compact" color="deep-purple-accent-1" hide-details :disabled="!canEdit" />
                                 <v-textarea v-model="editor.description_override" label="Описание: пусто = описание Good" rows="7" auto-grow density="compact" variant="outlined" counter="7500" class="span-2" :disabled="!canEdit" />
                             </div>
@@ -994,11 +1085,13 @@ function showError(exception, fallback) {
                                     <p v-for="warning in preview.warnings" :key="warning">⚠ {{ warning }}</p>
                                 </section>
                                 <section class="ad-preview">
-                                    <span>{{ preview.payload?.category }}</span><h4>{{ preview.payload?.title }}</h4><strong>{{ formatMoney(preview.payload?.price) }} ₽</strong><small>{{ preview.payload?.address }} · {{ preview.payload?.contact_phone }}</small><pre>{{ preview.payload?.description }}</pre>
+                                    <span>{{ preview.payload?.category }}</span><h4>{{ preview.payload?.title }}</h4><strong>{{ formatMoney(preview.payload?.price) }} ₽<template v-if="preview.price_details?.sale_unit_label"> / {{ preview.price_details.sale_unit_label }}</template></strong><small v-if="preview.price_details?.formula">{{ preview.price_details.formula }}</small><small>{{ preview.payload?.address }} · {{ preview.payload?.contact_phone }}</small><pre>{{ preview.payload?.description }}</pre>
                                 </section>
                                 <section v-if="currentRevision" class="snapshot-preview">
                                     <header><strong>Точно опубликованная версия v{{ currentRevision.version }}</strong><v-chip size="x-small" :color="statusColor(publication.status)">{{ currentRevision.status }}</v-chip></header>
                                     <small>Это локальный неизменяемый снимок. Изменения Good его не переписывают.</small>
+                                    <strong class="snapshot-price">{{ formatMoney(currentRevision.payload?.price) }} ₽<template v-if="currentRevision.payload?.price_details?.sale_unit_label"> / {{ currentRevision.payload.price_details.sale_unit_label }}</template></strong>
+                                    <small v-if="currentRevision.payload?.price_details?.formula">{{ currentRevision.payload.price_details.formula }}</small>
                                     <pre>{{ currentRevision.payload?.description }}</pre>
                                 </section>
                                 <details class="xml-preview" :open="Boolean(previewXml)"><summary>XML объявления</summary><pre>{{ previewXml || 'Нажмите «Пересобрать».' }}</pre></details>
@@ -1010,7 +1103,7 @@ function showError(exception, fallback) {
                             <div v-if="revisions.length" class="revision-list">
                                 <details v-for="revision in revisions" :key="revision.id" :open="revision.is_current">
                                     <summary><b>v{{ revision.version }}</b><v-chip size="x-small" :color="revision.is_current ? 'deep-purple' : 'grey'" variant="tonal">{{ revision.status }}</v-chip><span>{{ formatDate(revision.approved_at) }}</span><small>{{ revision.images?.length || 0 }} фото</small></summary>
-                                    <div><strong>{{ revision.payload?.title }}</strong><span>{{ formatMoney(revision.payload?.price) }} ₽</span><p v-for="message in revision.report_messages" :key="`${message.code}-${message.message}`" :class="`report-${message.level}`">{{ message.level }} · {{ message.message }}</p><pre>{{ revision.payload?.description }}</pre></div>
+                                    <div><strong>{{ revision.payload?.title }}</strong><span class="revision-price">{{ formatMoney(revision.payload?.price) }} ₽<template v-if="revision.payload?.price_details?.sale_unit_label"> / {{ revision.payload.price_details.sale_unit_label }}</template></span><small v-if="revision.payload?.price_details?.formula" class="revision-formula">{{ revision.payload.price_details.formula }}</small><p v-for="message in revision.report_messages" :key="`${message.code}-${message.message}`" :class="`report-${message.level}`">{{ message.level }} · {{ message.message }}</p><pre>{{ revision.payload?.description }}</pre></div>
                                 </details>
                             </div>
                             <div v-else class="editor-empty"><span>Подтверждённых версий пока нет.</span></div>
@@ -1096,6 +1189,9 @@ function showError(exception, fallback) {
 .publisher--embedded { min-height: 0; border: 1px solid var(--pub-border); border-radius: 8px; overflow: hidden; }
 .publisher--embedded .publisher-toolbar { align-items: center; grid-template-columns: minmax(150px, 1fr) 160px auto auto; padding: 6px 8px; }
 .scoped-title { font-size: 12px; }
+.price-basis-custom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.price-basis-calculation { display: grid; gap: 3px; padding: 8px 10px; border: 1px solid var(--pub-border); border-radius: 6px; background: var(--pub-panel); font-size: 12px; }
+.price-basis-calculation small { color: var(--pub-muted); font-size: 10px; }
 .publication-flow { margin: 0; padding: 7px 9px; color: var(--pub-muted); background: var(--pub-panel); font-size: 11px; border-bottom: 1px solid var(--pub-border); }
 .feed-scope { color: var(--pub-muted); font-size: 10px; }
 .publisher--embedded .publisher-grid { height: min(680px, 75vh); min-height: 460px; grid-template-columns: minmax(170px, 21%) minmax(0, 1fr); }

@@ -148,3 +148,118 @@ test('the host receives dirty and busy state, and reset restores the last saved 
     assert.equal(h.api.editor.title_override, 'Сохраняемая редакция')
     assert.deepEqual(h.emitted.filter(event => event[0] === 'state').at(-1)[1], { dirty: false, busy: false })
 })
+
+const measuredDraft = (kilogramsPerUnit = 1) => ({
+    ...draft(),
+    draft: { selected_fields: ['title', 'price'], price_value_id: 7, price_basis: { mode: 'unit' } },
+    good: {
+        measurement: { measure_id: kilogramsPerUnit === 1 ? 1 : 2, unit_label: kilogramsPerUnit === 1 ? 'кг' : 'коробка', kilograms_per_unit: kilogramsPerUnit },
+        denominator: 10,
+        prices: [{ id: 7, name: 'Розничная', amount: 233.14, currency_code: 'RUB' }],
+        avito_price_basis: {
+            unit: { mode: 'unit', quantity: 1, label: kilogramsPerUnit === 1 ? 'кг' : 'коробка', available: true },
+            package: { mode: 'package', quantity: 10 / kilogramsPerUnit, label: 'упаковка', available: true },
+        },
+    },
+})
+
+test('publication price offers base unit, package and custom quantity with rounding only after multiplication', t => {
+    const h = harness(); t.after(h.dispose)
+    h.api.hydrate({ publication: measuredDraft() })
+    assert.equal(h.api.priceCalculation.value.total, 233)
+    h.api.changePriceBasis('package')
+    assert.equal(h.api.priceCalculation.value.basis.quantity, 10)
+    assert.equal(h.api.priceCalculation.value.total, 2331)
+    assert.deepEqual(h.api.editorPayload().price_basis, { mode: 'package' })
+    h.api.changePriceBasis('custom')
+    h.api.changeCustomBasis('quantity', '2.5')
+    h.api.changeCustomBasis('label', 'пакет')
+    assert.equal(h.api.priceCalculation.value.total, 583)
+    assert.deepEqual(h.api.editorPayload().price_basis, { mode: 'custom', quantity: '2.5', label: 'пакет' })
+    assert.ok(findVNode(h.render(), node => hasClass(node, 'price-basis-calculation')))
+    h.api.hydrate({ publication: measuredDraft(10) })
+    h.api.changePriceBasis('package')
+    assert.equal(h.api.priceCalculation.value.basis.quantity, 1, 'A Good accounted as a 10 kg box is not multiplied by 10 again')
+    assert.equal(h.api.priceCalculation.value.total, 233)
+})
+
+test('a manual publication override remains the final lot price and invalid quantities never produce a preview amount', t => {
+    const h = harness(); t.after(h.dispose)
+    h.api.hydrate({ publication: measuredDraft() })
+    h.api.changePriceBasis('package')
+    h.api.editor.price_override = 899.6
+    assert.equal(h.api.priceCalculation.value.manual, true)
+    assert.equal(h.api.priceCalculation.value.total, 900, 'A final manual price is never multiplied by package quantity')
+    h.api.changePriceBasis('custom')
+    h.api.changeCustomBasis('quantity', '-1')
+    assert.equal(h.api.priceCalculation.value, null)
+    h.api.changeCustomBasis('quantity', '3')
+    h.api.changeCustomBasis('label', '')
+    assert.equal(h.api.priceCalculation.value, null)
+})
+
+test('custom basis keeps its saved unit snapshot until explicitly edited and warns about changed units', t => {
+    const h = harness(); t.after(h.dispose)
+    const publication = measuredDraft()
+    publication.draft.price_basis = { mode: 'custom', quantity: 5, label: 'мешок', measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 10 } }
+    h.api.hydrate({ publication })
+    assert.deepEqual(h.api.editorPayload().price_basis, publication.draft.price_basis)
+    assert.match(h.api.priceBasisIssue.value, /Единица товара или фасовка изменились/)
+    assert.equal(h.api.priceCalculation.value, null)
+    h.api.changeCustomBasis('quantity', '5')
+    assert.equal(h.api.editorPayload().price_basis.measurement, undefined)
+    assert.equal(h.api.priceBasisIssue.value, '')
+    assert.equal(h.api.priceCalculation.value.total, 1166)
+    h.api.publication.value.good.avito_price_basis.package = { available: false, block_reason: 'Не указана масса единицы товара' }
+    assert.equal(h.api.priceBasisOptions.value.find(item => item.value === 'package').props.disabled, true)
+})
+
+test('stored package and unit bases require explicit acknowledgement after measurement or package changes', t => {
+    const h = harness(); t.after(h.dispose)
+    const publication = measuredDraft()
+    publication.draft.price_basis = { mode: 'package', quantity: 10, label: 'упаковка', package_kg: 8, measurement: { ...publication.good.measurement } }
+    h.api.hydrate({ publication })
+    assert.equal(h.api.priceBasisStale.value, true)
+    assert.equal(h.api.priceCalculation.value, null)
+    h.api.renewPriceBasis()
+    assert.deepEqual(h.api.editorPayload().price_basis, { mode: 'package' })
+    assert.equal(h.api.priceCalculation.value.total, 2331)
+    publication.draft.price_basis = { mode: 'unit', quantity: 1, label: 'кг', measurement: { measure_id: 2, unit_label: 'коробка', kilograms_per_unit: 10 } }
+    h.api.hydrate({ publication })
+    assert.equal(h.api.priceBasisStale.value, true)
+    h.api.renewPriceBasis()
+    assert.equal(h.api.priceCalculation.value.total, 233)
+    publication.draft.price_basis = { mode: 'unit', quantity: 1, label: 'кг', measurement: { ...publication.good.measurement, unit_label: 'килограмм' } }
+    h.api.hydrate({ publication })
+    assert.equal(h.api.priceBasisStale.value, false, 'Renaming the same unit does not change its quantity conversion')
+})
+
+function nodeText(node) {
+    if (node == null || typeof node === 'boolean') return ''
+    if (typeof node === 'string' || typeof node === 'number') return String(node)
+    if (Array.isArray(node)) return node.map(nodeText).join('')
+    return nodeText(node.children)
+}
+
+test('saving persists the server unit snapshot and published price formulas stay immutable in history', async t => {
+    const h = harness(); t.after(h.dispose)
+    const publication = measuredDraft()
+    h.api.hydrate({ publication })
+    h.api.changePriceBasis('package')
+    const save = h.api.saveDraft()
+    assert.deepEqual(h.requests[0].options.price_basis, { mode: 'package' })
+    const basis = { mode: 'package', quantity: 10, label: 'упаковка', measurement: { ...publication.good.measurement }, package_kg: 10 }
+    const details = { price_basis: basis, total_unrounded: 2331.4, avito_value: 2331, sale_unit_label: 'упаковка', formula: '233,14 RUB / кг × 10 кг = 2 331,4 RUB / упаковка', can_apply: true }
+    const revision = { id: 20, version: 1, status: 'approved', payload: { price: 2331, price_basis: basis, price_details: details } }
+    const saved = { ...publication, draft: { ...publication.draft, price_basis: basis }, current_revision: revision, revisions: [revision] }
+    h.requests[0].resolve({ publication: saved, preview: { valid: true, payload: revision.payload, price_details: details } }); await save
+    assert.deepEqual(h.api.editorPayload().price_basis, basis)
+    assert.equal(h.api.dirty.value, false)
+    h.api.publication.value.good.prices[0].amount = 300
+    assert.equal(h.api.priceCalculation.value.total, 3000)
+    const rendered = h.render()
+    assert.match(nodeText(findVNode(rendered, node => hasClass(node, 'revision-price'))), /2\s331 ₽ \/ упаковка/)
+    assert.equal(nodeText(findVNode(rendered, node => hasClass(node, 'revision-formula'))), details.formula)
+    assert.match(nodeText(findVNode(rendered, node => hasClass(node, 'snapshot-price'))), /2\s331 ₽ \/ упаковка/)
+    assert.equal(h.api.preview.value.payload.price, 2331)
+})

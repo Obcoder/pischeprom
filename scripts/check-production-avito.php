@@ -428,6 +428,33 @@ function report(string $targetDir): array
     return $result;
 }
 
+/** A separate, strictly typed notice can be read without downloading job logs. */
+function listingApiNotice(mixed $report): string
+{
+    $api = is_array($report) && is_array($report['listing_api'] ?? null) ? $report['listing_api'] : [];
+    $inspection = static fn (mixed $value): string => in_array($value, [
+        'complete', 'unavailable', 'provider_error', 'invalid_response',
+        'time_budget_exceeded', 'integration_disabled', 'credentials_unavailable',
+    ], true) ? $value : 'unknown';
+    $summary = [
+        'inspection' => $inspection($api['inspection'] ?? null),
+        'credentials_configured' => is_bool($api['credentials_configured'] ?? null) ? $api['credentials_configured'] : null,
+    ];
+    foreach (['account', 'listings'] as $operation) {
+        $row = is_array($api[$operation] ?? null) ? $api[$operation] : [];
+        $status = $row['http_status'] ?? null;
+        $summary[$operation] = [
+            'inspection' => $inspection($row['inspection'] ?? null),
+            'http_status' => is_int($status) && $status >= 100 && $status <= 599 ? $status : null,
+            'response_valid' => is_bool($row['response_valid'] ?? null) ? $row['response_valid'] : null,
+        ];
+    }
+
+    // All output values above are fixed enum literals, booleans, bounded
+    // integers, or null; no untrusted string can become an Actions command.
+    return '::notice title=Avito listing API::'.json_encode($summary, JSON_UNESCAPED_SLASHES);
+}
+
 function main(array $arguments): int
 {
     // Prevent a bootstrap warning or third-party stdout from exposing data in
@@ -435,8 +462,9 @@ function main(array $arguments): int
     ini_set('display_errors', '0');
     ob_start();
     $exit = 0;
+    $githubSummary = count($arguments) === 3 && $arguments[2] === '--github-summary';
     try {
-        $targetDir = count($arguments) === 2 ? realpath($arguments[1]) : false;
+        $targetDir = (count($arguments) === 2 || $githubSummary) ? realpath($arguments[1]) : false;
         if ($targetDir === false || ! is_file($targetDir.'/bootstrap/app.php')) {
             throw new \RuntimeException;
         }
@@ -451,6 +479,9 @@ function main(array $arguments): int
         ob_end_clean();
     }
     fwrite(STDOUT, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE).PHP_EOL);
+    if ($githubSummary) {
+        fwrite(STDOUT, listingApiNotice($result).PHP_EOL);
+    }
 
     return $exit;
 }

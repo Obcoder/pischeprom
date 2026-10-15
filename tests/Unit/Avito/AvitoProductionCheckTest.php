@@ -8,9 +8,11 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 use function AvitoProductionCheck\inspect;
+use function AvitoProductionCheck\listingApiNotice;
 use function AvitoProductionCheck\listingResponseSummary;
 use function AvitoProductionCheck\providerListings;
 use function AvitoProductionCheck\providerSubscriptions;
@@ -36,6 +38,51 @@ class AvitoProductionCheckTest extends TestCase
             'avito.timeout_seconds' => 30,
             'avito.connect_timeout_seconds' => 10,
         ]);
+    }
+
+    public function test_github_notice_contains_only_typed_listing_health_metadata(): void
+    {
+        $notice = listingApiNotice(['listing_api' => [
+            'source' => 'client_credentials', 'credentials_configured' => true, 'inspection' => 'complete',
+            'account' => ['inspection' => 'complete', 'http_status' => 200, 'response_valid' => true, 'id' => 123456, 'name' => 'Private account'],
+            'listings' => ['inspection' => 'provider_error', 'http_status' => 403, 'response_valid' => false, 'message' => 'Private provider error'],
+        ], 'accounts' => ['Private unrelated data']]);
+
+        $this->assertSame('::notice title=Avito listing API::{"inspection":"complete","credentials_configured":true,"account":{"inspection":"complete","http_status":200,"response_valid":true},"listings":{"inspection":"provider_error","http_status":403,"response_valid":false}}', $notice);
+    }
+
+    public function test_github_notice_rejects_arbitrary_strings_command_injection_and_untyped_values(): void
+    {
+        $injection = "private-value%0A\n::error title=private::Private secret";
+        $notice = listingApiNotice(['listing_api' => [
+            'credentials_configured' => 'true', 'inspection' => $injection,
+            'account' => ['inspection' => ['complete'], 'http_status' => '200', 'response_valid' => 1, 'error_category' => $injection],
+            'listings' => ['inspection' => $injection, 'http_status' => 600, 'response_valid' => $injection],
+        ]]);
+
+        $this->assertSame(listingApiNotice(null), $notice);
+        $this->assertSame(listingApiNotice([]), listingApiNotice(['listing_api' => $injection]));
+        foreach (['private', 'Private', '::error', '%0A', "\n", '600', '200'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, $notice);
+        }
+        $this->assertSame('::notice title=Avito listing API::{"inspection":"unknown","credentials_configured":null,"account":{"inspection":"unknown","http_status":null,"response_valid":null},"listings":{"inspection":"unknown","http_status":null,"response_valid":null}}', $notice);
+    }
+
+    public function test_optional_github_summary_preserves_default_json_and_never_echoes_arguments(): void
+    {
+        $arguments = [PHP_BINARY, base_path('scripts/check-production-avito.php'), '/nonexistent/private-deploy-path'];
+        $default = new Process($arguments);
+        $default->run();
+        $this->assertSame(1, $default->getExitCode());
+        $this->assertSame(['inspection' => 'unavailable', 'error_category' => 'application_bootstrap_failed'], json_decode($default->getOutput(), true));
+        $this->assertStringNotContainsString('::notice', $default->getOutput());
+
+        $summary = new Process([...$arguments, '--github-summary']);
+        $summary->run();
+        $this->assertSame(1, $summary->getExitCode());
+        $this->assertSame($default->getOutput().listingApiNotice(null).PHP_EOL, $summary->getOutput());
+        $this->assertStringNotContainsString('private-deploy-path', $summary->getOutput());
+        $this->assertSame('', $summary->getErrorOutput());
     }
 
     public function test_listing_health_reads_only_the_personal_account_and_one_listing_without_exposing_data(): void

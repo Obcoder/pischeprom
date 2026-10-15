@@ -632,7 +632,7 @@ if ! php artisan app:deploy-smoke --path=/api/avito/messenger/templates --status
 fi
 
 log 'Checking Avito migrations, queue workers and provider webhook subscriptions.'
-if ! timeout 180s php "$target_dir/scripts/check-production-avito.php" "$target_dir"; then
+if ! timeout 180s php "$target_dir/scripts/check-production-avito.php" "$target_dir" --github-summary; then
     log 'WARNING: Avito runtime report could not be completed; inspect the VPS. The application is online.'
 fi
 

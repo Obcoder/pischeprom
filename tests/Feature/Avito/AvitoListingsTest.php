@@ -348,8 +348,11 @@ class AvitoListingsTest extends TestCase
             ->assertUnprocessable();
         Http::assertNothingSent();
 
+        $fingerprint = $this->postJson('/api/avito/listings/7001/good-transfer/preview', $payload)
+            ->assertOk()->json('preview.source_fingerprint');
         $this->postJson('/api/avito/listings/7001/good-transfer/apply', $payload + [
             'confirmed' => true,
+            'expected_fingerprint' => $fingerprint,
         ])->assertOk()
             ->assertJsonPath('transfer.status', 'applied')
             ->assertJsonPath('transfer.applied_fields.0', 'price')
