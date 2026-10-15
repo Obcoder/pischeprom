@@ -218,6 +218,7 @@ jobs:
             app/Services/Mail/AuthorizedMailDispatchService.php \
             database/migrations/2026_10_13_100000_create_supplier_orders.php \
             database/migrations/2026_10_15_200000_add_supplier_order_sequences.php \
+            database/migrations/2026_10_15_220000_add_supplier_order_item_row_keys.php \
             tests/Feature/SupplierOrderTest.php tests/Feature/SupplierOrders \
             tests/Unit/SupplierOrderMailRendererTest.php tests/Unit/SupplierOrderProductImagesTest.php
 

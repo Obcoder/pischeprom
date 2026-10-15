@@ -4,6 +4,7 @@ namespace App\Services\SupplierOrders;
 
 use App\Models\Currency;
 use App\Models\Good;
+use App\Models\Measure;
 use App\Models\Quotation;
 use App\Models\Unit;
 use App\Models\Warehouse;
@@ -74,6 +75,7 @@ class SupplierOrderContext
             'meta' => ['current_page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(), 'per_page' => $page->perPage()],
             'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']), 'warehouse_id' => $warehouseId,
             'currencies' => Currency::orderBy('code')->get(['id', 'code']),
+            'measures' => Measure::orderBy('name')->get(['id', 'name']),
             'unit' => ['id' => $unit->id, 'name' => $unit->name], 'recipients' => $this->recipients($unit, $entityIds),
             'defaults' => app(SupplierOrderDefaults::class)->forUnit($unit->id),
             'scope_note' => 'Спрос: неотгруженные незакрытые заказы всех покупателей'.(($filters['include_deferred'] ?? false) ? ', включая отложенные.' : ', без отложенных.')

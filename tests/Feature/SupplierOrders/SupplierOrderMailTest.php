@@ -185,6 +185,32 @@ class SupplierOrderMailTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_free_form_order_rows_reach_the_saved_email_without_catalog_creation(): void
+    {
+        $actor = $this->actor();
+        $unit = Unit::create(['name' => 'Поставщик свободной позиции']);
+        $currency = \App\Models\Currency::forceCreate(['name' => 'Рубль', 'code' => 'RUB']);
+        $saved = $this->actingAs($actor)->postJson('/api/supplier-orders', [
+            'create_key' => (string) Str::uuid(), 'unit_id' => $unit->id, 'subject' => 'Разовый заказ',
+            'mailbox' => 'office@example.test', 'to' => ['supplier@example.test'],
+            'items' => [[
+                'row_key' => (string) Str::uuid(), 'good_id' => null, 'name' => 'Образец <новый>',
+                'measurement' => ['measure_id' => null, 'unit_label' => 'набор'],
+                'quantity' => 3, 'unit_price' => 12.5, 'currency_id' => $currency->id,
+            ]],
+        ])->assertCreated()->json();
+        $this->acceptMail(function (Email $mime): void {
+            $this->assertStringContainsString('Образец &lt;новый&gt;', $mime->getHtmlBody());
+            $this->assertStringContainsString('Количество: 3 набор', $mime->getTextBody());
+            $this->assertStringContainsString('37,50 RUB', $mime->getHtmlBody());
+        });
+        $this->postJson('/api/supplier-orders/'.$saved['id'].'/send', ['revision' => $saved['revision']])
+            ->assertOk()->assertJsonPath('order.status', 'sent')->assertJsonPath('order.items.0.good_id', null);
+        $this->assertDatabaseCount('goods', 0);
+        $this->assertDatabaseCount('mail_messages', 1);
+        Http::assertNothingSent();
+    }
+
     public function test_send_requires_verified_staff_mail_permission_and_access_to_supplier(): void
     {
         Mail::shouldReceive('mailer')->never();

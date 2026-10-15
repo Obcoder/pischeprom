@@ -4,6 +4,7 @@ namespace App\Services\SupplierOrders;
 
 use App\Models\Currency;
 use App\Models\Good;
+use App\Models\Measure;
 use App\Models\OrderItem;
 use App\Models\Quotation;
 use App\Models\SupplierOrder;
@@ -13,8 +14,10 @@ use App\Models\Warehouse;
 use App\Services\Goods\GoodMeasurement;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class SupplierOrderWriter
@@ -71,7 +74,7 @@ class SupplierOrderWriter
             $order->items()->delete();
             foreach ($normalized['items'] as $position => $item) {
                 $order->items()->create([
-                    ...collect($item)->except(['measurement', 'line_total', 'avatar_url'])->all(), 'position' => $position,
+                    ...collect($item)->except(['measurement', 'line_total', 'avatar_url', 'create_good'])->all(), 'position' => $position,
                     // PDO stringifies float bindings with PHP's precision setting.
                     // Bind fixed-scale decimals explicitly to retain all six/four digits.
                     'quantity' => (string) $this->decimal($item['quantity'], 6),
@@ -140,7 +143,8 @@ class SupplierOrderWriter
             }
 
             return [
-                'id' => $item->id, 'good_id' => $item->good_id, 'name' => $item->name,
+                'id' => $item->id, 'row_key' => $item->row_key, 'good_id' => $item->good_id, 'name' => $item->name,
+                'create_good' => false,
                 'avatar_url' => $item->good ? app(SupplierOrderProductImages::class)->url($item->good) : null,
                 'measure_id' => $item->measure_id, 'unit_label' => $item->unit_label,
                 'kilograms_per_unit' => $item->kilograms_per_unit, 'measurement' => $item->measurement(),
@@ -203,10 +207,13 @@ class SupplierOrderWriter
             'cc' => ['sometimes', 'array', 'max:5'], 'cc.*' => ['required', 'email:rfc', 'max:254'],
             'include_prices' => ['sometimes', 'boolean'], 'internal_note' => ['nullable', 'string', 'max:10000'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
-            'items.*.good_id' => ['required', 'integer', 'min:1', 'distinct'],
+            'items.*.good_id' => ['nullable', 'integer', 'min:1', 'distinct'],
+            'items.*.row_key' => ['nullable', 'uuid', 'distinct:ignore_case'],
+            'items.*.name' => ['nullable', 'string', 'max:255'],
+            'items.*.create_good' => ['sometimes', 'boolean'],
             'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999', 'decimal:0,6'],
             'items.*.measurement' => ['required', 'array:measure_id,unit_label,kilograms_per_unit'],
-            'items.*.measurement.measure_id' => ['required', 'integer', 'min:1'],
+            'items.*.measurement.measure_id' => ['nullable', 'integer', 'min:1'],
             'items.*.measurement.unit_label' => ['nullable', 'string', 'max:255'],
             'items.*.measurement.kilograms_per_unit' => ['nullable', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['nullable', 'numeric', 'between:0,999999999999', 'decimal:0,4'],
@@ -227,7 +234,7 @@ class SupplierOrderWriter
         if (! empty($input['warehouse_id']) && ! Warehouse::whereKey($input['warehouse_id'])->exists()) {
             $this->invalid('warehouse_id', 'Склад не найден.');
         }
-        $ids = array_column($input['items'], 'good_id');
+        $ids = array_filter(array_column($input['items'], 'good_id'));
         $query = Good::whereIn('id', $ids)->with('measure')->orderBy('id');
         $goods = ($lockGoods ? $query->lockForUpdate() : $query)->get()->keyBy('id');
         $currencies = Currency::whereIn('id', array_filter(array_column($input['items'], 'currency_id')))->get()->keyBy('id');
@@ -237,15 +244,77 @@ class SupplierOrderWriter
             ->with(['measure', 'currency'])->whereIn('id', array_filter(array_column($input['items'], 'quotation_id')));
         $quotations = ($lockGoods ? $quotationQuery->lockForUpdate() : $quotationQuery)->get()->keyBy('id');
         $units = app(GoodMeasurement::class);
-        $storedItems = $order && (int) $order->unit_id === (int) $unit->id ? $order->items()->get()->keyBy('good_id') : collect();
+        $storedRows = $order && (int) $order->unit_id === (int) $unit->id ? $order->items()->get() : collect();
+        $storedItems = $storedRows->whereNotNull('good_id')->keyBy('good_id');
+        $storedKeys = $storedRows->whereNotNull('row_key')->keyBy('row_key');
+        $measures = Measure::whereIn('id', collect($input['items'])->pluck('measurement.measure_id')->filter())->get()->keyBy('id');
         $items = [];
+        $seenGoods = [];
+        $seenRowKeys = [];
         foreach ($input['items'] as $index => $item) {
-            $good = $goods->get((int) $item['good_id']);
-            if (! $good) {
-                $this->invalid("items.{$index}.good_id", 'Товар не найден.');
+            $good = null;
+            $registerGood = false;
+            $rowKey = isset($item['row_key']) ? strtolower($item['row_key']) : null;
+            if (empty($item['good_id'])) {
+                if (! $rowKey) {
+                    $this->invalid("items.{$index}.row_key", 'Для новой строки нужен постоянный ключ. Добавьте строку заново.');
+                }
+                if (! empty($item['quotation_id']) || ! empty($item['source_order_item_ids'])) {
+                    $this->invalid("items.{$index}.good_id", 'Свободная строка не может ссылаться на предложение или заказ товара из каталога.');
+                }
+                $name = $this->nullableText($item['name'] ?? null);
+                if (! $name) {
+                    $this->invalid("items.{$index}.name", 'Укажите название товара.');
+                }
+                $measurement = $this->customMeasurement($item, $measures, $index);
+                $registerGood = (bool) ($item['create_good'] ?? false);
+                // A response can be lost after creating the Good. A subsequent
+                // edit of this same row must reuse its registered product.
+                $stored = $storedKeys->get($rowKey);
+                if ($stored?->good_id) {
+                    if (! $registerGood) {
+                        $this->invalid("items.{$index}.good_id", 'Эта строка уже связана с товаром. Обновите заказ.');
+                    }
+                    $query = Good::whereKey($stored->good_id)->with('measure');
+                    $good = ($lockGoods ? $query->lockForUpdate() : $query)->first();
+                    if (! $good || $good->name !== $name || $good->measurement() !== $measurement) {
+                        $this->invalid("items.{$index}.good_id", 'Товар этой строки уже создан. Обновите заказ перед изменением его реквизитов.');
+                    }
+                    $registerGood = false;
+                } elseif ($registerGood && $lockGoods) {
+                    $good = Good::create(['name' => $name, 'measure_id' => $measurement['measure_id'],
+                        'unit_weight_kg' => null, 'is_published' => false]);
+                    $registerGood = false;
+                }
+            } else {
+                $good = $goods->get((int) $item['good_id']);
+                if (! $good) {
+                    $this->invalid("items.{$index}.good_id", 'Товар не найден.');
+                }
+                if ($item['create_good'] ?? false) {
+                    $this->invalid("items.{$index}.create_good", 'Для существующего товара создание новой карточки недоступно.');
+                }
+                $linkedGood = $rowKey ? $storedKeys->get($rowKey)?->good_id : null;
+                if ($linkedGood && (int) $linkedGood !== (int) $good->id) {
+                    $this->invalid("items.{$index}.row_key", 'Эта строка уже связана с другим товаром. Добавьте товар отдельной строкой.');
+                }
+                $measurement = $units->assertConfigured($good, "items.{$index}.measurement");
+                $units->assertSnapshot($good, $item['measurement'], "items.{$index}.measurement");
+                $name = $good->name;
+                $rowKey ??= $storedItems->get($good->id)?->row_key ?? ($lockGoods ? (string) Str::uuid() : null);
             }
-            $measurement = $units->assertConfigured($good, "items.{$index}.measurement");
-            $units->assertSnapshot($good, $item['measurement'], "items.{$index}.measurement");
+            if ($rowKey) {
+                if (in_array($rowKey, $seenRowKeys, true)) {
+                    $this->invalid("items.{$index}.row_key", 'Ключ строки уже используется в этом заказе. Добавьте позицию заново.');
+                }
+                $seenRowKeys[] = $rowKey;
+            }
+            if ($good) {
+                if (in_array($good->id, $seenGoods, true)) {
+                    $this->invalid("items.{$index}.good_id", 'Товар уже добавлен в заказ. Измените количество существующей строки.');
+                }
+                $seenGoods[] = $good->id;
+            }
             $price = isset($item['unit_price']) ? $this->decimal($item['unit_price'], 4) : null;
             $currency = isset($item['currency_id']) ? $currencies->get((int) $item['currency_id']) : null;
             if (isset($item['currency_id']) && ! $currency) {
@@ -298,8 +367,9 @@ class SupplierOrderWriter
                 }
             }
             $items[] = [
-                'good_id' => $good->id, 'name' => $good->name, ...$measurement, 'measurement' => $measurement,
-                'avatar_url' => app(SupplierOrderProductImages::class)->url($good),
+                'row_key' => $rowKey, 'good_id' => $good?->id, 'name' => $name, ...$measurement, 'measurement' => $measurement,
+                'create_good' => $registerGood,
+                'avatar_url' => $good ? app(SupplierOrderProductImages::class)->url($good) : null,
                 'quantity' => (string) $quantity, 'unit_price' => $price === null ? null : (string) $price, 'currency_id' => $currency?->id, 'currency_code' => $currency?->code,
                 'line_total' => $total?->toFloat(), 'note' => $this->nullableText($item['note'] ?? null), 'source_order_item_ids' => $source,
                 'quotation_id' => $item['quotation_id'] ?? null, 'quotation_snapshot' => $quotationSnapshot,
@@ -334,17 +404,46 @@ class SupplierOrderWriter
         ];
     }
 
+    private function customMeasurement(array $item, Collection $measures, int $index): array
+    {
+        $measureId = $item['measurement']['measure_id'] ?? null;
+        $measure = $measureId ? $measures->get((int) $measureId) : null;
+        if ($measureId && ! $measure) {
+            $this->invalid("items.{$index}.measurement.measure_id", 'Единица измерения не найдена.');
+        }
+        if (($item['create_good'] ?? false) && ! $measure) {
+            $this->invalid("items.{$index}.measurement.measure_id", 'Для создания товара выберите единицу учёта из справочника.');
+        }
+        $label = $measure?->name ?? $this->nullableText($item['measurement']['unit_label'] ?? null);
+        if (! $label) {
+            $this->invalid("items.{$index}.measurement.unit_label", 'Укажите единицу измерения свободной строки.');
+        }
+
+        // A free-form row never supplies a conversion into stock quantities.
+        // Only known mass units receive their canonical kilograms factor.
+        return ['measure_id' => $measure?->id, 'unit_label' => $label,
+            'kilograms_per_unit' => $measure ? app(GoodMeasurement::class)->kilograms($measure->name) : null];
+    }
+
     private function fingerprint(array $input, bool $legacy = false): string
     {
         $items = array_map(fn ($item) => [
-            'good_id' => (int) $item['good_id'], 'quantity' => (string) $this->decimal($item['quantity'], 6),
-            'measurement' => ['measure_id' => (int) $item['measurement']['measure_id'],
+            'good_id' => (int) ($item['good_id'] ?? 0), 'quantity' => (string) $this->decimal($item['quantity'], 6),
+            'measurement' => ['measure_id' => (int) ($item['measurement']['measure_id'] ?? 0),
                 'kilograms_per_unit' => isset($item['measurement']['kilograms_per_unit']) ? (float) $item['measurement']['kilograms_per_unit'] : null],
             'unit_price' => isset($item['unit_price']) ? (string) $this->decimal($item['unit_price'], 4) : null,
             'currency_id' => isset($item['currency_id']) ? (int) $item['currency_id'] : null,
             'quotation_id' => isset($item['quotation_id']) ? (int) $item['quotation_id'] : null,
             'note' => $this->nullableText($item['note'] ?? null),
             'source_order_item_ids' => array_map('intval', $item['source_order_item_ids'] ?? []),
+            // Existing catalog fingerprints intentionally retain their original
+            // shape so an old client can retry a pre-deploy creation safely.
+            ...(empty($item['good_id']) ? ['custom' => [
+                'row_key' => isset($item['row_key']) ? strtolower($item['row_key']) : null,
+                'name' => $this->nullableText($item['name'] ?? null),
+                'unit_label' => $this->nullableText($item['measurement']['unit_label'] ?? null),
+                'create_good' => (bool) ($item['create_good'] ?? false),
+            ]] : []),
         ], $input['items']);
 
         $header = $this->header($input);

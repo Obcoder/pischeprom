@@ -10,19 +10,20 @@ function harness(t, name = 'SupplierOrderComposer', initial = {}) {
     const { descriptor, errors } = parse(readFileSync(filename, 'utf8'), { filename }); assert.deepEqual(errors, [])
     const compiled = compileScript(descriptor, { id: name })
     const template = compileTemplate({ source: descriptor.template.content, filename, id: name, compilerOptions: { bindingMetadata: compiled.bindings } }); assert.deepEqual(template.errors, [])
-    const requests = [], emitted = []
+    const requests = [], emitted = [], mounted = []
     const props = Vue.reactive({ unitId: 6, orderId: null, recipients: [], mailboxes: [{ address: 'com@food-server.ru' }], unitFiles: [], initialTo: ['supplier@example.test'], initialStorageFiles: [], modelValue: false, sending: false, replyContext: null, initialMode: 'supplier_order', initialSupplierOrderId: null, ...initial })
-    const env = { ...Vue, _mergeModels: Vue.mergeModels, _useModel: (props, key) => Vue.computed({ get: () => props[key], set: value => { props[key] = value } }), MailTemplatesDialog: {}, SupplierOrderComposer: {}, axios: Object.fromEntries(['get', 'post', 'patch', 'delete'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])) }
+    const env = { ...Vue, onMounted: callback => mounted.push(callback), _mergeModels: Vue.mergeModels, _useModel: (props, key) => Vue.computed({ get: () => props[key], set: value => { props[key] = value } }), MailTemplatesDialog: {}, SupplierOrderComposer: {}, axios: Object.fromEntries(['get', 'post', 'patch', 'delete'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])) }
     const script = compiled.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${script}}`)(env), scope = Vue.effectScope()
     const state = scope.run(() => component.setup(props, { expose() {}, emit: (...args) => emitted.push(args) }))
+    for (const callback of mounted) callback()
     t.after(() => scope.stop())
     return { state, props, requests, emitted, render: templateRenderer(template, state, props) }
 }
 const measurement = { measure_id: 1, unit_label: 'кг', kilograms_per_unit: 1 }
 const good = { good_id: 14, name: 'Мак пищевой', measurement, unit_price: null, currency_id: null, currency_code: null, demand_quantity: 8, stock_quantity: 2, shortage_quantity: 6, ordered_quantity: 1, to_order_quantity: 5, customer_orders: [{ id: 10, item_id: 20, number: 'К-10', quantity: 8, unit_label: 'кг' }], supplier_orders: [], unit_issues: [], incoming_warnings: [] }
 const defaults = { mailbox: 'com@food-server.ru', subject: 'ПИЩЕПРОМ-СЕРВЕР: заказ от 15.10.2026 0007', body: 'Добрый день!\nПросим принять в работу заказ и подтвердить наличие, цены и срок поставки (возможность отгрузки) указанных товаров:', subject_date: '2026-10-15', supplier_sequence: 7, auto_subject: true }
-const context = () => ({ data: [structuredClone(good)], meta: { total: 1, current_page: 1, last_page: 1 }, warehouses: [{ id: 1, name: 'Основной' }], warehouse_id: 1, currencies: [{ id: 1, code: 'RUB' }], recipients: [], unit: { id: 6, name: 'Поставщик' }, can_send: true, defaults: { ...defaults } })
+const context = () => ({ data: [structuredClone(good)], meta: { total: 1, current_page: 1, last_page: 1 }, warehouses: [{ id: 1, name: 'Основной' }], warehouse_id: 1, currencies: [{ id: 1, code: 'RUB' }], measures: [{ id: 1, name: 'кг' }, { id: 2, name: 'шт' }], recipients: [], unit: { id: 6, name: 'Поставщик' }, can_send: true, defaults: { ...defaults } })
 const stored = (payload, extra = {}) => ({ ...payload, id: 80, number: 'ЗП-80', revision: 1, status: 'draft', status_label: 'Черновик', editable: true, unit: { id: 6, name: 'Поставщик' }, items: payload.items.map(item => ({ ...item, name: good.name, currency_code: item.currency_id ? 'RUB' : null })), ...extra })
 async function ready(t) { const h = harness(t); h.requests[0].resolve(context()); await flush(); return h }
 
@@ -378,4 +379,188 @@ test('product thumbnails appear in the letter and a broken image leaves the name
     assert.equal(findVNode(refreshed, node => node.type === 'img' && node.props?.src === illustrated.avatar_url), null)
     assert.ok(findVNode(refreshed, node => node.type === 'span' && node.children === good.name))
     assert.equal(h.state.form.items[0].quantity, 2)
+})
+
+function prepareCustom(h, changes = {}) {
+    h.state.openCustomItem()
+    Object.assign(h.state.customItem, {
+        name: 'Образцы для дегустации', quantity: 2.5,
+        measurement: { measure_id: null, unit_label: 'набор', kilograms_per_unit: null },
+        unit_price: 125.5, currency_id: 1, note: 'Без сахара', ...changes,
+    })
+}
+
+test('free products are distinct rows with their own units and appear in the letter without creating catalog goods', async t => {
+    const h = await ready(t), before = h.requests.length
+    prepareCustom(h); h.state.saveCustomItem()
+    prepareCustom(h, { quantity: 1, note: 'С сахаром' }); h.state.saveCustomItem()
+    assert.equal(h.state.form.items.length, 2, 'Two free rows must not merge through their null good IDs')
+    const [first, second] = h.state.payload().items
+    assert.notEqual(first.row_key, second.row_key)
+    for (const item of [first, second]) {
+        assert.match(item.row_key, /^[0-9a-f-]{36}$/i)
+        assert.equal(item.good_id, null); assert.equal(item.create_good, false)
+        assert.equal(item.name, 'Образцы для дегустации')
+        assert.deepEqual(item.measurement, { measure_id: null, unit_label: 'набор', kilograms_per_unit: null })
+        assert.equal(item.currency_id, 1); assert.equal(item.quotation_id, null)
+        assert.deepEqual(item.source_order_item_ids, [])
+    }
+    assert.equal(first.quantity, 2.5); assert.equal(second.quantity, 1)
+    assert.equal(h.requests.length, before, 'Adding a row is local until the order is saved')
+    const letter = findVNode(h.render(), node => node.type === 'section' && node.props?.['aria-label'] === 'Таблица заказа в письме')
+    assert.ok(findVNode(letter, node => node.type === 'span' && node.children === first.name))
+    assert.deepEqual(h.state.totals.value, { RUB: 439.25 })
+    assert.equal(h.state.dirty.value, true); assert.equal(h.state.canSend.value, true)
+})
+
+test('new catalog goods remain pending through preview and become regular linked rows only after the order is saved', async t => {
+    const h = await ready(t), before = h.requests.length
+    prepareCustom(h, { name: 'Новый ингредиент', create_good: true, measurement: { measure_id: 1, unit_label: 'кг', kilograms_per_unit: null } })
+    h.state.saveCustomItem()
+    assert.equal(h.requests.length, before)
+    const row = JSON.parse(JSON.stringify(h.state.payload().items[0]))
+    assert.equal(row.create_good, true); assert.equal(row.good_id, null)
+    const preview = h.state.fetchPreview(), previewRequest = h.requests.at(-1)
+    assert.equal(previewRequest.url, '/api/supplier-orders/preview')
+    assert.equal(previewRequest.body.items[0].create_good, true)
+    previewRequest.resolve({ html: '<table><tr><td>Новый ингредиент</td></tr></table>' }); await preview
+    assert.equal(h.state.form.items[0].good_id, null, 'Preview must not turn pending rows into invented IDs')
+    const save = h.state.saveDraft(), request = h.requests.at(-1)
+    assert.equal(request.url, '/api/supplier-orders'); assert.equal(request.body.items[0].create_good, true)
+    const persisted = { ...row, good_id: 901, create_good: false, measurement: { ...measurement }, currency_code: 'RUB' }
+    request.resolve(stored(request.body, { items: [persisted] })); await save
+    assert.equal(h.state.form.items[0].good_id, 901)
+    assert.equal(h.state.form.items[0].row_key, row.row_key)
+    assert.equal(h.state.form.items[0].name, 'Новый ингредиент')
+    assert.notEqual(h.state.payload().items[0].create_good, true, 'An ordinary resave must not request another Good')
+    assert.equal(h.state.dirty.value, false)
+    h.state.form.items[0].quantity = 3
+    const resave = h.state.saveDraft(), patch = h.requests.at(-1)
+    assert.equal(patch.method, 'patch'); assert.equal(patch.body.items[0].good_id, 901)
+    patch.resolve(stored(patch.body, { revision: 2, items: [{ ...persisted, quantity: 3 }] })); await resave
+    assert.ok(h.requests.every(item => !/\/goods(?:\/|$)/.test(item.url) && !item.url.endsWith('/send')))
+})
+
+test('free-row editing is isolated by row identity and cancelling leaves the existing line untouched', async t => {
+    const h = await ready(t)
+    prepareCustom(h, { name: 'Первый образец', quantity: 1 }); h.state.saveCustomItem()
+    prepareCustom(h, { name: 'Второй образец', quantity: 2 }); h.state.saveCustomItem()
+    const [first, second] = h.state.form.items
+    h.state.openCustomItem(second)
+    h.state.customItem.name = 'Второй образец — изменён'
+    h.state.customItem.measurement.unit_label = 'коробка'
+    assert.equal(second.name, 'Второй образец'); assert.equal(second.measurement.unit_label, 'набор')
+    h.state.closeCustomItem()
+    assert.equal(h.state.form.items[1].name, 'Второй образец')
+    h.state.openCustomItem(second); h.state.customItem.name = 'Второй образец — изменён'; h.state.customItem.quantity = 4
+    h.state.saveCustomItem()
+    assert.equal(h.state.form.items[0].name, 'Первый образец'); assert.equal(h.state.form.items[0].quantity, 1)
+    assert.equal(h.state.form.items[1].name, 'Второй образец — изменён'); assert.equal(h.state.form.items[1].quantity, 4)
+    assert.equal(h.state.form.items[1].row_key, second.row_key)
+    const remove = findVNode(h.render(), node => node.type === 'button' && node.props?.['aria-label'] === 'Убрать Первый образец')
+    assert.ok(remove); remove.props.onClick()
+    assert.equal(h.state.form.items.length, 1); assert.equal(h.state.form.items[0].row_key, second.row_key)
+    assert.notEqual(h.state.form.items[0].row_key, first.row_key)
+})
+
+test('custom products require a name, positive quantity, unit and currency when priced', async t => {
+    const h = await ready(t)
+    prepareCustom(h, { name: '  ' }); h.state.saveCustomItem()
+    assert.match(h.state.customError.value, /название/i); assert.equal(h.state.form.items.length, 0)
+    h.state.customItem.name = 'Новая позиция'; h.state.customItem.quantity = 0; h.state.saveCustomItem()
+    assert.match(h.state.customError.value, /количество/)
+    h.state.customItem.quantity = 2; h.state.customItem.measurement.unit_label = ''; h.state.saveCustomItem()
+    assert.match(h.state.customError.value, /единицу/)
+    h.state.customItem.measurement.unit_label = 'короб'; h.state.customItem.currency_id = null; h.state.saveCustomItem()
+    assert.match(h.state.customError.value, /валюту/)
+    h.state.customItem.currency_id = 1; h.state.customItem.unit_price = -1; h.state.saveCustomItem()
+    assert.match(h.state.customError.value, /цену/)
+    h.state.customItem.unit_price = ''; h.state.customItem.currency_id = null; h.state.saveCustomItem()
+    assert.equal(h.state.customOpen.value, false); assert.equal(h.state.form.items.length, 1)
+    assert.equal(h.state.payload().items[0].unit_price, null)
+    assert.equal(h.state.payload().items[0].currency_id, null, 'Unknown price stays unknown instead of becoming zero')
+})
+
+test('catalog creation uses a registered measure while switching back allows a free unit', async t => {
+    const h = await ready(t)
+    prepareCustom(h, { measurement: { measure_id: null, unit_label: 'шт.', kilograms_per_unit: null } })
+    h.state.selectCustomMode(true)
+    assert.equal(h.state.customItem.measurement.measure_id, 2, 'Match the existing unit despite an abbreviation dot')
+    h.state.customItem.measurement.measure_id = 987; h.state.saveCustomItem()
+    assert.equal(h.state.form.items.length, 0); assert.match(h.state.customError.value, /единицу учёта/)
+    h.state.customItem.measurement.measure_id = 1; h.state.customMeasureChanged()
+    assert.equal(h.state.customItem.measurement.unit_label, 'кг')
+    h.state.selectCustomMode(false); h.state.customItem.measurement.unit_label = 'мешок 25 кг'; h.state.saveCustomItem()
+    assert.equal(h.state.payload().items[0].create_good, false)
+    assert.equal(h.state.payload().items[0].measurement.measure_id, null)
+    assert.equal(h.state.payload().items[0].measurement.unit_label, 'мешок 25 кг')
+})
+
+test('an unfinished product editor survives source tabs, blocks premature saving and participates in discard protection', async t => {
+    const h = await ready(t)
+    prepareCustom(h); await Vue.nextTick()
+    assert.equal(h.state.dirty.value, false, 'The incomplete editor has not yet added an order line')
+    assert.equal(h.state.unsaved.value, true)
+    assert.equal(h.emitted.filter(([event]) => event === 'state').at(-1)[1].dirty, true)
+    assert.equal(h.state.canSend.value, false)
+    const before = h.requests.length
+    await h.state.saveDraft(); await h.state.send()
+    assert.equal(h.requests.length, before)
+    h.state.selectTab('demand'); h.requests.at(-1).resolve(context()); await flush()
+    assert.equal(h.state.customOpen.value, true); assert.equal(h.state.customItem.name, 'Образцы для дегустации')
+    h.state.requestClose(); assert.equal(h.state.closeConfirmation.value, true)
+    assert.ok(!h.emitted.some(([event]) => event === 'close'))
+    h.state.closeConfirmation.value = false; h.state.closeCustomItem(); await Vue.nextTick()
+    assert.equal(h.state.unsaved.value, false); assert.equal(h.state.form.items.length, 0)
+})
+
+test('reopening a free-row draft preserves its name and custom unit instead of looking up a nonexistent Good', async t => {
+    const h = harness(t, 'SupplierOrderComposer', { orderId: 80 })
+    const free = { row_key: '12345678-1234-4234-8234-123456789012', good_id: null, create_good: false, name: 'Тестовая смесь', quantity: 3, measurement: { measure_id: null, unit_label: 'пакет 250 г', kilograms_per_unit: null }, unit_price: null, currency_id: null, note: 'Без добавок' }
+    const header = { unit_id: 6, subject: 'Пробная партия', body: 'Добрый день!', mailbox: 'com@food-server.ru', to: ['supplier@example.test'], cc: [], items: [free] }
+    h.requests[0].resolve(stored(header, { items: [free] })); await flush(); h.requests.at(-1).resolve(context()); await flush()
+    assert.equal(h.state.form.items[0].name, free.name)
+    assert.equal(h.state.form.items[0].measurement.unit_label, free.measurement.unit_label)
+    assert.equal(h.state.dirty.value, false)
+    h.state.openCustomItem(h.state.form.items[0]); h.state.customItem.name = 'Тестовая смесь №2'; h.state.saveCustomItem()
+    assert.equal(h.state.payload().items[0].row_key, free.row_key); assert.equal(h.state.payload().items[0].name, 'Тестовая смесь №2')
+    const save = h.state.saveDraft(), request = h.requests.at(-1)
+    assert.equal(request.method, 'patch'); assert.equal(request.body.items[0].good_id, null)
+    request.resolve(stored(request.body, { revision: 2, items: request.body.items })); await save
+    assert.equal(h.state.dirty.value, false); assert.equal(h.state.form.items[0].name, 'Тестовая смесь №2')
+})
+
+test('readonly and busy orders refuse custom edits including direct action handlers', async t => {
+    const h = await ready(t)
+    prepareCustom(h)
+    h.state.saving.value = true
+    h.state.saveCustomItem()
+    assert.equal(h.state.form.items.length, 0); assert.equal(h.state.customOpen.value, true)
+    h.state.closeCustomItem(); assert.equal(h.state.customOpen.value, true)
+    h.state.saving.value = false; h.state.closeCustomItem()
+    h.state.document.value = { id: 80, status: 'sent', editable: false }
+    h.state.openCustomItem(); assert.equal(h.state.customOpen.value, false)
+    h.state.customOpen.value = true; h.state.saveCustomItem()
+    assert.equal(h.state.form.items.length, 0)
+    h.state.customOpen.value = false
+    const add = findVNode(h.render(), node => node.type === 'button' && node.props?.['aria-label'] === 'Добавить товар вручную')
+    assert.ok(!add || add.props.disabled)
+})
+
+test('the header info popover exposes calculation notes on demand and supports Escape and outside dismissal', async t => {
+    const h = await ready(t)
+    assert.equal(h.state.infoOpen.value, false)
+    const button = findVNode(h.render(), node => node.type === 'button' && node.props?.['aria-controls'] === h.state.infoId.value)
+    assert.ok(button); assert.equal(button.props['aria-expanded'], false)
+    assert.equal(findVNode(h.render(), node => node.props?.id === h.state.infoId.value), null)
+    button.props.onClick()
+    const popup = findVNode(h.render(), node => node.props?.id === h.state.infoId.value)
+    assert.ok(popup); assert.ok(findVNode(popup, node => node.type === 'p' && typeof node.children === 'string' && node.children.includes('К заказу =')))
+    let prevented = false, stopped = false, focused = 0
+    h.state.infoButton.value = { focus() { focused++ } }
+    h.state.onInfoKeydown({ key: 'Escape', preventDefault() { prevented = true }, stopPropagation() { stopped = true } }); await Vue.nextTick()
+    assert.equal(h.state.infoOpen.value, false); assert.equal(prevented, true); assert.equal(stopped, true); assert.equal(focused, 1)
+    h.state.toggleInfo(); h.state.infoContainer.value = { contains: target => target === 'inside' }
+    h.state.onOutsideInfo({ target: 'inside' }); assert.equal(h.state.infoOpen.value, true)
+    h.state.onOutsideInfo({ target: 'outside' }); assert.equal(h.state.infoOpen.value, false)
 })
