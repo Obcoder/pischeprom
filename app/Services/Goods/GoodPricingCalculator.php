@@ -16,8 +16,20 @@ class GoodPricingCalculator
             ->leftJoin('units as u', 'u.id', '=', 'q.unit_id')
             ->leftJoin('measures as m', 'm.id', '=', 'q.measure_id')
             ->leftJoin('currencies as c', 'c.id', '=', 'q.currency_id')
-            ->orderByDesc('q.id')->get(['q.id', 'q.price', 'q.denominator', 'q.measure_id', 'q.currency_id', 'q.created_at as date', 'u.name as supplier', 'm.name as unit_label', 'c.code as currency_code'])
-            ->map(fn ($row) => [...(array) $row, 'key' => 'quotation:'.$row->id, 'kind' => 'quotation']);
+            ->orderByDesc('q.id')->get(['q.id', 'q.price', 'q.denominator', 'q.measure_id', 'q.currency_id', 'q.created_at as date',
+                'q.quoted_at', 'q.valid_until', 'q.price_includes_vat', 'q.vat_rate', 'u.name as supplier', 'm.name as unit_label', 'c.code as currency_code'])
+            ->map(function ($row) {
+                $quotedAt = $row->quoted_at === null ? null : substr($row->quoted_at, 0, 10);
+                $validUntil = $row->valid_until === null ? null : substr($row->valid_until, 0, 10);
+
+                return [...(array) $row, 'key' => 'quotation:'.$row->id, 'kind' => 'quotation',
+                    'date' => $quotedAt ?? $row->date, 'quoted_at' => $quotedAt, 'valid_until' => $validUntil,
+                    'price_includes_vat' => $row->price_includes_vat === null ? null : (bool) $row->price_includes_vat,
+                    'vat_rate' => $row->vat_rate === null ? null : (float) $row->vat_rate,
+                    'is_current' => ($quotedAt === null || $quotedAt <= today()->toDateString())
+                        && ($validUntil === null || $validUntil >= today()->toDateString()),
+                ];
+            });
         $purchases = DB::table('good_purchase as gp')->where('gp.good_id', $good->id)
             ->join('purchases as p', 'p.id', '=', 'gp.purchase_id')
             ->leftJoin('entities as e', 'e.id', '=', 'p.entity_id')
@@ -173,7 +185,15 @@ class GoodPricingCalculator
         if (! $source) {
             $this->invalid('source_key', 'Выберите закупку или предложение именно этого товара.');
         }
-        if (! $source['currency_id'] || (int) $source['currency_id'] !== (int) $input['currency_id']) {
+        if (($source['is_current'] ?? true) === false) {
+            $this->invalid('source_key', 'Предложение ещё не действует или срок его действия истёк. Проверьте даты во вкладке «Маркет» или выберите другой источник.');
+        }
+        if (! $source['currency_id']) {
+            $this->invalid('source_key', $source['kind'] === 'quotation'
+                ? 'У предложения поставщика не указана валюта. Откройте вкладку «Маркет» и заполните валюту предложения.'
+                : 'У закупки не указана валюта. Заполните валюту закупки или выберите другой источник.');
+        }
+        if ((int) $source['currency_id'] !== (int) $input['currency_id']) {
             $this->invalid('currency_id', 'Валюта цены должна совпадать с валютой источника. Автоматическая конвертация не выполняется.');
         }
         if ($source['price'] === null || (float) $source['price'] < 0 || (float) $source['denominator'] <= 0 || ! $source['measure_id']) {

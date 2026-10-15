@@ -466,6 +466,10 @@ jobs:
       - name: Check catalog warehouse and product operations PHP style
         run: |
           vendor/bin/pint --test \
+            app/Http/Controllers/API/QuotationController.php \
+            app/Models/Quotation.php \
+            database/migrations/2026_10_15_180000_add_details_to_quotations.php \
+            tests/Feature/QuotationTest.php \
             app/Http/Controllers/API/GoodStockMovementController.php \
             app/Http/Controllers/API/ProductController.php \
             app/Http/Controllers/API/PurchaseController.php \
@@ -688,6 +692,7 @@ jobs:
             tests/Feature/CustomerCartCheckoutTest.php \
             tests/Feature/GoodsSeoAiGenerationTest.php \
             tests/Feature/ProductTranslationsAiTest.php \
+            tests/Feature/QuotationTest.php \
             tests/Feature/CatalogProductOperationsTest.php \
             tests/Feature/PurchaseGoodsStockTest.php \
             tests/Feature/SaleGoodsStockTest.php \

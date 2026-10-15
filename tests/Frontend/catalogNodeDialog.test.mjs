@@ -1240,3 +1240,18 @@ test('domain hosts are editable only on Domain records and normalized server val
     category.requests[0].resolve(sourceNode({ entity_type: 'category' }))
     await saving
 })
+
+
+test('pricing can request Market without discarding retained pricing changes', async t => {
+    const h = harness(t, { node: sourceNode(), initialTab: 'prices' })
+    await h.ready()
+    h.api.operationsState.value = { dirty: true, busy: false, dirtyTab: 'prices' }
+    const child = findVNode(h.render(), node => node.type === 'CatalogGoodOperations')
+    child.props.onRequestMarket()
+    assert.equal(h.api.activeTab.value, 'market')
+    assert.equal(h.api.operationsState.value.dirty, true)
+    h.api.selectTab('prices')
+    h.api.operationsState.value.busy = true
+    child.props.onRequestMarket()
+    assert.equal(h.api.activeTab.value, 'prices', 'In-flight price writes keep their panel selected')
+})

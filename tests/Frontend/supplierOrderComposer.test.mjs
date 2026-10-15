@@ -180,3 +180,27 @@ test('closing from ordinary mode checks hidden supplier attachments first and th
     h.state.closeConfirmation.value = false; h.state.body.value = ''
     h.state.closeSupplier(); assert.equal(h.props.modelValue, false)
 })
+
+
+test('supplier assortment opens immediately and a quoted product keeps source, currency and tax in the draft', async t => {
+    const h = harness(t)
+    assert.equal(h.requests[0].body.params.tab, 'assortment')
+    const quoted = { ...good, unit_price: 11, currency_id: 2, currency_code: 'EUR', quotation_id: 31,
+        quotation_snapshot: { vat_label: 'Включая НДС 10%', price: 100, denominator: 10 } }
+    h.requests[0].resolve({ ...context(), data: [quoted], currencies: [{ id: 2, code: 'EUR' }] }); await flush()
+    h.state.addGood(quoted, 2.5)
+    assert.equal(h.state.payload().items[0].quotation_id, 31)
+    assert.equal(h.state.payload().items[0].unit_price, 11)
+    assert.equal(h.state.payload().items[0].currency_id, 2)
+    assert.equal(h.state.vatLabel(h.state.form.items[0]), 'Включая НДС 10%')
+    const save = h.state.saveDraft(), request = h.requests.at(-1)
+    request.resolve(stored(request.body, { items: [{ ...h.state.form.items[0] }] })); await save
+    assert.equal(h.state.payload().supplier_order_id, 80)
+    assert.equal(h.state.form.items[0].quotation_id, 31)
+    const price = findVNode(h.render(), node => node.type === 'input' && node.props?.['aria-label'] === `Цена ${good.name}`)
+    assert.ok(price?.props.onInput, 'Manual edits explicitly detach the source quotation')
+    price.props.onInput({ target: { value: '15' } })
+    assert.equal(h.state.payload().items[0].quotation_id, null)
+    assert.equal(h.state.form.items[0].quotation_snapshot, null)
+    assert.equal(h.state.vatLabel(h.state.form.items[0]), 'НДС не указан')
+})

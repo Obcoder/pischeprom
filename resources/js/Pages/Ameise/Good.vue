@@ -34,6 +34,7 @@ const warehouse = ref(null)
 const operationsState = ref({ dirty: false, busy: false })
 const warehouseState = ref({ dirty: false, busy: false })
 const pendingNavigation = ref(null)
+const repairingQuotation = ref(false)
 const warehouseOptions = ref({ measures: [] })
 const warehouseLoading = ref(false)
 const warehouseVisited = ref(false)
@@ -60,11 +61,22 @@ function requestNavigation(destination) {
 function openRecord(tab = 'overview') { requestNavigation({ recordTab: typeof tab === 'string' ? tab : 'overview' }) }
 function selectTab(value) {
     const tab = tabAliases[value] || value
-    if (tab !== activeTab.value && tabs.some(item => item.key === tab)) requestNavigation({ tab })
+    if (tab === 'prices' && activeTab.value === 'market' && repairingQuotation.value
+        && operationsState.value.dirtyTab !== 'market' && !warehouseState.value.dirty && !busy.value) {
+        repairingQuotation.value = false
+        navigate({ tab })
+    } else if (tab !== activeTab.value && tabs.some(item => item.key === tab)) requestNavigation({ tab })
+}
+function openMarket() {
+    // Keep the pricing draft while correcting its supplier offer in the retained Market panel.
+    if (busy.value) return
+    repairingQuotation.value = activeTab.value === 'prices'
+    activeTab.value = 'market'
 }
 function discardAndNavigate() {
     if (busy.value || !pendingNavigation.value) return
     const destination = pendingNavigation.value
+    repairingQuotation.value = false
     operations.value?.reset()
     warehouse.value?.reset()
     operationsState.value = { dirty: false, busy: false }
@@ -122,6 +134,7 @@ async function loadWarehouseContext() {
 }
 watch([warehouseActive, () => props.good.id], ([active, id], previous = []) => {
     if (String(id) !== String(previous[1])) {
+        repairingQuotation.value = false
         warehouseLoadedId.value = null
         warehouseOptions.value = { measures: [] }
         goodData.value = props.good
@@ -240,7 +253,7 @@ useHead({
                 </template>
             </CatalogGoodWarehouse>
         </section>
-        <CatalogGoodOperations ref="operations" v-show="activeTab !== 'warehouse'" :good-id="good.id" :active-tab="activeTab" :active="!recordOpen && activeTab !== 'warehouse'" @loaded="loaded" @changed="loaded" @request-basics="openRecord()" @state="operationsState = $event" />
+        <CatalogGoodOperations ref="operations" v-show="activeTab !== 'warehouse'" :good-id="good.id" :active-tab="activeTab" :active="!recordOpen && activeTab !== 'warehouse'" @loaded="loaded" @changed="loaded" @request-basics="openRecord()" @request-market="openMarket" @state="operationsState = $event" />
         <v-dialog :model-value="Boolean(pendingNavigation)" max-width="440" persistent>
             <v-card>
                 <v-card-title>Несохранённые изменения</v-card-title>

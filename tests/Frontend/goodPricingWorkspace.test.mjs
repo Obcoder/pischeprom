@@ -248,3 +248,58 @@ test('percentage library elements use the current unit snapshot on save without 
     request.resolve({ ...element, measurement: current, revision: 4 }); await save
     assert.equal(h.api.libraryError.value, '')
 })
+
+test('quotation selection keeps explicit price currency and applies only known VAT terms', async t => {
+    const h = harness(t, 'GoodPricingWorkspace', { goodId: 42, active: true })
+    const data = dataset()
+    data.sources = [{ key: 'quotation:4', kind: 'quotation', currency_id: 2, currency_code: 'USD', price_includes_vat: false, vat_rate: 0 }, { key: 'quotation:5', kind: 'quotation', currency_id: null, price_includes_vat: null, vat_rate: null }]
+    h.requests[0].resolve(data); await flush()
+    const row = h.api.rows.value[0]
+    row.source_key = 'quotation:4'; row.method = 'margin'; row.parameter = 25
+    h.api.selectSource(row)
+    assert.equal(row.currency_id, 1, 'Source selection does not relabel a RUB price or its existing expenses as USD')
+    assert.equal(row.source_includes_vat, false); assert.equal(row.source_vat_rate, 0)
+    assert.equal(row.parameter, 25); assert.equal(row.dirty, true)
+    row.source_includes_vat = true; row.source_vat_rate = 10; row.source_key = 'quotation:5'; h.api.selectSource(row)
+    assert.equal(row.source_includes_vat, true); assert.equal(row.source_vat_rate, 10, 'Unknown legacy VAT terms must not overwrite the operator input')
+})
+
+test('source refresh after a Market edit retains drafts and invalidates only changed source previews', async t => {
+    const h = harness(t, 'GoodPricingWorkspace', { goodId: 42, active: true })
+    const data = dataset(); data.sources = [{ key: 'quotation:4', currency_id: null, price: 258 }]
+    h.requests[0].resolve(data); await flush()
+    const row = h.api.rows.value[0]
+    Object.assign(row, { source_key: 'quotation:4', method: 'margin', parameter: 24, dirty: true, result: { price_gross: 322 } })
+    h.api.add(); const manual = h.api.rows.value.at(-1); manual.amount = 100; manual.result = { price_gross: 100 }
+    const request = h.api.refreshSources()
+    h.requests.at(-1).resolve({ ...data, sources: [{ key: 'quotation:4', currency_id: 1, price: 258 }] }); await request
+    assert.equal(row.parameter, 24); assert.equal(row.dirty, true); assert.equal(row.result, null)
+    assert.equal(manual.amount, 100); assert.equal(manual.result.price_gross, 100); assert.equal(h.api.rows.value.length, 2)
+    assert.equal(h.api.data.value.sources[0].currency_id, 1)
+    const outdated = h.api.refreshSources(), stale = h.requests.at(-1)
+    const latest = h.api.refreshSources(); h.requests.at(-1).resolve({ ...data, sources: [{ key: 'quotation:4', currency_id: 2 }] }); await latest
+    stale.resolve({ ...data, sources: [{ key: 'quotation:4', currency_id: null }] }); await outdated
+    assert.equal(h.api.data.value.sources[0].currency_id, 2, 'An older response cannot restore incomplete quotation metadata')
+})
+
+test('source warning distinguishes missing currency from a real mismatch and opens Market for correction', t => {
+    const row = { method: 'markup', source_key: 'quotation:4', elements: [], currency_id: 1, busy: false }
+    const source = { key: 'quotation:4', kind: 'quotation', currency_id: null, price: 258, denominator: 1, unit_label: 'кг' }
+    const h = harness(t, 'PriceConstructionChain', { row, elements: [], sources: [source], calculations: [], measurement, currency: 'RUB' })
+    assert.match(h.api.sourceWarning.value, /не указана валюта/)
+    assert.match(h.api.sourceLabel(source), /валюта не указана/)
+    const button = findVNode(h.render(), node => node.type === 'button' && String(node.children).includes('Открыть «Маркет»'))
+    assert.ok(button); button.props.onClick(); assert.ok(h.emitted.some(([name]) => name === 'market'))
+    h.props.sources[0].currency_id = 2; h.props.sources[0].currency_code = 'USD'
+    assert.match(h.api.sourceWarning.value, /Источник в USD, расчёт в RUB/)
+    assert.equal(findVNode(h.render(), node => node.type === 'button' && String(node.children).includes('Открыть «Маркет»')), null)
+    h.props.sources[0].is_current = false
+    assert.match(h.api.sourceWarning.value, /срок истёк/)
+    assert.equal(findVNode(h.render(), node => node.type === 'option' && node.props?.value === 'quotation:4').props.disabled, true)
+    h.props.sources[0].price_includes_vat = true; h.props.sources[0].vat_rate = 10
+    h.props.row.source_includes_vat = true; h.props.row.source_vat_rate = 20
+    assert.equal(h.api.sourceVatDiffers.value, true)
+    assert.equal(h.api.sourceVatLabel.value, 'С НДС · ставка 10%')
+    const applyVat = findVNode(h.render(), node => node.type === 'button' && String(node.children).includes('Взять НДС предложения'))
+    assert.ok(applyVat); applyVat.props.onClick(); assert.ok(h.emitted.some(([name]) => name === 'source'))
+})

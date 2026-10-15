@@ -40,6 +40,7 @@ class SupplierOrderMailRenderer
                 : null;
             $item['price'] = $price === null ? 'Уточнить' : $this->money($price, $currency);
             $item['total'] = $total === null ? '—' : $this->money($total, $currency);
+            $item['vat_label'] = $source['quotation_snapshot']['vat_label'] ?? null;
 
             if ($total !== null && $currency !== '') {
                 $totals[$currency] = ($totals[$currency] ?? BigDecimal::zero())->plus($total);
@@ -83,7 +84,7 @@ class SupplierOrderMailRenderer
                 $lines[] = 'Комментарий: '.$item['note'];
             }
 
-            $lines[] = 'Цена за единицу: '.$item['price'];
+            $lines[] = 'Цена за единицу: '.$item['price'].($item['vat_label'] ? ' · '.$item['vat_label'] : '');
             $lines[] = 'Сумма: '.$item['total'];
 
             $parts[] = implode("\n", $lines);

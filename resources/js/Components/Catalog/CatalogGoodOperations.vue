@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, computed, watch, onScopeDispose } from 'vue'
+import { ref, computed, watch, onScopeDispose } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { useDate } from 'vuetify'
 import GoodPricingWorkspace from '@/Components/Goods/GoodPricingWorkspace.vue'
+import QuotationWorkspace from '@/Components/Quotations/QuotationWorkspace.vue'
 import GoodPriceTypesTab from '@/Components/Goods/GoodPriceTypesTab.vue'
 import GoodMediaTab from '@/Components/Goods/GoodMediaTab.vue'
 import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
@@ -13,7 +14,7 @@ const props = defineProps({
     activeTab: { type: String, default: 'market' },
     active: { type: Boolean, default: true },
 })
-const emit = defineEmits(['request-basics', 'changed', 'loaded', 'state'])
+const emit = defineEmits(['request-basics', 'request-market', 'changed', 'loaded', 'state'])
 const operationTabs = ['market', 'prices', 'price-types', 'collections', 'media', 'sales']
 const date = useDate()
 // --------------------------------------------------
@@ -29,7 +30,8 @@ const units = ref([]);
 const industries = ref([]);
 const savingRecommendationClassifications = ref(false);
 
-const dialogFormQuotation = ref(false);
+const quotationWorkspace = ref(null)
+const quotationState = ref({ dirty: false, busy: false })
 const recommendationIndustryIds = ref([]);
 const pricingWorkspace = ref(null)
 const pricingState = ref({ dirty: false, busy: false })
@@ -96,39 +98,6 @@ const headerSales = [
         title: "Цена",
         sortable: true,
         align: "start",
-    },
-];
-
-const headerQuotations = [
-    {
-        key: "unit.name",
-        title: "Поставщик",
-        align: "start",
-        sortable: true,
-    },
-    {
-        key: "created_at",
-        title: "Дата",
-        align: "start",
-        sortable: true,
-    },
-    {
-        key: "price",
-        title: "Цена",
-        align: "start",
-        sortable: true,
-    },
-    {
-        key: "measure.name",
-        title: "Единица измерения",
-        align: "start",
-        sortable: true,
-    },
-    {
-        key: "denominator",
-        title: "Количество в упаковке",
-        align: "start",
-        sortable: true,
     },
 ];
 
@@ -259,43 +228,18 @@ async function saveRecommendationClassifications() {
     } finally { savingRecommendationClassifications.value = false }
 }
 
-// --------------------------------------------------
-// FORMS
-// --------------------------------------------------
-const formQuotation = reactive({ good_id: props.goodId, unit_id: null, price: null, measure_id: null, denominator: 1, errors: {}, processing: false })
-const quotationError = ref('')
-function resetQuotation() {
-    Object.assign(formQuotation, { good_id: props.goodId, unit_id: null, price: null, measure_id: null, denominator: 1, errors: {} })
-    quotationError.value = ''
-}
-async function storeQuotation() {
-    if (formQuotation.processing || !props.goodId) return
+async function quotationChanged() {
     const id = props.goodId
-    formQuotation.processing = true
-    formQuotation.errors = {}
-    quotationError.value = ''
-    try {
-        await axios.post(route('web.quotation.store'), {
-            good_id: id, unit_id: formQuotation.unit_id, measure_id: formQuotation.measure_id,
-            price: formQuotation.price === '' || formQuotation.price == null ? null : toNumber(formQuotation.price, null),
-            denominator: Math.max(toNumber(formQuotation.denominator, 1), 0.0001),
-        })
-        if (String(id) !== String(props.goodId)) return
-        resetQuotation()
-        dialogFormQuotation.value = false
-        await changed()
-    } catch (failure) {
-        if (String(id) !== String(props.goodId)) return
-        formQuotation.errors = failure.response?.data?.errors || {}
-        quotationError.value = failure.response?.data?.message || 'Не удалось сохранить предложение.'
-    } finally { formQuotation.processing = false }
+    await changed()
+    if (String(id) !== String(props.goodId)) return
+    await pricingWorkspace.value?.refreshSources()
 }
 
 const normalizedIds = values => [...values].map(String).sort().join(',')
 const recommendationDirty = computed(() => normalizedIds(recommendationIndustryIds.value) !== normalizedIds(currentRecommendationIndustries.value.map(item => item.id)))
-const quotationDirty = computed(() => formQuotation.unit_id != null || formQuotation.price != null || formQuotation.measure_id != null || Number(formQuotation.denominator) !== 1)
+const quotationDirty = computed(() => quotationState.value.dirty)
 const dirty = computed(() => recommendationDirty.value || quotationDirty.value || pricingState.value.dirty)
-const busy = computed(() => savingRecommendationClassifications.value || Boolean(formQuotation.processing) || pricingState.value.busy)
+const busy = computed(() => savingRecommendationClassifications.value || quotationState.value.busy || pricingState.value.busy)
 const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : pricingState.value.dirty ? 'prices' : null)
 const visitedTabs = ref(new Set())
 watch(() => props.activeTab, tab => { if (operationTabs.includes(tab)) visitedTabs.value = new Set([...visitedTabs.value, tab]) }, { immediate: true })
@@ -304,8 +248,8 @@ function reset() {
     pricingWorkspace.value?.reset()
     pricingState.value = { dirty: false, busy: false }
     syncRecommendationClassificationForm()
-    resetQuotation()
-    dialogFormQuotation.value = false
+    quotationWorkspace.value?.reset()
+    quotationState.value = { dirty: false, busy: false }
     pageError.value = null
 }
 watch([() => props.goodId, () => props.active], ([id, active], previous = []) => {
@@ -326,146 +270,21 @@ defineExpose({ refresh, reset })
 
 <template>
     <section class="catalog-good-operations">
-        <!-- QUOTATION DIALOG -->
-        <v-dialog
-            v-model="dialogFormQuotation"
-            :persistent="formQuotation.processing"
-            width="771"
-        >
-            <v-card>
-                <v-card-title>Новое предложение поставщика</v-card-title>
-
-                <v-card-text>
-                    <v-alert v-if="quotationError" type="error" variant="tonal" density="compact" class="mb-3">{{ quotationError }}</v-alert>
-                    <v-form @submit.prevent="storeQuotation">
-                        <v-container fluid>
-                            <v-row>
-                                <v-col cols="12">
-                                    <v-autocomplete
-                                        :items="units"
-                                        item-value="id"
-                                        item-title="name"
-                                        v-model="formQuotation.unit_id"
-                                        label="Поставщик"
-                                        :error-messages="formQuotation.errors.unit_id"
-                                        variant="solo"
-                                        density="comfortable"
-                                        base-color="yellow"
-                                        clearable
-                                    />
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="formQuotation.price"
-                                        label="Цена"
-                                        :error-messages="formQuotation.errors.price"
-                                        variant="solo"
-                                        density="default"
-                                        type="number"
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-autocomplete
-                                        :items="measures"
-                                        item-value="id"
-                                        item-title="name"
-                                        v-model="formQuotation.measure_id"
-                                        label="Единица измерения"
-                                        :error-messages="formQuotation.errors.measure_id"
-                                        variant="solo"
-                                        density="compact"
-                                        clearable
-                                    />
-                                </v-col>
-
-                                <v-col cols="12" md="4">
-                                    <v-text-field
-                                        v-model="formQuotation.denominator"
-                                        label="Количество в упаковке"
-                                        :error-messages="formQuotation.errors.denominator"
-                                        type="number"
-                                        min="0.0001"
-                                        step="0.0001"
-                                        variant="solo"
-                                        density="compact"
-                                        hint="Например: цена дана за 25 кг"
-                                        persistent-hint
-                                    />
-                                </v-col>
-                            </v-row>
-                        </v-container>
-                    </v-form>
-                </v-card-text>
-
-                <v-card-actions>
-                    <v-spacer />
-
-                    <v-btn
-                        text="Отмена"
-                        variant="text"
-                        @click="dialogFormQuotation = false"
-                    />
-
-                    <v-btn
-                        text="Сохранить"
-                        @click="storeQuotation"
-                        :loading="formQuotation.processing"
-                        variant="elevated"
-                        density="comfortable"
-                        color="grey"
-                    />
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
         <div v-if="pageLoading && !goodData" class="text-center pa-8"><v-progress-circular indeterminate size="28" /></div>
         <v-alert v-if="pageError" type="error" variant="tonal" density="compact" class="mb-3">{{ pageError }}<v-btn v-if="!goodData" variant="text" size="small" @click="loadPageData">Повторить</v-btn></v-alert>
         <template v-if="goodData">
             <v-window :model-value="activeTab" :touch="false">
                 <!-- MARKET -->
                 <v-window-item value="market" :eager="visitedTabs.has('market')">
-                    <v-card>
-                        <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-3">
-                            <span>Предложения поставщиков</span>
-                            <v-btn
-                                prepend-icon="mdi-plus"
-                                size="small"
-                                variant="tonal"
-                                @click="dialogFormQuotation = true"
-                            >
-                                Предложение поставщика
-                            </v-btn>
-                        </v-card-title>
-                        <v-card-text class="pa-0">
-                            <v-data-table
-                                :items="goodData.quotations || []"
-                                :headers="headerQuotations"
-                                items-per-page="100"
-                                fixed-header
-                                height="560px"
-                                density="compact"
-                                class="border rounded"
-                                hover
-                            >
-                                <template #item.denominator="{ item }">
-                                    <span>{{ item.denominator || 1 }}</span>
-                                </template>
-                                <template #item.created_at="{ item }">
-                                    <span>{{ formatDate(item.created_at) }}</span>
-                                </template>
-                                <template #item.price="{ item }">
-                                    <span>{{ formatMoney(item.price) }}</span>
-                                </template>
-                                <template #no-data>
-                                    <div class="pa-6 text-center text-medium-emphasis">Предложений поставщиков пока нет.</div>
-                                </template>
-                            </v-data-table>
-                        </v-card-text>
-                    </v-card>
+                    <QuotationWorkspace
+                        :key="goodData.id"
+                        ref="quotationWorkspace"
+                        :good="goodData"
+                        :quotations="goodData.quotations || []"
+                        :dict="{ units, currencies, measures }"
+                        @changed="quotationChanged"
+                        @state="quotationState = $event"
+                    />
                 </v-window-item>
 
                 <!-- PRICES -->
@@ -476,6 +295,7 @@ defineExpose({ refresh, reset })
                         :active="active && activeTab === 'prices'"
                         @changed="changed"
                         @state="pricingState = $event"
+                        @request-market="emit('request-market')"
                     />
                 </v-window-item>
 

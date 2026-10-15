@@ -38,7 +38,7 @@
                     <td align="right" valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;font-variant-numeric:tabular-nums;">{{ $item['quantity'] }}</td>
                     <td valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">{{ $item['unit'] }}</td>
                     <td valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">{!! nl2br(e($item['note'])) !!}</td>
-                    <td align="right" valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;font-variant-numeric:tabular-nums;">{{ $item['price'] }}</td>
+                    <td align="right" valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;font-variant-numeric:tabular-nums;">{{ $item['price'] }}@if($item['vat_label'])<br><span style="font-size:11px;color:#7c6b60;">{{ $item['vat_label'] }}</span>@endif</td>
                     <td align="right" valign="top" style="padding:10px 12px;border-bottom:1px solid #eee9e3;font-variant-numeric:tabular-nums;">{{ $item['total'] }}</td>
                 </tr>
             @endforeach

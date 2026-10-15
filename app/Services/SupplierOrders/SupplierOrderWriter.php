@@ -43,7 +43,7 @@ class SupplierOrderWriter
                     return $existing->load(['items', 'unit', 'warehouse']);
                 }
             }
-            $normalized = $this->normalizeValidated($validated, true);
+            $normalized = $this->normalizeValidated($validated, true, $order);
             $new = ! $order;
             $order ??= new SupplierOrder([
                 'created_by' => $actor->id, 'create_key' => $control['create_key'], 'create_payload_hash' => $fingerprint,
@@ -75,7 +75,18 @@ class SupplierOrderWriter
     /** A read-only draft normalization shared by the editor and mail preview. */
     public function normalize(array $input): array
     {
-        return $this->normalizeValidated($this->validated($input));
+        $validated = $this->validated($input);
+        $order = null;
+        if (! empty($input['supplier_order_id'])) {
+            $reference = Validator::make($input, ['supplier_order_id' => ['required', 'integer', 'min:1'],
+                'revision' => ['required', 'integer', 'min:1']])->validate();
+            $order = SupplierOrder::findOrFail($reference['supplier_order_id']);
+            $this->assertRevision($order, (int) $reference['revision']);
+            abort_unless($order->status === 'draft' && (int) $order->unit_id === (int) $validated['unit_id'], 409,
+                'Проверьте поставщика и состояние черновика.');
+        }
+
+        return $this->normalizeValidated($validated, false, $order);
     }
 
     public function changeStatus(SupplierOrder $order, string $status, int $revision, User $actor): SupplierOrder
@@ -191,7 +202,7 @@ class SupplierOrderWriter
         ])->validate();
     }
 
-    private function normalizeValidated(array $input, bool $lockGoods = false): array
+    private function normalizeValidated(array $input, bool $lockGoods = false, ?SupplierOrder $order = null): array
     {
         $unit = Unit::without(['fields', 'labels', 'telephones', 'uris'])->find($input['unit_id'], ['id', 'name']);
         if (! $unit) {
@@ -210,6 +221,7 @@ class SupplierOrderWriter
             ->with(['measure', 'currency'])->whereIn('id', array_filter(array_column($input['items'], 'quotation_id')));
         $quotations = ($lockGoods ? $quotationQuery->lockForUpdate() : $quotationQuery)->get()->keyBy('id');
         $units = app(GoodMeasurement::class);
+        $storedItems = $order && (int) $order->unit_id === (int) $unit->id ? $order->items()->get()->keyBy('good_id') : collect();
         $items = [];
         foreach ($input['items'] as $index => $item) {
             $good = $goods->get((int) $item['good_id']);
@@ -225,28 +237,35 @@ class SupplierOrderWriter
             }
             $quotationSnapshot = null;
             if (! empty($item['quotation_id'])) {
-                $quotation = $quotations->get((int) $item['quotation_id']);
-                if (! $quotation || (int) $quotation->good_id !== $good->id || (int) $quotation->unit_id !== $unit->id) {
-                    $this->invalid("items.{$index}.quotation_id", 'Предложение должно принадлежать выбранному поставщику и товару.');
-                }
-                if ($quotation->price === null || $quotation->price < 0 || $quotation->denominator <= 0 || ! $quotation->measure_id || ! $quotation->currency) {
-                    $this->invalid("items.{$index}.quotation_id", 'В предложении нужны цена, валюта, единица и положительная фасовка.');
-                }
-                $factor = 1;
-                if ((int) $quotation->measure_id !== (int) $measurement['measure_id']) {
-                    $fromKg = $units->kilograms($quotation->measure?->name);
-                    if (! $fromKg || ! $measurement['kilograms_per_unit']) {
-                        $this->invalid("items.{$index}.quotation_id", 'Единицы предложения и товара нельзя сопоставить.');
+                $stored = $storedItems->get($good->id);
+                // A saved draft keeps its accepted offer. Editing a quotation must
+                // not silently reprice an already composed supplier order.
+                $sameSnapshot = $stored && $stored->quotation_snapshot
+                    && (int) $stored->quotation_id === (int) $item['quotation_id']
+                    && (int) $stored->measure_id === (int) $measurement['measure_id']
+                    && (int) $stored->currency_id === (int) $currency?->id
+                    && $price !== null && $price->isEqualTo($this->decimal($stored->unit_price, 4))
+                    && $stored->measurement() === $measurement;
+                if ($sameSnapshot) {
+                    $quotationSnapshot = $stored->quotation_snapshot;
+                } else {
+                    $quotation = $quotations->get((int) $item['quotation_id']);
+                    if (! $quotation || (int) $quotation->good_id !== $good->id || (int) $quotation->unit_id !== $unit->id) {
+                        $this->invalid("items.{$index}.quotation_id", 'Предложение должно принадлежать выбранному поставщику и товару.');
                     }
-                    $factor = $measurement['kilograms_per_unit'] / $fromKg;
+                    $resolved = app(SupplierQuotationPricing::class)->resolve($quotation, $measurement);
+                    if ($resolved['quotation_warning']) {
+                        $this->invalid("items.{$index}.quotation_id", $resolved['quotation_warning']);
+                    }
+                    $quotedPrice = $this->decimal($resolved['unit_price'], 4);
+                    if (($price !== null && ! $price->isEqualTo($quotedPrice))
+                        || ($currency && (int) $currency->id !== (int) $resolved['currency_id'])) {
+                        $this->invalid("items.{$index}.quotation_id", 'Цена предложения изменилась. Обновите ассортимент и добавьте товар заново либо задайте цену вручную.');
+                    }
+                    $price = $quotedPrice;
+                    $currency = $quotation->currency;
+                    $quotationSnapshot = $resolved['quotation_snapshot'];
                 }
-                $price = $this->decimal($quotation->price, 4)->multipliedBy($this->decimal($factor, 9))
-                    ->dividedBy($this->decimal($quotation->denominator, 9), 4, RoundingMode::HalfUp);
-                $currency = $quotation->currency;
-                $quotationSnapshot = ['id' => $quotation->id, 'unit_id' => $quotation->unit_id,
-                    'price' => (float) $quotation->price, 'denominator' => $quotation->denominator,
-                    'measure_id' => $quotation->measure_id, 'unit_label' => $quotation->measure?->name,
-                    'currency_id' => $currency->id, 'currency_code' => $currency->code, 'conversion_factor' => $factor];
             }
             if ($price !== null && ! $currency) {
                 $this->invalid("items.{$index}.currency_id", 'Для цены укажите валюту.');

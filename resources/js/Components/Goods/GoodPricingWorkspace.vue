@@ -4,7 +4,7 @@ import axios from 'axios'
 import PriceConstructionChain from './PriceConstructionChain.vue'
 
 const props = defineProps({ goodId: { type: [Number, String], required: true }, active: { type: Boolean, default: true } })
-const emit = defineEmits(['changed', 'state'])
+const emit = defineEmits(['changed', 'state', 'request-market'])
 const data = ref(null), rows = ref([]), tab = ref('prices'), loading = ref(false), error = ref('')
 const history = ref(null), historyScope = ref(''), historyLoading = ref(false), historyError = ref('')
 const entitySearch = ref(''), entities = ref(null), entityError = ref(''), entityLoading = ref(false), choosingEntity = ref(false)
@@ -17,7 +17,7 @@ const libraryMeasurementChanged = computed(() => {
     const factor = value => value == null ? null : Number(value)
     return Number(saved.measure_id) !== Number(current.measure_id) || saved.unit_label !== current.unit_label || factor(saved.kilograms_per_unit) !== factor(current.kilograms_per_unit)
 })
-let generation = 0, sequence = 0, historyVersion = 0, entityVersion = 0, accessVersion = 0
+let generation = 0, sequence = 0, historyVersion = 0, entityVersion = 0, accessVersion = 0, sourcesVersion = 0
 const dirty = computed(() => rows.value.some(row => row.dirty) || Boolean(libraryDraft.value?.dirty))
 const busy = computed(() => rows.value.some(row => row.busy) || accessBusy.value || libraryBusy.value)
 const base = () => `/api/goods/${props.goodId}/pricing`
@@ -54,12 +54,16 @@ function selectType(row) {
 }
 function selectSource(row) {
     const source = data.value.sources.find(item => item.key === row.source_key)
-    if (source?.currency_id) row.currency_id = source.currency_id
+    if (source?.price_includes_vat != null && source?.vat_rate != null) {
+        row.source_includes_vat = source.price_includes_vat
+        row.source_vat_rate = source.vat_rate
+    }
     touch(row)
 }
 function reset() { rows.value = (data.value?.rows || []).map(draft); libraryDraft.value = null }
 async function load() {
     const version = ++generation, url = base()
+    sourcesVersion++
     loading.value = true; error.value = ''
     try {
         const response = await axios.get(url)
@@ -67,6 +71,24 @@ async function load() {
         data.value = { ...response.data, elements: response.data.elements || [], saved_calculations: response.data.saved_calculations || [] }; reset(); history.value = null
     } catch (failure) { if (version === generation) error.value = message(failure) }
     finally { if (version === generation) loading.value = false }
+}
+async function refreshSources() {
+    if (!data.value) return
+    const version = generation, requestVersion = ++sourcesVersion
+    try {
+        const response = await axios.get(base())
+        if (version !== generation || requestVersion !== sourcesVersion) return
+        const previous = data.value.sources
+        data.value.sources = response.data.sources
+        data.value.partners = response.data.partners
+        data.value.currencies = response.data.currencies
+        for (const row of rows.value) {
+            if (!row.dirty || !row.source_key || ['manual', 'saved'].includes(row.method)) continue
+            const before = previous.find(item => item.key === row.source_key)
+            const after = data.value.sources.find(item => item.key === row.source_key)
+            if (JSON.stringify(before) !== JSON.stringify(after)) touch(row)
+        }
+    } catch (failure) { if (version === generation && requestVersion === sourcesVersion) notice.value = `Не удалось обновить источники: ${message(failure)}` }
 }
 async function run(row, save = false) {
     if (row.busy) return
@@ -230,7 +252,7 @@ watch(() => props.goodId, () => { generation++; data.value = null; rows.value = 
 watch(() => props.active, active => { if (active && !data.value && !loading.value) load() })
 watch(tab, value => { if (value === 'history' && !history.value) loadHistory() })
 onScopeDispose(() => { generation++; historyVersion++; entityVersion++; accessVersion++ })
-defineExpose({ reset, refresh: () => dirty.value ? undefined : load() })
+defineExpose({ reset, refresh: () => dirty.value ? undefined : load(), refreshSources })
 </script>
 
 <template>
@@ -270,7 +292,7 @@ defineExpose({ reset, refresh: () => dirty.value ? undefined : load() })
                             <td><label class="check"><input v-model="row.active" :disabled="row.busy" type="checkbox" @change="touch(row)">{{ row.active ? 'Активна' : 'Отключена' }}</label><small>{{ row.valid_from || 'Без начала' }} → {{ row.valid_to || 'Без окончания' }}</small><button class="price-link" :aria-expanded="row.expanded" @click="row.expanded = !row.expanded">{{ row.expanded ? 'Скрыть параметры' : 'Сроки и комментарий' }}</button></td>
                             <td class="actions"><div class="button-group"><button :disabled="row.busy" @click="run(row)">Рассчитать</button><button :disabled="row.busy" @click="saveCalculation(row)">Сохранить расчёт</button><button class="primary" :disabled="row.busy || !row.dirty || !row.target_id" @click="run(row, true)">{{ row.busy ? '…' : 'Сохранить цену' }}</button></div><div class="button-group"><input v-model="row.calculation_name" :disabled="row.busy" maxlength="150" aria-label="Название расчёта" placeholder="Название расчёта (необязательно)" @input="row.dirty = true; row.version++; row.success = ''"><button v-if="row.dirty && row.id" :disabled="row.busy" @click="Object.assign(row, draft(row.saved))">Отменить</button><button v-if="!row.deleting" :disabled="row.busy" @click="row.id ? row.deleting = true : remove(row)">{{ row.id ? 'Удалить цену' : 'Убрать черновик' }}</button><template v-else><button class="danger" :disabled="row.busy" @click="remove(row)">Удалить цену?</button><button :disabled="row.busy" @click="row.deleting = false">Нет</button></template></div></td>
                         </tr>
-                        <tr><td colspan="4" class="construction-cell"><PriceConstructionChain :row="row" :sources="data.sources" :elements="data.elements" :calculations="availableCalculations(row)" :measurement="row.measurement" :currency="currencyCode(row)" @touch="touch(row)" @source="selectSource(row)" @library="libraryOpen = true" /></td></tr>
+                        <tr><td colspan="4" class="construction-cell"><PriceConstructionChain :row="row" :sources="data.sources" :elements="data.elements" :calculations="availableCalculations(row)" :measurement="row.measurement" :currency="currencyCode(row)" @touch="touch(row)" @source="selectSource(row)" @library="libraryOpen = true" @market="emit('request-market')" /></td></tr>
                         <tr v-if="row.error"><td colspan="4" class="price-error" role="alert">{{ row.error }}</td></tr><tr v-if="row.success"><td colspan="4" class="notice" role="status">{{ row.success }} <button class="price-link inline-link" @click="tab = 'calculations'">Сохранённые расчёты ↗</button></td></tr>
                         <tr v-if="row.expanded"><td colspan="4"><div class="parameters"><label>Действует с<input v-model="row.valid_from" :disabled="row.busy" type="date" @change="touch(row)"></label><label>По<input v-model="row.valid_to" :disabled="row.busy" type="date" @change="touch(row)"></label><label class="comment">Комментарий сотрудника<input v-model="row.comment" :disabled="row.busy" maxlength="2000" @input="touch(row)"></label></div></td></tr>
                     </tbody><tbody v-if="!rows.length"><tr><td colspan="4" class="empty">Добавьте расчёт или цену для Entity. Можно задать цену вручную или собрать её из элементов.</td></tr></tbody>

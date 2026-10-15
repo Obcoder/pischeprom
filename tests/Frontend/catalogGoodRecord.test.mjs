@@ -245,3 +245,26 @@ test('accounting page redirects to the catalog after its shared record deletes t
     await state.refreshAfterRecord()
     assert.equal(location.href, 'Ameise.products/')
 })
+
+
+test('quotation repair opens Market and returns to pricing without discarding the calculation', t => {
+    const h = pageHarness(t, 'prices')
+    let resets = 0
+    h.state.operations.value = { reset: () => resets++ }
+    h.state.operationsState.value = { dirty: true, busy: false, dirtyTab: 'prices' }
+    const operations = findVNode(h.render(), node => node.type === 'CatalogGoodOperations')
+    operations.props.onRequestMarket()
+    assert.equal(h.state.activeTab.value, 'market')
+    assert.equal(h.state.pendingNavigation.value, null)
+    h.state.selectTab('prices')
+    assert.equal(h.state.activeTab.value, 'prices')
+    assert.equal(h.state.operationsState.value.dirty, true)
+    assert.equal(h.state.pendingNavigation.value, null)
+    assert.equal(resets, 0)
+
+    operations.props.onRequestMarket()
+    h.state.operationsState.value.dirtyTab = 'market'
+    h.state.selectTab('prices')
+    assert.equal(h.state.activeTab.value, 'market', 'An unsaved quotation still requires a decision')
+    assert.equal(h.state.pendingNavigation.value.tab, 'prices')
+})

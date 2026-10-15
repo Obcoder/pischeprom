@@ -145,6 +145,42 @@ class GoodPricingWorkspaceTest extends TestCase
         $this->assertEquals(2, $price->revision);
     }
 
+    public function test_quotation_without_currency_has_an_actionable_error_and_calculates_after_it_is_completed(): void
+    {
+        $quotation = Quotation::create(['good_id' => $this->good->id, 'unit_id' => Unit::create(['name' => 'Лето-К'])->id,
+            'price' => 258, 'currency_id' => null, 'measure_id' => $this->good->measure_id, 'denominator' => 1]);
+        $input = $this->input(['method' => 'margin', 'source_key' => 'quotation:'.$quotation->id, 'parameter' => 20,
+            'source_includes_vat' => true, 'source_vat_rate' => 20]);
+        $this->postJson($this->url('/preview'), $input)->assertUnprocessable()
+            ->assertJsonValidationErrors('source_key')
+            ->assertJsonPath('errors.source_key.0', 'У предложения поставщика не указана валюта. Откройте вкладку «Маркет» и заполните валюту предложения.');
+        $this->assertNull($quotation->fresh()->currency_id, 'Unknown legacy currency must never be silently assumed to be RUB.');
+        $quotation->update(['currency_id' => $this->rub]);
+        $this->postJson($this->url('/preview'), $input)->assertOk()->assertJsonPath('price_gross', 322.5);
+        $this->postJson($this->url('/preview'), [...$input, 'currency_id' => Currency::where('code', 'USD')->value('id')])
+            ->assertUnprocessable()->assertJsonValidationErrors('currency_id');
+        $this->assertDatabaseCount('good_price_histories', 0);
+    }
+
+    public function test_quotation_sources_expose_explicit_vat_and_dates_and_reject_inactive_terms(): void
+    {
+        $quotation = Quotation::create(['good_id' => $this->good->id, 'unit_id' => Unit::create(['name' => 'Поставщик'])->id,
+            'price' => 120, 'currency_id' => $this->rub, 'measure_id' => $this->good->measure_id, 'denominator' => 1,
+            'quoted_at' => today(), 'valid_until' => today(), 'price_includes_vat' => true, 'vat_rate' => 20]);
+        $input = $this->input(['method' => 'markup', 'source_key' => 'quotation:'.$quotation->id, 'parameter' => 20]);
+        $this->getJson($this->url())->assertOk()->assertJsonPath('sources.0.currency_code', 'RUB')
+            ->assertJsonPath('sources.0.price_includes_vat', true)->assertJsonPath('sources.0.vat_rate', 20)
+            ->assertJsonPath('sources.0.is_current', true)->assertJsonPath('sources.0.date', today()->toDateString());
+        $this->postJson($this->url('/preview'), $input)->assertOk()->assertJsonPath('price_gross', 144);
+        $quotation->update(['valid_until' => today()->subDay()]);
+        $this->getJson($this->url())->assertOk()->assertJsonPath('sources.0.is_current', false);
+        $this->postJson($this->url('/preview'), $input)->assertUnprocessable()->assertJsonValidationErrors('source_key');
+        $quotation->update(['quoted_at' => today()->addDay(), 'valid_until' => null]);
+        $this->postJson($this->url('/preview'), $input)->assertUnprocessable()->assertJsonValidationErrors('source_key');
+        $quotation->update(['quoted_at' => null]);
+        $this->postJson($this->url('/preview'), $input)->assertOk();
+    }
+
     public function test_audit_failure_rolls_back_price_write_and_old_endpoints_are_also_audited(): void
     {
         $price = GoodPriceTypeValue::create(['good_id' => $this->good->id, 'price_type_id' => $this->type->id, 'price_gross' => 100]);

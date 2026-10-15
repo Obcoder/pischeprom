@@ -4,9 +4,9 @@ namespace App\Services\SupplierOrders;
 
 use App\Models\Currency;
 use App\Models\Good;
+use App\Models\Quotation;
 use App\Models\Unit;
 use App\Models\Warehouse;
-use App\Services\Goods\GoodMeasurement;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -62,11 +62,10 @@ class SupplierOrderContext
             ->orderBy('so.id')->orderBy('si.position')
             ->get(['si.id', 'si.good_id', 'si.quantity', 'si.measure_id', 'si.unit_label', 'si.kilograms_per_unit',
                 'so.id as order_id', 'so.number', 'so.status', 'so.warehouse_id', 'so.delivery_date', 'u.name as unit_name'])->groupBy('good_id');
-        $quotes = DB::table('quotations as q')->where('q.unit_id', $unit->id)->whereIn('q.good_id', $ids)
-            ->leftJoin('currencies as c', 'c.id', '=', 'q.currency_id')->leftJoin('measures as m', 'm.id', '=', 'q.measure_id')
-            ->orderByDesc('q.updated_at')->orderByDesc('q.id')
-            ->get(['q.id', 'q.good_id', 'q.price', 'q.denominator', 'q.measure_id', 'q.currency_id', 'c.code as currency_code', 'm.name as unit_label'])
-            ->unique('good_id')->keyBy('good_id');
+        $quotes = Quotation::withoutEagerLoads()->with(['currency:id,code', 'measure:id,name'])
+            ->where('unit_id', $unit->id)->whereIn('good_id', $ids)
+            ->orderByRaw('COALESCE(quoted_at, created_at) DESC')->orderByDesc('id')
+            ->get()->unique('good_id')->keyBy('good_id');
 
         return [
             'data' => $page->getCollection()->map(fn (Good $good) => $this->row($good, $sources->get($good->id, collect()),
@@ -119,7 +118,7 @@ class SupplierOrderContext
         return $sources;
     }
 
-    private function row(Good $good, Collection $sources, Collection $demand, Collection $stock, Collection $pending, ?object $quote, bool $includeDeferred, ?string $deliveryTo): array
+    private function row(Good $good, Collection $sources, Collection $demand, Collection $stock, Collection $pending, ?Quotation $quote, bool $includeDeferred, ?string $deliveryTo): array
     {
         $measurement = $good->measurement();
         $issues = [];
@@ -221,27 +220,11 @@ class SupplierOrderContext
         return $total === null || $quantity === null ? null : round($total + $quantity, 6);
     }
 
-    private function quote(?object $quote, array $measurement): array
+    private function quote(?Quotation $quote, array $measurement): array
     {
-        $empty = ['unit_price' => null, 'currency_id' => null, 'currency_code' => null, 'quotation_id' => null];
-        if (! $quote || ! $quote->currency_id || ! $quote->currency_code || $quote->price === null
-            || (float) $quote->price < 0 || (float) $quote->denominator <= 0 || ! $quote->measure_id || ! $measurement['measure_id']) {
-            return $empty;
-        }
-        $factor = 1;
-        if ((int) $quote->measure_id !== (int) $measurement['measure_id']) {
-            $kg = app(GoodMeasurement::class)->kilograms($quote->unit_label);
-            if (! $kg || ! $measurement['kilograms_per_unit']) {
-                return $empty;
-            }
-            $factor = $measurement['kilograms_per_unit'] / $kg;
-        }
-        $price = (float) $quote->price / (float) $quote->denominator * $factor;
-        if (! is_finite($price) || $price >= 1e12) {
-            return $empty;
-        }
-
-        return ['unit_price' => round($price, 4), 'currency_id' => $quote->currency_id, 'currency_code' => $quote->currency_code, 'quotation_id' => $quote->id];
+        return $quote ? app(SupplierQuotationPricing::class)->resolve($quote, $measurement)
+            : ['unit_price' => null, 'currency_id' => null, 'currency_code' => null, 'quotation_id' => null,
+                'quotation' => null, 'quotation_warning' => null, 'quotation_snapshot' => null];
     }
 
     private function recipients(Unit $unit, Collection $entityIds): Collection

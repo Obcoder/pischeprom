@@ -114,6 +114,92 @@ class SupplierOrderTest extends TestCase
             ->assertCreated()->assertJsonPath('items.0.unit_price', 20)->assertJsonPath('include_prices', true);
     }
 
+    public function test_quotation_only_assortment_keeps_currency_and_vat_through_draft_and_mail_preview(): void
+    {
+        $eur = Currency::forceCreate(['name' => 'Евро', 'code' => 'EUR']);
+        $quote = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,
+            'price' => 100, 'denominator' => 10, 'measure_id' => $this->good->measure_id, 'currency_id' => $eur->id,
+            'quoted_at' => today(), 'vat_rate' => 10, 'price_includes_vat' => false]);
+        $this->assertDatabaseCount('entity_unit', 0);
+        $this->assertDatabaseCount('purchases', 0);
+        $row = $this->getJson('/api/units/'.$this->supplier->id.'/supplier-order-context?tab=assortment')
+            ->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.unit_price', 11)
+            ->assertJsonPath('data.0.currency_code', 'EUR')->assertJsonPath('data.0.quotation_id', $quote->id)
+            ->assertJsonPath('data.0.quotation_snapshot.vat_label', 'Включая НДС 10%')->json('data.0');
+        $input = $this->input(['items' => [$this->item(['quotation_id' => $row['quotation_id'],
+            'unit_price' => $row['unit_price'], 'currency_id' => $row['currency_id'], 'quantity' => 2.5])]]);
+        $saved = $this->postJson($this->url(), $input)->assertCreated()
+            ->assertJsonPath('items.0.unit_price', 11)->assertJsonPath('items.0.line_total', 27.5)
+            ->assertJsonPath('totals_by_currency.EUR', 27.5)->json();
+        $this->postJson('/api/supplier-orders/preview', $input)->assertOk()
+            ->assertJsonPath('text', fn ($text) => str_contains($text, '11,00 EUR · Включая НДС 10%') && str_contains($text, '27,50 EUR'));
+        $this->getJson($this->url($saved['id'], '/preview'))->assertOk()
+            ->assertJsonPath('html', fn ($html) => str_contains($html, 'Включая НДС 10%') && str_contains($html, '27,50 EUR'));
+        $this->assertDatabaseCount('good_stock_movements', 0);
+        Mail::assertNothingSent();
+    }
+
+    public function test_saved_quotation_snapshot_survives_offer_changes_and_manual_prices_can_detach(): void
+    {
+        $quote = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,
+            'price' => 120, 'denominator' => 10, 'measure_id' => $this->good->measure_id, 'currency_id' => $this->rub->id,
+            'vat_rate' => 10, 'price_includes_vat' => true]);
+        $item = $this->item(['quotation_id' => $quote->id, 'unit_price' => 12, 'currency_id' => $this->rub->id]);
+        $input = $this->input(['items' => [$item]]);
+        $saved = $this->postJson($this->url(), $input)->assertCreated()->json();
+        $quote->update(['price' => 300, 'vat_rate' => 22, 'valid_until' => today()->subDay()]);
+        $next = [...$input, 'revision' => 1, 'supplier_order_id' => $saved['id'], 'items' => [[...$item, 'quantity' => 4]]];
+        $this->postJson('/api/supplier-orders/preview', $next)->assertOk()
+            ->assertJsonPath('text', fn ($text) => str_contains($text, '12,00 RUB · Включая НДС 10%'));
+        $this->patchJson($this->url($saved['id']), $next)->assertOk()->assertJsonPath('items.0.unit_price', 12)
+            ->assertJsonPath('items.0.quotation_snapshot.price', '120.0000')->assertJsonPath('totals_by_currency.RUB', 48);
+        $this->patchJson($this->url($saved['id']), [...$next, 'revision' => 2,
+            'items' => [[...$item, 'quotation_id' => null, 'unit_price' => 15]]])->assertOk()
+            ->assertJsonPath('items.0.unit_price', 15)->assertJsonPath('items.0.quotation_id', null)
+            ->assertJsonPath('items.0.quotation_snapshot', null);
+        Mail::assertNothingSent();
+    }
+
+    public function test_changed_or_incomplete_quotation_does_not_silently_reprice_or_hide_supplier_product(): void
+    {
+        $quote = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,
+            'price' => 200, 'denominator' => 10, 'measure_id' => $this->good->measure_id, 'currency_id' => $this->rub->id]);
+        $this->postJson($this->url(), $this->input(['items' => [$this->item(['quotation_id' => $quote->id,
+            'unit_price' => 19, 'currency_id' => $this->rub->id])]]))->assertUnprocessable()->assertJsonValidationErrors('items.0.quotation_id');
+        $quote->update(['currency_id' => null]);
+        $this->getJson('/api/units/'.$this->supplier->id.'/supplier-order-context?tab=assortment')->assertOk()
+            ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.good_id', $this->good->id)
+            ->assertJsonPath('data.0.unit_price', null)->assertJsonPath('data.0.quotation_id', null)
+            ->assertJsonPath('data.0.quotation.id', $quote->id)
+            ->assertJsonPath('data.0.quotation_warning', fn ($warning) => str_contains($warning, 'валюта'));
+        $this->assertDatabaseCount('supplier_orders', 0);
+    }
+
+    public function test_supplier_quotation_selection_uses_offer_date_and_never_autofills_expired_or_future_offers(): void
+    {
+        $older = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,
+            'price' => 20, 'denominator' => 1, 'measure_id' => $this->good->measure_id, 'currency_id' => $this->rub->id,
+            'quoted_at' => today()->subDays(4)]);
+        $latest = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,
+            'price' => 30, 'denominator' => 1, 'measure_id' => $this->good->measure_id, 'currency_id' => $this->rub->id,
+            'quoted_at' => today()->subDay()]);
+        $older->update(['updated_at' => now()->addMinute(), 'price' => 999]);
+        $url = '/api/units/'.$this->supplier->id.'/supplier-order-context?tab=assortment';
+        $this->getJson($url)->assertOk()->assertJsonPath('data.0.quotation_id', $latest->id)
+            ->assertJsonPath('data.0.unit_price', 30)->assertJsonPath('data.0.quotation_snapshot.vat_label', 'НДС не указан');
+        $latest->update(['price_includes_vat' => true, 'vat_rate' => 0]);
+        $this->getJson($url)->assertOk()->assertJsonPath('data.0.unit_price', 30)
+            ->assertJsonPath('data.0.quotation_snapshot.vat_label', 'НДС 0%');
+        $latest->update(['valid_until' => today()->subDay()]);
+        $this->getJson($url)->assertOk()->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.unit_price', null)
+            ->assertJsonPath('data.0.quotation_warning', fn ($warning) => str_contains($warning, 'истёк'));
+        $latest->update(['quoted_at' => today()->addDay(), 'valid_until' => null]);
+        $this->getJson($url)->assertOk()->assertJsonPath('data.0.unit_price', null)
+            ->assertJsonPath('data.0.quotation_warning', fn ($warning) => str_contains($warning, 'ещё не действует'));
+        $this->postJson($this->url(), $this->input(['items' => [$this->item(['quotation_id' => $latest->id])]]))
+            ->assertUnprocessable()->assertJsonValidationErrors('items.0.quotation_id');
+    }
+
     public function test_supplier_quotation_is_scoped_and_converted_to_current_accounting_unit(): void
     {
         $quotation = Quotation::create(['good_id' => $this->good->id, 'unit_id' => $this->supplier->id,

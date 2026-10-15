@@ -726,7 +726,7 @@ async function remove() {
                 <CatalogGoodSeo :key="editorSession" v-if="isGood && record && seoVisited" v-show="activeTab === 'seo'" ref="seoEditor" :good="seoGood" :active="open && activeTab === 'seo'" :disabled="saving"
                     @state="seoState = $event" @saved="childSaved" />
                 <CatalogGoodOperations :key="editorSession" v-if="isGood && record && operationsVisited" v-show="operationsTab" ref="operations" :good-id="record.entity_id" :active-tab="activeTab" :active="open && operationsTab"
-                    @state="updateOperationsState" @request-basics="selectTab('overview')" @changed="operationsChanged" />
+                    @state="updateOperationsState" @request-basics="selectTab('overview')" @request-market="requestTab('market')" @changed="operationsChanged" />
                 <div v-if="warehouseTab && !goodReady" class="catalog-node-dialog__overview-loading" role="status"><v-progress-circular v-if="goodLoading" indeterminate size="20" /><span>{{ goodLoading ? 'Загрузка данных товара…' : goodError }}</span><v-btn v-if="!goodLoading" variant="text" @click="loadGoodOverview">Повторить</v-btn></div>
                 <CatalogGoodWarehouse :key="editorSession" v-if="isGood && goodReady && warehouseVisited" v-show="warehouseTab" ref="warehouse" :good-id="record?.entity_id || null" :model-value="goodForm" :overview="goodOverview" :options="goodOptions" :errors="goodErrors" :active="open && warehouseTab" :disabled="saving"
                     @update:model-value="updateGoodForm" @state="updateWarehouseState" @changed="warehouseChanged" />

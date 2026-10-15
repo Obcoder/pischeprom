@@ -16,7 +16,7 @@ function harness(t, overrides = {}) {
     const props = Vue.reactive({ goodId: 42, activeTab: 'market', active: false, ...overrides })
     const environment = {
         ...Vue, useDate: () => ({ format: value => value }), route: (name, id) => `${name}/${id ?? ''}`,
-        ...Object.fromEntries(['GoodPricingWorkspace', 'GoodPriceTypesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
+        ...Object.fromEntries(['GoodPricingWorkspace', 'QuotationWorkspace', 'GoodPriceTypesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
         axios: Object.fromEntries(['get', 'patch', 'post'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])),
         useForm(initial) {
             const data = Vue.reactive({ ...initial, errors: {}, processing: false })
@@ -73,14 +73,12 @@ test('operational tools load lazily, retain visited panels, and expose every exi
 test('market owns supplier proposals while sales combines history, recommendations and buyer search', async t => {
     const h = harness(t); await h.load()
     const pane = key => findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key)
-    const marketTable = findVNode(pane('market'), node => node.type === 'v-data-table')
-    assert.deepEqual(marketTable.props.items, h.good.quotations)
+    const market = findVNode(pane('market'), node => node.type === 'QuotationWorkspace')
+    assert.deepEqual(market.props.quotations, h.good.quotations)
+    assert.equal(market.props.good.id, 42)
+    assert.equal(market.props.dict.currencies, h.api.currencies.value)
+    assert.equal(market.props.dict.measures, h.api.measures.value)
     assert.equal(findVNode(h.render(), node => node.type === 'v-data-table' && node.props.items === h.api.goodData.value.purchases), null, 'Purchases belong to the warehouse; only the calculator retains purchase data')
-    const addQuotation = findVNode(pane('market'), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-plus')
-    addQuotation.props.onClick()
-    assert.equal(h.api.dialogFormQuotation.value, true)
-    h.api.dialogFormQuotation.value = false
-
     h.props.activeTab = 'sales'; await Vue.nextTick()
     const sales = pane('sales')
     assert.deepEqual(findVNode(sales, node => node.type === 'v-data-table').props.items, h.good.sales)
@@ -159,32 +157,30 @@ test('recommendation drafts survive refresh and only successful saving clears th
     assert.equal(h.api.dirtyTab.value, 'sales')
 })
 
-test('quotation creation preserves supplier, measure and package values and reports busy/dirty state', async t => {
+test('quotation workspace changes refresh supplier sources without clearing pricing and recommendation drafts', async t => {
     const h = harness(t); await h.load()
-    h.api.dialogFormQuotation.value = true
-    Object.assign(h.api.formQuotation, { unit_id: 7, measure_id: 2, price: '123.45', denominator: '2.5' })
+    let sourceRefreshes = 0
+    h.api.pricingWorkspace.value = { refreshSources: async () => { sourceRefreshes++ } }
+    h.api.recommendationIndustryIds.value = [7]
+    h.api.pricingState.value = { dirty: true, busy: false }
+    const market = findVNode(h.render(), node => node.type === 'QuotationWorkspace')
+    market.props.onState({ dirty: true, busy: true })
     await Vue.nextTick()
     assert.equal(h.api.dirty.value, true)
-    assert.equal(h.api.dirtyTab.value, 'market')
-    assert.ok(h.emitted.some(event => event[0] === 'state' && event[1].dirtyTab === 'market'))
-    const saved = h.api.storeQuotation()
-    await Vue.nextTick()
-    assert.equal(h.requests.at(-1).url, 'web.quotation.store/')
-    assert.deepEqual(h.requests.at(-1).body, { good_id: 42, unit_id: 7, measure_id: 2, price: 123.45, denominator: 2.5 })
     assert.equal(h.api.busy.value, true)
-    assert.ok(h.emitted.some(event => event[0] === 'state' && event[1].busy && event[1].dirty))
-    h.requests.at(-1).resolve({ id: 2 })
-    await Vue.nextTick()
+    assert.equal(h.api.dirtyTab.value, 'market')
+    assert.ok(h.emitted.some(event => event[0] === 'state' && event[1].busy && event[1].dirtyTab === 'market'))
+    market.props.onState({ dirty: false, busy: false })
+    const saved = market.props.onChanged({ id: 2 })
     h.requests.at(-1).resolve({ ...h.good, quotations: [{ id: 1 }, { id: 2 }] })
     await saved; await Vue.nextTick()
-    assert.equal(h.api.dialogFormQuotation.value, false)
-    assert.equal(h.api.dirty.value, false)
     assert.equal(h.api.goodData.value.quotations.length, 2)
-    h.api.recommendationIndustryIds.value = []
-    h.api.formQuotation.price = 20
-    h.api.reset()
-    assert.equal(h.api.dirty.value, false)
-    assert.equal(h.api.formQuotation.good_id, 42)
+    assert.equal(sourceRefreshes, 1)
+    assert.deepEqual(h.api.recommendationIndustryIds.value, [7])
+    assert.equal(h.api.pricingState.value.dirty, true)
+    assert.ok(h.emitted.some(event => event[0] === 'changed'))
+    findVNode(h.render(), node => node.type === 'GoodPricingWorkspace').props.onRequestMarket()
+    assert.ok(h.emitted.some(event => event[0] === 'request-market'))
 })
 
 test('media and calculation changes refresh the source without resetting another tab draft', async t => {
@@ -202,18 +198,20 @@ test('media and calculation changes refresh the source without resetting another
     await change
 })
 
-test('quotation validation keeps the draft and renders server errors without triggering Inertia navigation', async t => {
+test('parent reset clears quotation draft state through the shared workspace', async t => {
     const h = harness(t); await h.load()
-    h.api.dialogFormQuotation.value = true
-    h.api.formQuotation.price = ''
-    const save = h.api.storeQuotation()
-    assert.equal(h.requests.at(-1).body.price, null)
-    h.requests.at(-1).reject({ response: { status: 422, data: { message: 'Выберите поставщика', errors: { unit_id: ['Поле обязательно'] } } } })
-    await save
-    assert.equal(h.api.dialogFormQuotation.value, true)
-    assert.deepEqual(h.api.formQuotation.errors.unit_id, ['Поле обязательно'])
-    assert.equal(h.api.quotationError.value, 'Выберите поставщика')
-    assert.equal(h.api.busy.value, false)
+    let quotationResets = 0, pricingResets = 0
+    h.api.quotationWorkspace.value = { reset() { quotationResets++ } }
+    h.api.pricingWorkspace.value = { reset() { pricingResets++ } }
+    h.api.quotationState.value = { dirty: true, busy: false }
+    h.api.pricingState.value = { dirty: true, busy: false }
+    h.api.recommendationIndustryIds.value = [7]
+    h.api.reset()
+    await Vue.nextTick()
+    assert.equal(h.api.dirty.value, false)
+    assert.equal(quotationResets, 1)
+    assert.equal(pricingResets, 1)
+    assert.deepEqual(h.api.recommendationIndustryIds.value, [3])
 })
 
 test('parent-triggered refresh failures remain visible without rejecting or losing unsaved operations', async t => {
