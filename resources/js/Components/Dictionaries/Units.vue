@@ -1,22 +1,17 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import axios from 'axios'
 import { route } from 'ziggy-js'
 import { Link } from '@inertiajs/vue3'
 import MaxContactButton from '@/Components/Max/MaxContactButton.vue'
-import ApartmentSelector from '@/Components/Geography/Buildings/ApartmentSelector.vue'
+import UnitCreateDialog from '@/Components/Unit/UnitCreateDialog.vue'
 import UnitCompanySearchDialog from '@/Components/Unit/UnitCompanySearchDialog.vue'
-import { selectedBuildingApartments } from '@/utils/buildingApartments'
 
 const units = ref([])
 const fields = ref([])
 const labels = ref([])
 const cities = ref([])
 const industries = ref([])
-const buildings = ref([])
-const emails = ref([])
-const telephones = ref([])
-const uris = ref([])
 
 const searchUnits = ref('')
 const selectedFieldIDs = ref([])
@@ -26,11 +21,8 @@ const selectedIndustryIDs = ref([])
 const showFormUnit = ref(false)
 const showFilters = ref(false)
 const showCompanySearch = ref(false)
-const unitSaving = ref(false)
-const unitError = ref('')
-
-const formUri = reactive({ address: '' })
-const dialogFormUri = ref(false)
+const createdUnitName = ref('')
+const showCreatedNotice = ref(false)
 
 const headerUnits = [
     { key: 'cities', title: 'Города', align: 'start', width: '13%' },
@@ -42,23 +34,6 @@ const headerUnits = [
     { key: 'uris', title: 'Uris' },
     { key: 'fields', title: 'Fields', align: 'start', sortable: true, width: '16%' },
 ]
-
-const defaultUnitForm = () => ({
-    name: null,
-    is_customer: false,
-    is_supplier: false,
-    buildings: [],
-    building_apartments: {},
-    cities: [],
-    emails: [],
-    fields: [],
-    industries: [],
-    labels: [],
-    telephones: [],
-    uris: [],
-})
-
-const formUnit = reactive(defaultUnitForm())
 
 const activeFilterCount = computed(() => (
     selectedFieldIDs.value.length
@@ -135,72 +110,13 @@ async function loadDictionaries() {
         loadDictionary(route('labels.index'), labels),
         loadDictionary(route('cities.index'), cities, { per_page: 500 }),
         loadDictionary('/api/industries', industries, { per_page: 500 }),
-        loadDictionary('/api/buildings', buildings, { per_page: 500 }),
-        loadDictionary('/api/emails', emails, { per_page: 500 }),
-        loadDictionary('/api/telephones', telephones, { per_page: 500 }),
-        loadDictionary('/api/uris', uris, { per_page: 500 }),
     ])
 }
 
-function resetUnitForm() {
-    Object.assign(formUnit, defaultUnitForm())
-}
-
-function openUnitForm() {
-    unitError.value = ''
-    showFormUnit.value = true
-}
-
-async function storeUnit() {
-    unitError.value = ''
-
-    if (!String(formUnit.name || '').trim()) {
-        unitError.value = 'Укажите название Unit.'
-        return
-    }
-
-    unitSaving.value = true
-
-    try {
-        await axios.post('/api/units', {
-            name: formUnit.name,
-            is_customer: formUnit.is_customer,
-            is_supplier: formUnit.is_supplier,
-            buildings: formUnit.buildings,
-            building_apartments: selectedBuildingApartments(formUnit.buildings, formUnit.building_apartments),
-            cities: formUnit.cities,
-            emails: formUnit.emails,
-            fields: formUnit.fields,
-            industries: formUnit.industries,
-            labels: formUnit.labels,
-            telephones: formUnit.telephones,
-            uris: formUnit.uris,
-        })
-
-        resetUnitForm()
-        showFormUnit.value = false
-        await indexUnits()
-    } catch (e) {
-        unitError.value = e?.response?.data?.message
-            || Object.values(e?.response?.data?.errors || {})?.flat()?.[0]
-            || 'Не удалось сохранить Unit.'
-        console.error('store unit error:', e?.response?.data || e)
-    } finally {
-        unitSaving.value = false
-    }
-}
-
-async function storeUri() {
-    if (!formUri.address) return
-
-    try {
-        await axios.post('/api/uris', { address: formUri.address })
-        formUri.address = ''
-        dialogFormUri.value = false
-        await loadDictionary('/api/uris', uris, { per_page: 500 })
-    } catch (e) {
-        console.error(e)
-    }
+function unitCreated(unit) {
+    createdUnitName.value = unit.name
+    showCreatedNotice.value = true
+    indexUnits()
 }
 
 function clearFilters() {
@@ -217,11 +133,6 @@ function toggleLabel(labelId) {
     } else {
         selectedLabelsIDs.value.push(labelId)
     }
-}
-
-function formatBuildingTitle(building) {
-    if (!building) return ''
-    return [building.address, building.city?.name].filter(Boolean).join(' / ')
 }
 
 function phoneNumber(telephone) {
@@ -255,7 +166,7 @@ watch(searchUnits, () => indexUnits())
                 variant="tonal"
                 density="comfortable"
                 color="deep-purple-darken-1"
-                @click="openUnitForm"
+                @click="showFormUnit = true"
             />
 
             <v-btn
@@ -454,217 +365,11 @@ watch(searchUnits, () => indexUnits())
             </v-card>
         </v-dialog>
 
-        <v-dialog v-model="showFormUnit" width="909">
-            <v-card>
-                <v-card-title>Form Unit</v-card-title>
-                <v-card-text>
-                    <v-alert
-                        v-if="unitError"
-                        type="error"
-                        variant="tonal"
-                        density="compact"
-                        class="mb-3"
-                    >
-                        {{ unitError }}
-                    </v-alert>
-
-                    <v-form @submit.prevent>
-                        <v-container>
-                            <v-row>
-                                <v-col cols="12" md="8">
-                                    <v-text-field
-                                        v-model="formUnit.name"
-                                        label="Name"
-                                        variant="solo-filled"
-                                        density="comfortable"
-                                        hide-details
-                                    />
-                                </v-col>
-                                <v-col cols="12" md="2">
-                                    <v-switch v-model="formUnit.is_customer" label="Customer" color="teal" hide-details density="compact" />
-                                </v-col>
-                                <v-col cols="12" md="2">
-                                    <v-switch v-model="formUnit.is_supplier" label="Supplier" color="teal" hide-details density="compact" />
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col cols="9">
-                                    <v-autocomplete
-                                        v-model="formUnit.uris"
-                                        :items="uris"
-                                        item-value="id"
-                                        item-title="address"
-                                        label="Uris selected"
-                                        chips
-                                        multiple
-                                    />
-                                </v-col>
-                                <v-col cols="3">
-                                    <v-btn text="+ uri" @click="dialogFormUri = true" />
-                                    <v-dialog v-model="dialogFormUri" width="800">
-                                        <v-card>
-                                            <v-toolbar title="FORM: Uri" />
-                                            <v-card-text>
-                                                <v-form @submit.prevent>
-                                                    <v-row>
-                                                        <v-text-field v-model="formUri.address" label="Uri address" variant="outlined" />
-                                                    </v-row>
-                                                    <v-row>
-                                                        <v-col cols="4">
-                                                            <v-btn text="store" block @click="storeUri" />
-                                                        </v-col>
-                                                    </v-row>
-                                                </v-form>
-                                            </v-card-text>
-                                        </v-card>
-                                    </v-dialog>
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.cities"
-                                        :items="cities"
-                                        item-value="id"
-                                        item-title="name"
-                                        label="Cities (city_unit)"
-                                        multiple
-                                        chips
-                                        variant="solo"
-                                        density="comfortable"
-                                        bg-color="teal-darken-4"
-                                        hide-details
-                                    />
-                                </v-col>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.industries"
-                                        :items="industries"
-                                        item-value="id"
-                                        item-title="code"
-                                        label="ОКВЭД"
-                                        multiple
-                                        chips
-                                        variant="solo"
-                                        density="comfortable"
-                                        bg-color="teal-darken-3"
-                                        hide-details
-                                    >
-                                        <template #item="{ props: itemProps, item }">
-                                            <v-list-item v-bind="itemProps" :subtitle="item.raw.title" />
-                                        </template>
-                                    </v-autocomplete>
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.fields"
-                                        :items="fields"
-                                        item-value="id"
-                                        item-title="title"
-                                        label="Fields"
-                                        placeholder="Выбери поле"
-                                        variant="solo"
-                                        density="comfortable"
-                                        hide-details
-                                        multiple
-                                        chips
-                                        bg-color="indigo-accent-4"
-                                    />
-                                </v-col>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.labels"
-                                        :items="labels"
-                                        item-value="id"
-                                        item-title="name"
-                                        label="Labels"
-                                        variant="solo"
-                                        density="comfortable"
-                                        bg-color="blue-grey-darken-4"
-                                        item-color="deep-orange-darken-2"
-                                        multiple
-                                        chips
-                                        hide-details
-                                    />
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.buildings"
-                                        :items="buildings"
-                                        :item-title="formatBuildingTitle"
-                                        item-value="id"
-                                        label="Здания / адреса"
-                                        multiple
-                                        chips
-                                        variant="solo"
-                                        density="comfortable"
-                                        bg-color="blue-grey-darken-4"
-                                    />
-                                    <ApartmentSelector
-                                        v-for="buildingId in formUnit.buildings"
-                                        :key="buildingId"
-                                        v-model="formUnit.building_apartments[buildingId]"
-                                        :building="buildings.find(building => Number(building.id) === Number(buildingId)) || { id: buildingId }"
-                                        class="mt-2"
-                                    />
-                                </v-col>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.emails"
-                                        :items="emails"
-                                        item-value="id"
-                                        item-title="address"
-                                        multiple
-                                        chips
-                                        label="Emails"
-                                        variant="solo-filled"
-                                        density="comfortable"
-                                        bg-color="deep-orange-accent-4"
-                                        hide-details
-                                    />
-                                </v-col>
-                            </v-row>
-
-                            <v-row>
-                                <v-col>
-                                    <v-autocomplete
-                                        v-model="formUnit.telephones"
-                                        :items="telephones"
-                                        item-value="id"
-                                        item-title="number"
-                                        multiple
-                                        chips
-                                        label="Telephones"
-                                        variant="solo-filled"
-                                        density="comfortable"
-                                        bg-color="blue-grey-darken-3"
-                                        hide-details
-                                    />
-                                </v-col>
-                            </v-row>
-                        </v-container>
-                    </v-form>
-                </v-card-text>
-                <v-card-actions class="justify-start">
-                    <v-btn text="Close" :disabled="unitSaving" @click="showFormUnit = false" />
-                    <v-btn
-                        text="Сохранить"
-                        color="teal-darken-3"
-                        :loading="unitSaving"
-                        :disabled="unitSaving || !formUnit.name"
-                        @click="storeUnit"
-                    />
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
+        <UnitCreateDialog v-model="showFormUnit" @created="unitCreated" />
+        <v-snackbar v-model="showCreatedNotice" color="success" :timeout="5000">
+            Unit «{{ createdUnitName }}» создан.
+            <template #actions><v-btn variant="text" @click="showCreatedNotice = false">Закрыть</v-btn></template>
+        </v-snackbar>
     </v-container>
 </template>
 

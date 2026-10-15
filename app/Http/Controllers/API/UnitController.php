@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreUnitRequest;
 use App\Models\Unit;
-use App\Services\Buildings\BuildingApartmentSelection;
 use App\Services\Mail\UnansweredOutgoingMailService;
+use App\Services\Units\UnitCreator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -44,31 +45,9 @@ class UnitController extends Controller
             ->get();
     }
 
-    public function store(Request $request)
+    public function store(StoreUnitRequest $request, UnitCreator $creator)
     {
-        $data = $request->validate([
-            'buildings' => ['sometimes', 'array'],
-            'buildings.*' => ['integer', 'distinct', 'exists:buildings,id'],
-            'building_apartments' => ['sometimes', 'array'],
-            'building_apartments.*' => ['nullable', 'integer', 'exists:apartments,id'],
-        ]);
-        $buildingPivots = app(BuildingApartmentSelection::class)->forBuildings(
-            $data['buildings'] ?? [], $data['building_apartments'] ?? [],
-        );
-        $unit = Unit::create($request->all());
-
-        $unit->buildings()->sync($buildingPivots);
-        $unit->emails()->sync($request->input('emails', []));
-        $unit->fields()->sync($request->input('fields', []));
-        $unit->uris()->sync($request->input('uris', []));
-        $unit->labels()->sync($request->input('labels', []));
-        $unit->cities()->sync($request->input('cities', []));
-        $unit->telephones()->sync($request->input('telephones', []));
-        $unit->industries()->sync($request->input('industries', []));
-
-        Storage::disk('yandex')->put("units/{$unit->id}/placeholder.txt", '');
-
-        return response()->json($unit->fresh(), 201);
+        return response()->json($creator->create($request->validated()), 201);
     }
 
     public function show(
