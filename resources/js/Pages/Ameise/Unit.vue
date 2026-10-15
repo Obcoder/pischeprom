@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { useHead } from '@unhead/vue'
+import { Head } from '@inertiajs/vue3'
 import VerwalterLayout from '@/Layouts/VerwalterLayout.vue'
 
 import { useUnitPage } from '@/Composables/useUnitPage'
@@ -84,16 +84,6 @@ const workspaceDefaults = {
     VDialog: { contentClass: 'unit-workspace-dialog' },
 }
 
-useHead(() => ({
-    title: pageTitle.value,
-    meta: [
-        {
-            name: 'description',
-            content: `Информация о блоке ${unit.value?.name ?? ''}`
-        }
-    ]
-}))
-
 const requiredDictionaryKeys = [
     'buildings',
     'buildingTypes',
@@ -174,6 +164,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+    <Head :title="pageTitle">
+        <meta head-key="description" name="description" :content="`Информация о блоке ${unit?.name ?? ''}`">
+    </Head>
     <v-defaults-provider :defaults="workspaceDefaults">
         <main class="unit-page" :class="{ 'unit-page--communications': activeSection === 'communications' }">
             <header class="unit-page__header">

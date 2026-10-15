@@ -783,7 +783,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=2048
         run: npm run build
 
-      - name: Verify class content in real server rendered HTML
+      - name: Verify class content and Unit reloads in real server rendered HTML
         env:
           APP_ENV: testing
           APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -793,6 +793,7 @@ jobs:
           QUEUE_CONNECTION: sync
           SESSION_DRIVER: array
           RUN_CLASS_SSR_TEST: '1'
+          RUN_UNIT_BUILD_TEST: '1'
         run: |
           node bootstrap/ssr/ssr.js > /tmp/class-page-ssr.log 2>&1 &
           class_ssr_pid=$!
@@ -804,7 +805,7 @@ jobs:
             sleep 1
           done
           curl --silent --fail http://127.0.0.1:13714/health > /dev/null
-          if ! php artisan test --compact tests/Feature/ClassPageSsrTest.php; then
+          if ! php artisan test --compact tests/Feature/ClassPageSsrTest.php tests/Feature/Unit/UnitPageResponseHeadersTest.php; then
             cat /tmp/class-page-ssr.log
             exit 1
           fi

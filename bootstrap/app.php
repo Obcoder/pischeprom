@@ -40,7 +40,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\RequireStaffAuthentication::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            // @vite keeps preload hints in the HTML. Duplicating every chunk in
+            // a Link header overflows Nginx's FastCGI header buffer on rich pages.
         ]);
 
         $middleware->validateCsrfTokens(except: [
