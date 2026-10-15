@@ -172,6 +172,34 @@ class SupplierOrderMailRendererTest extends TestCase
         $this->assertStringContainsString("Первая строка<br />\n", $result['html']);
     }
 
+    public function test_small_product_avatars_are_decorative_and_do_not_change_plain_text_or_totals(): void
+    {
+        $order = $this->order();
+        $renderer = new SupplierOrderMailRenderer;
+        $withoutImages = $renderer->render($order);
+        $avatar = 'https://images.example.com/goods/42/thumb.jpg?width=160&height=160';
+        $order['items'][0]['avatar_url'] = $avatar;
+        $result = $renderer->render($order);
+
+        $this->assertStringContainsString('src="'.e($avatar).'" alt="" width="36" height="36"', $result['html']);
+        $this->assertStringContainsString('Брокколи замороженная', $result['html']);
+        $this->assertStringContainsString('15 631,2513 RUB', $result['html']);
+        $this->assertSame($withoutImages['text'], $result['text']);
+        $this->assertStringNotContainsString('<img', $withoutImages['html']);
+    }
+
+    public function test_missing_or_unsafe_avatars_leave_readable_text_only_rows(): void
+    {
+        $renderer = new SupplierOrderMailRenderer;
+        $order = $this->order();
+        $expected = $renderer->render($order);
+
+        foreach ([null, '', 'data:image/png;base64,AAAA', 'https://127.0.0.1/avatar.jpg', 'https://example.com/video.mp4', 'https://example.com/avatar.jpg" onerror="alert(1)'] as $avatar) {
+            $order['items'][0]['avatar_url'] = $avatar;
+            $this->assertSame($expected, $renderer->render($order));
+        }
+    }
+
     private function order(): array
     {
         return [

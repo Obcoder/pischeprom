@@ -41,7 +41,7 @@ class SupplierOrderContext
         $search = trim($filters['search'] ?? '');
         $goods->when($search !== '', fn ($query) => $query->where('goods.name', 'like', '%'.$search.'%'));
         $page = $goods->orderBy('goods.name')->orderBy('goods.id')->paginate($filters['per_page'] ?? 30,
-            ['goods.id', 'goods.name', 'goods.measure_id', 'goods.unit_weight_kg'], 'page', $filters['page'] ?? 1);
+            ['goods.id', 'goods.name', 'goods.measure_id', 'goods.unit_weight_kg', 'goods.ava_thumb', 'goods.ava_image'], 'page', $filters['page'] ?? 1);
         $ids = $page->getCollection()->pluck('id')->all();
         $sources = $this->assortmentSources($unit, $entityIds, $ids);
         $demand = $this->demandQuery($filters, $warehouseId)->whereIn('oi.good_id', $ids)
@@ -75,6 +75,7 @@ class SupplierOrderContext
             'warehouses' => Warehouse::orderBy('name')->get(['id', 'name']), 'warehouse_id' => $warehouseId,
             'currencies' => Currency::orderBy('code')->get(['id', 'code']),
             'unit' => ['id' => $unit->id, 'name' => $unit->name], 'recipients' => $this->recipients($unit, $entityIds),
+            'defaults' => app(SupplierOrderDefaults::class)->forUnit($unit->id),
             'scope_note' => 'Спрос: неотгруженные незакрытые заказы всех покупателей'.(($filters['include_deferred'] ?? false) ? ', включая отложенные.' : ', без отложенных.')
                 .' Собранные заказы включены; отдельного резервирования нет. Остаток — проведённые движения выбранного склада; отрицательные остатки увеличивают дефицит.'
                 .' Из дефицита вычтены отправленные и подтверждённые заказы всем поставщикам, включая заказы без назначенного склада. Неопределённые отправки показаны отдельно.'
@@ -183,6 +184,7 @@ class SupplierOrderContext
 
         return [
             'good_id' => $good->id, 'name' => $good->name, 'measurement' => $measurement,
+            'avatar_url' => app(SupplierOrderProductImages::class)->url($good),
             'assortment_sources' => $sources->values(), 'offered_by_supplier' => $sources->contains(fn ($source) => $source['kind'] !== 'manufacture'),
             ...$this->quote($quote, $measurement),
             'demand_quantity' => $demandQuantity, 'deferred_quantity' => $deferredQuantity, 'stock_quantity' => $stockQuantity,

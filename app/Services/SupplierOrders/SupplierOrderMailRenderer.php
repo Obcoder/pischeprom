@@ -31,6 +31,7 @@ class SupplierOrderMailRenderer
                 'quantity' => $quantity === null ? '—' : $this->format($quantity),
                 'unit' => (string) ($source['unit_label'] ?? $source['measurement']['unit_label'] ?? ''),
                 'note' => (string) ($source['note'] ?? ''),
+                'avatar_url' => app(SupplierOrderProductImages::class)->safeUrl($source['avatar_url'] ?? null),
             ];
 
             $price = $this->decimal($source['unit_price'] ?? null, 4);

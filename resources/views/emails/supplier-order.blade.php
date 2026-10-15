@@ -34,7 +34,7 @@
             <tbody>
             @foreach($items as $item)
                 <tr>
-                    <td valign="top" style="padding:10px 12px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">{{ $item['name'] }}</td>
+                    <td valign="top" style="padding:10px 12px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">@if($item['avatar_url'])<img src="{{ $item['avatar_url'] }}" alt="" width="36" height="36" style="display:inline-block;width:36px;height:36px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:8px;border:1px solid #eee9e3;">@endif{{ $item['name'] }}</td>
                     <td align="right" valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;font-variant-numeric:tabular-nums;">{{ $item['quantity'] }}</td>
                     <td valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">{{ $item['unit'] }}</td>
                     <td valign="top" style="padding:10px 8px;border-bottom:1px solid #eee9e3;overflow-wrap:anywhere;word-break:break-word;">{!! nl2br(e($item['note'])) !!}</td>

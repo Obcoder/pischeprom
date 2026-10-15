@@ -20,10 +20,11 @@ class SupplierOrder extends Model
 
     protected $guarded = ['id'];
 
-    protected $attributes = ['status' => 'draft', 'revision' => 1, 'include_prices' => true];
+    protected $attributes = ['status' => 'draft', 'revision' => 1, 'include_prices' => true, 'auto_subject' => false];
 
     protected $casts = [
         'revision' => 'integer', 'include_prices' => 'boolean', 'to' => 'array', 'cc' => 'array',
+        'supplier_sequence' => 'integer', 'auto_subject' => 'boolean', 'subject_date' => 'date:Y-m-d',
         'delivery_date' => 'date:Y-m-d', 'sent_at' => 'datetime', 'sending_started_at' => 'datetime',
     ];
 

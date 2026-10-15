@@ -26,18 +26,23 @@ class SupplierOrderWriter
             ? ['revision' => ['required', 'integer', 'min:1']]
             : ['create_key' => ['required', 'uuid']])->validate();
         $fingerprint = $this->fingerprint($validated);
+        $legacyFingerprint = array_key_exists('auto_subject', $validated) ? null : $this->fingerprint($validated, true);
 
-        return DB::transaction(function () use ($order, $actor, $validated, $control, $fingerprint): SupplierOrder {
+        return DB::transaction(function () use ($order, $actor, $validated, $control, $fingerprint, $legacyFingerprint): SupplierOrder {
             if ($order) {
                 $order = SupplierOrder::lockForUpdate()->findOrFail($order->id);
                 $this->assertRevision($order, (int) $control['revision']);
                 abort_unless($order->status === 'draft', 409, 'Изменять можно только черновик заказа поставщику.');
+                if ((int) $order->unit_id !== (int) $validated['unit_id']) {
+                    $this->invalid('unit_id', 'Поставщика сохранённого заказа менять нельзя. Создайте новый заказ для другого поставщика.');
+                }
             } else {
                 // Serializes retried creation even before a row with this key exists.
                 User::whereKey($actor->id)->lockForUpdate()->firstOrFail();
                 $existing = SupplierOrder::where('created_by', $actor->id)->where('create_key', $control['create_key'])->first();
                 if ($existing) {
-                    abort_unless(hash_equals($existing->create_payload_hash, $fingerprint), 409,
+                    abort_unless(hash_equals($existing->create_payload_hash, $fingerprint)
+                        || ($legacyFingerprint !== null && hash_equals($existing->create_payload_hash, $legacyFingerprint)), 409,
                         'С этим ключом уже создан другой заказ. Обновите данные перед созданием нового.');
 
                     return $existing->load(['items', 'unit', 'warehouse']);
@@ -49,6 +54,13 @@ class SupplierOrderWriter
                 'created_by' => $actor->id, 'create_key' => $control['create_key'], 'create_payload_hash' => $fingerprint,
             ]);
             $order->fill(collect($normalized)->except(['items', 'unit'])->all());
+            if ($order->supplier_sequence === null) {
+                $order->supplier_sequence = app(SupplierOrderDefaults::class)->reserve($order->unit_id);
+                $order->subject_date = ($order->created_at ?? now())->copy()->setTimezone('Europe/Moscow')->toDateString();
+            }
+            if ($order->auto_subject) {
+                $order->subject = app(SupplierOrderDefaults::class)->subject($order->subject_date->toDateString(), $order->supplier_sequence);
+            }
             $order->updated_by = $actor->id;
             if (! $new) {
                 $order->revision++;
@@ -59,7 +71,7 @@ class SupplierOrderWriter
             $order->items()->delete();
             foreach ($normalized['items'] as $position => $item) {
                 $order->items()->create([
-                    ...collect($item)->except(['measurement', 'line_total'])->all(), 'position' => $position,
+                    ...collect($item)->except(['measurement', 'line_total', 'avatar_url'])->all(), 'position' => $position,
                     // PDO stringifies float bindings with PHP's precision setting.
                     // Bind fixed-scale decimals explicitly to retain all six/four digits.
                     'quantity' => (string) $this->decimal($item['quantity'], 6),
@@ -119,7 +131,7 @@ class SupplierOrderWriter
 
     public function data(SupplierOrder $order): array
     {
-        $order->loadMissing(['items', 'unit', 'warehouse']);
+        $order->loadMissing(['items', 'unit', 'warehouse', 'items.good' => fn ($query) => $query->withoutEagerLoads()->select(['id', 'ava_thumb', 'ava_image'])]);
         $totals = [];
         $items = $order->items->map(function ($item) use (&$totals): array {
             $total = $item->unit_price === null ? null : $this->lineTotal($item->getRawOriginal('quantity'), $item->getRawOriginal('unit_price'));
@@ -129,6 +141,7 @@ class SupplierOrderWriter
 
             return [
                 'id' => $item->id, 'good_id' => $item->good_id, 'name' => $item->name,
+                'avatar_url' => $item->good ? app(SupplierOrderProductImages::class)->url($item->good) : null,
                 'measure_id' => $item->measure_id, 'unit_label' => $item->unit_label,
                 'kilograms_per_unit' => $item->kilograms_per_unit, 'measurement' => $item->measurement(),
                 'quantity' => $item->quantity, 'unit_price' => $item->unit_price,
@@ -148,6 +161,8 @@ class SupplierOrderWriter
             'warehouse_id' => $order->warehouse_id, 'warehouse' => $order->warehouse ? ['id' => $order->warehouse->id, 'name' => $order->warehouse->name] : null,
             'delivery_date' => $order->delivery_date?->toDateString(),
             'subject' => $order->subject, 'body' => $order->body ?? '', 'mailbox' => $order->mailbox,
+            'auto_subject' => $order->auto_subject, 'supplier_sequence' => $order->supplier_sequence,
+            'subject_date' => $order->subject_date?->toDateString(),
             'to' => $order->to ?? [], 'cc' => $order->cc ?? [], 'include_prices' => $order->include_prices,
             'internal_note' => $order->internal_note, 'items' => $items, 'items_count' => count($items),
             'totals_by_currency' => $totals, 'has_unpriced_items' => collect($items)->contains(fn ($item) => $item['unit_price'] === null),
@@ -182,6 +197,7 @@ class SupplierOrderWriter
             'unit_id' => ['required', 'integer', 'min:1'],
             'warehouse_id' => ['nullable', 'integer', 'min:1'], 'delivery_date' => ['nullable', 'date_format:Y-m-d'],
             'subject' => ['nullable', 'string', 'max:255', 'not_regex:/[\r\n]/'],
+            'auto_subject' => ['sometimes', 'boolean'],
             'body' => ['nullable', 'string', 'max:30000'], 'mailbox' => ['nullable', 'email:rfc', 'max:254'],
             'to' => ['sometimes', 'array', 'max:5'], 'to.*' => ['required', 'email:rfc', 'max:254'],
             'cc' => ['sometimes', 'array', 'max:5'], 'cc.*' => ['required', 'email:rfc', 'max:254'],
@@ -283,13 +299,25 @@ class SupplierOrderWriter
             }
             $items[] = [
                 'good_id' => $good->id, 'name' => $good->name, ...$measurement, 'measurement' => $measurement,
+                'avatar_url' => app(SupplierOrderProductImages::class)->url($good),
                 'quantity' => (string) $quantity, 'unit_price' => $price === null ? null : (string) $price, 'currency_id' => $currency?->id, 'currency_code' => $currency?->code,
                 'line_total' => $total?->toFloat(), 'note' => $this->nullableText($item['note'] ?? null), 'source_order_item_ids' => $source,
                 'quotation_id' => $item['quotation_id'] ?? null, 'quotation_snapshot' => $quotationSnapshot,
             ];
         }
 
-        return [...$this->header($input), 'unit' => ['id' => $unit->id, 'name' => $unit->name], 'items' => $items];
+        $header = $this->header($input);
+        if ($header['auto_subject']) {
+            $defaults = app(SupplierOrderDefaults::class)->forUnit($unit->id);
+            $sequence = $order?->supplier_sequence ?? $defaults['supplier_sequence'];
+            $date = $order?->subject_date?->toDateString() ?? $defaults['subject_date'];
+            $header['subject'] = app(SupplierOrderDefaults::class)->subject($date, $sequence);
+        }
+        if (! $order && ! array_key_exists('body', $input)) {
+            $header['body'] = SupplierOrderDefaults::BODY;
+        }
+
+        return [...$header, 'unit' => ['id' => $unit->id, 'name' => $unit->name], 'items' => $items];
     }
 
     private function header(array $input): array
@@ -299,13 +327,14 @@ class SupplierOrderWriter
         return [
             'unit_id' => (int) $input['unit_id'], 'warehouse_id' => isset($input['warehouse_id']) ? (int) $input['warehouse_id'] : null,
             'delivery_date' => $input['delivery_date'] ?? null, 'subject' => trim($input['subject'] ?? ''),
+            'auto_subject' => (bool) ($input['auto_subject'] ?? (trim($input['subject'] ?? '') === '')),
             'body' => trim($input['body'] ?? ''), 'mailbox' => isset($input['mailbox']) ? mb_strtolower(trim($input['mailbox'])) : null,
             'to' => $addresses($input['to'] ?? []), 'cc' => $addresses($input['cc'] ?? []),
             'include_prices' => true, 'internal_note' => $this->nullableText($input['internal_note'] ?? null),
         ];
     }
 
-    private function fingerprint(array $input): string
+    private function fingerprint(array $input, bool $legacy = false): string
     {
         $items = array_map(fn ($item) => [
             'good_id' => (int) $item['good_id'], 'quantity' => (string) $this->decimal($item['quantity'], 6),
@@ -318,7 +347,18 @@ class SupplierOrderWriter
             'source_order_item_ids' => array_map('intval', $item['source_order_item_ids'] ?? []),
         ], $input['items']);
 
-        return hash('sha256', json_encode([...$this->header($input), 'items' => $items], JSON_THROW_ON_ERROR));
+        $header = $this->header($input);
+        if ($legacy) {
+            // Old clients can retry a draft saved before automatic subjects were
+            // introduced. Match their exact original header, including its subject.
+            unset($header['auto_subject']);
+        } elseif ($header['auto_subject']) {
+            // A preliminary sequence may change before the first save, and a
+            // retry may happen on another day. Neither creates a different order.
+            $header['subject'] = '';
+        }
+
+        return hash('sha256', json_encode([...$header, 'items' => $items], JSON_THROW_ON_ERROR));
     }
 
     private function nullableText(?string $value): ?string
