@@ -212,6 +212,7 @@ class AvitoListingService
         string $action,
         array $input,
         ?AvitoConnection $connection = null,
+        ?callable $beforeSend = null,
     ): array {
         [$section, $operationId, $payload] = match ($action) {
             'update_price' => ['item', 'updatePrice', [
@@ -253,7 +254,7 @@ class AvitoListingService
             default => throw new AvitoException('Неизвестное действие с объявлением.', 'validation', 422),
         };
         $payload['confirmation'] = (string) config('avito.mutation_confirmation');
-        $result = $this->execute($section, $operationId, $payload, $connection);
+        $result = $this->execute($section, $operationId, $payload, $connection, beforeSend: $beforeSend);
 
         return [
             'action' => $action,
@@ -268,6 +269,7 @@ class AvitoListingService
         array $input,
         ?AvitoConnection $connection = null,
         bool $ownAccount = false,
+        ?callable $beforeSend = null,
     ): array {
         $capability = $this->catalog->findOperation($section, $operationId);
         $result = $this->executor->execute(
@@ -275,7 +277,7 @@ class AvitoListingService
             $input,
             $connection,
             [],
-            ['own_account' => $ownAccount],
+            ['own_account' => $ownAccount, 'before_send' => $beforeSend],
         );
 
         if (! $result['ok']) {

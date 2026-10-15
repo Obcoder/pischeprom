@@ -15,6 +15,7 @@ const page = usePage()
 const currentUrl = computed(() => String(page.props.ziggy?.location || page.props.ziggy?.url || 'https://пищепром-сервер.рф'))
 const tabs = [
     { key: 'warehouse', label: 'Склад' }, { key: 'market', label: 'Маркет' }, { key: 'prices', label: 'Цены' },
+    { key: 'avito', label: 'Авито' },
     { key: 'price-types', label: 'Типы цен' }, { key: 'collections', label: 'Подборки' },
     { key: 'media', label: 'Медиа' }, { key: 'sales', label: 'Продажи' },
 ]
@@ -253,7 +254,7 @@ useHead({
                 </template>
             </CatalogGoodWarehouse>
         </section>
-        <CatalogGoodOperations ref="operations" v-show="activeTab !== 'warehouse'" :good-id="good.id" :active-tab="activeTab" :active="!recordOpen && activeTab !== 'warehouse'" @loaded="loaded" @changed="loaded" @request-basics="openRecord()" @request-market="openMarket" @state="operationsState = $event" />
+        <CatalogGoodOperations ref="operations" v-show="activeTab !== 'warehouse'" :good-id="good.id" :active-tab="activeTab" :active="!recordOpen && activeTab !== 'warehouse'" @loaded="loaded" @changed="loaded" @request-basics="openRecord()" @request-market="openMarket" @request-avito="selectTab('avito')" @state="operationsState = $event" />
         <v-dialog :model-value="Boolean(pendingNavigation)" max-width="440" persistent>
             <v-card>
                 <v-card-title>Несохранённые изменения</v-card-title>

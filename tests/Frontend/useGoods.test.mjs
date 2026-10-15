@@ -123,6 +123,7 @@ function mountGoods(environment, state, t) {
         Link: {},
         CatalogToolbar: {},
         GoodTableAvatar: {},
+        GoodAvitoBadge: {},
         GoodTradeCodeFields: {},
         GoodVatCheck: {},
         logo: '',

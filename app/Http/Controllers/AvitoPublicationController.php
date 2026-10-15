@@ -20,6 +20,7 @@ class AvitoPublicationController extends Controller
     {
         $validated = $request->validate($this->accountRules() + [
             'search' => ['nullable', 'string', 'max:200'],
+            'good_id' => ['nullable', 'integer', 'exists:goods,id'],
             'status' => ['nullable', 'string', Rule::in(AvitoPublicationService::STATUSES)],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:10', 'max:100'],

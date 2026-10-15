@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Process\Process;
 use Throwable;
 
-// Business data is read only. The provider request lists subscriptions; token
+// Business data is read only. Provider requests inspect API access and subscriptions; token
 // renewal may update authentication bookkeeping. Never dispatch or retry jobs.
 function inspect(callable $read): array
 {
@@ -280,7 +280,78 @@ function failedJobsMetadata(): array
     return ['counts_inspection' => 'complete', 'jobs' => $result];
 }
 
-function providerSubscriptions(): array
+/** Authentication bookkeeping can refresh, but provider reads must stay bounded. */
+function providerToken(array $capability, ?AvitoConnection $connection = null): ?string
+{
+    $timeouts = [
+        'avito.timeout_seconds' => config('avito.timeout_seconds'),
+        'avito.connect_timeout_seconds' => config('avito.connect_timeout_seconds'),
+    ];
+    try {
+        config(['avito.timeout_seconds' => 10, 'avito.connect_timeout_seconds' => 4]);
+
+        return app(AvitoTokenManager::class)->tokenFor($capability, $connection);
+    } finally {
+        config($timeouts);
+    }
+}
+
+/** Do not include account/listing IDs, titles, URLs, prices, or provider errors. */
+function listingResponseSummary(string $operation, int $status, mixed $payload): array
+{
+    $successful = $status >= 200 && $status < 300;
+    $valid = $operation === 'account'
+        ? is_array($payload) && filter_var($payload['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false
+        : is_array($payload) && is_array($payload['resources'] ?? null) && array_is_list($payload['resources']);
+
+    return [
+        'inspection' => ! $successful ? 'provider_error' : ($valid ? 'complete' : 'invalid_response'),
+        'http_status' => $status,
+        'response_valid' => $successful && $valid,
+    ];
+}
+
+function providerListings(?float $deadline = null): array
+{
+    $configured = filled(config('avito.client_id')) && filled(config('avito.client_secret'));
+    $result = ['source' => 'client_credentials', 'credentials_configured' => $configured];
+    if (! config('avito.enabled')) {
+        return $result + ['inspection' => 'integration_disabled'];
+    }
+    // The personal listing endpoint only supports client_credentials. Never
+    // silently substitute an OAuth account or send an agency-client header.
+    if (! $configured) {
+        return $result + ['inspection' => 'credentials_unavailable'];
+    }
+    $deadline = min($deadline ?? INF, microtime(true) + 40);
+    if ($deadline - microtime(true) < 35) {
+        return $result + ['inspection' => 'time_budget_exceeded'];
+    }
+    try {
+        $token = providerToken(app(AvitoApiCatalog::class)->findOperation('avito-promo', 'coreItems'));
+        foreach (['account' => '/core/v1/accounts/self', 'listings' => '/core/v1/items'] as $operation => $path) {
+            if ($deadline - microtime(true) < 10) {
+                $result[$operation] = ['inspection' => 'time_budget_exceeded'];
+
+                continue;
+            }
+            try {
+                $response = Http::withToken($token)->acceptJson()->timeout(10)->connectTimeout(4)
+                    ->withOptions(['allow_redirects' => false])
+                    ->get('https://api.avito.ru'.$path, $operation === 'listings' ? ['per_page' => 1, 'page' => 1] : []);
+                $result[$operation] = listingResponseSummary($operation, $response->status(), $response->json());
+            } catch (Throwable) {
+                $result[$operation] = ['inspection' => 'unavailable', 'error_category' => 'request_failed'];
+            }
+        }
+    } catch (Throwable $exception) {
+        return $result + ['inspection' => 'unavailable', 'error_category' => $exception instanceof AvitoException ? code($exception->category) : 'request_failed'];
+    }
+
+    return $result + ['inspection' => 'complete'];
+}
+
+function providerSubscriptions(?float $deadline = null): array
 {
     $sources = [];
     if (filled(config('avito.client_id')) && filled(config('avito.client_secret'))) {
@@ -294,11 +365,12 @@ function providerSubscriptions(): array
     $capability = app(AvitoApiCatalog::class)->findOperation('messenger', 'getSubscriptions');
     $expected = route('api.avito.webhook');
     $secret = (string) config('avito.webhook_secret');
-    $deadline = microtime(true) + 90;
+    $deadline = min($deadline ?? INF, microtime(true) + 90);
     $rows = [];
     foreach ($sources as $connection) {
         $row = ['connection_id' => $connection?->id, 'source' => $connection ? 'oauth' : 'client_credentials'];
-        if (microtime(true) >= $deadline) {
+        // Reserve the token lock (up to 8s), token request (10s), and read (10s).
+        if ($deadline - microtime(true) < 30) {
             $rows[] = $row + ['inspection' => 'time_budget_exceeded'];
 
             continue;
@@ -309,7 +381,7 @@ function providerSubscriptions(): array
 
                 continue;
             }
-            $token = app(AvitoTokenManager::class)->tokenFor($capability, $connection);
+            $token = providerToken($capability, $connection);
             // This is a read operation despite Avito using POST. Use the fixed
             // provider origin and disable redirects so tokens stay at Avito.
             $response = Http::withToken($token)->acceptJson()->timeout(10)->connectTimeout(4)
@@ -334,7 +406,7 @@ function report(string $targetDir): array
     $connection = (string) config('queue.default');
     $queue = (string) config('queue.connections.'.$connection.'.queue', 'default');
 
-    return [
+    $result = [
         'checked_at' => gmdate(DATE_ATOM),
         'application_timezone' => (string) config('app.timezone'),
         'schema' => inspect(__NAMESPACE__.'\\schemaMetadata'),
@@ -346,8 +418,14 @@ function report(string $targetDir): array
         'failed_jobs' => inspect(__NAMESPACE__.'\\failedJobsMetadata'),
         'activity' => inspect(__NAMESPACE__.'\\activityMetadata'),
         'ai' => inspect(static fn () => safeDiagnostics(app(AvitoAutoReplyDiagnostics::class)->report(days: 90))),
-        'webhook_subscriptions' => inspect(__NAMESPACE__.'\\providerSubscriptions'),
     ];
+    // Both provider inspections share a budget within the deployment's 180s
+    // process timeout. Failed reads cannot prolong it with retries.
+    $deadline = microtime(true) + 120;
+    $result['listing_api'] = inspect(static fn () => providerListings($deadline));
+    $result['webhook_subscriptions'] = inspect(static fn () => providerSubscriptions($deadline));
+
+    return $result;
 }
 
 function main(array $arguments): int

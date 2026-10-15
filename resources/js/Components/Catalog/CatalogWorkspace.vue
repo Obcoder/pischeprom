@@ -8,6 +8,7 @@ import CatalogAvatar from './CatalogAvatar.vue'
 import CatalogNodeAvatar from './CatalogNodeAvatar.vue'
 import CatalogGalleryDialog from './CatalogGalleryDialog.vue'
 import CatalogGoodPricing from './CatalogGoodPricing.vue'
+import GoodAvitoBadge from '@/Components/Goods/GoodAvitoBadge.vue'
 import { buildCatalogView } from './presentation.js'
 
 const nodes = ref([])
@@ -207,7 +208,7 @@ onMounted(load)
                         <button v-if="node.hasTreeChildren" type="button" class="catalog-tree__toggle" :aria-label="`${node.expanded ? 'Свернуть' : 'Развернуть'} ${node.name}`" @click.stop="toggle(node)"><v-icon :icon="node.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" /></button><span v-else class="catalog-tree__spacer" />
                         <v-icon :icon="iconFor(node)" size="18" color="#84738f" />
                         <CatalogNodeAvatar :node="node" />
-                        <div class="catalog-tree__name"><span>{{ node.name }}</span><small>{{ levelName(node) }}<span v-if="!node.is_published"> · Черновик</span></small></div>
+                        <div class="catalog-tree__name"><span>{{ node.name }} <GoodAvitoBadge :count="node.avito_listing_links_count" /></span><small>{{ levelName(node) }}<span v-if="!node.is_published"> · Черновик</span></small></div>
                         <span class="catalog-tree__count" title="Объектов в ветке">{{ node.count }}</span>
                         <v-menu><template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="x-small" variant="text" :aria-label="`Действия: ${node.name}`" @click.stop /></template><v-list density="compact">
                             <v-list-item title="Редактировать" prepend-icon="mdi-pencil-outline" @click="openEditor(node)" />
@@ -224,7 +225,7 @@ onMounted(load)
                     <div class="catalog-items-heading__actions"><v-btn v-if="contextNode" prepend-icon="mdi-pencil-outline" size="small" variant="text" @click="openEditor(contextNode)">Изменить раздел</v-btn><v-btn prepend-icon="mdi-plus" size="small" variant="tonal" @click="create()">Объект</v-btn></div>
                 </div>
                 <v-data-table v-model:page="page" :items="tableItems" :headers="headers" :items-per-page="50" :items-per-page-options="[25, 50, 100]" :loading="loading" item-value="id" density="compact" fixed-header hover class="catalog-items-table" items-per-page-text="На странице" loading-text="Загрузка каталога…">
-                    <template #item.name="{ item }"><div class="catalog-item-name"><CatalogAvatar :node="item" :icon="iconFor(item)" @open="openGallery" /><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }}</strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
+                    <template #item.name="{ item }"><div class="catalog-item-name"><CatalogAvatar :node="item" :icon="iconFor(item)" @open="openGallery" /><button type="button" class="catalog-item-name__button" @click="openEditor(item)"><strong>{{ item.name }} <GoodAvitoBadge :count="item.avito_listing_links_count" /></strong><small v-if="propertiesSummary(item)" :title="propertiesSummary(item)">{{ propertiesSummary(item) }}</small><small v-else>№ {{ item.entity_id || item.id }}</small></button></div></template>
                     <template #item.level_name="{ item }"><button type="button" class="catalog-level-label" :class="{ 'is-unassigned': !item.level_id }" title="Изменить классификацию" @click="openEditor(item)">{{ item.level_name }}</button></template>
                     <template #item.path_label="{ item }"><span class="catalog-item-path" :title="item.path_label">{{ item.path_label || 'Корень каталога' }}</span></template>
                     <template #item.is_published="{ item }">

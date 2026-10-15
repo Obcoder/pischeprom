@@ -5,6 +5,7 @@ export const goodRecordTabs = [
     { id: 'warehouse', label: 'Склад', icon: 'mdi-warehouse' },
     { id: 'market', label: 'Маркет', icon: 'mdi-storefront-outline' },
     { id: 'prices', label: 'Цены', icon: 'mdi-tag-outline' },
+    { id: 'avito', label: 'Авито', icon: 'mdi-storefront-edit-outline' },
     { id: 'price-types', label: 'Типы цен', icon: 'mdi-format-list-bulleted-type' },
     { id: 'collections', label: 'Подборки', icon: 'mdi-folder-multiple-outline' },
     { id: 'media', label: 'Медиа', icon: 'mdi-image-multiple-outline' },

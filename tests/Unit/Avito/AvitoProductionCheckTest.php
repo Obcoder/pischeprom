@@ -2,9 +2,18 @@
 
 namespace Tests\Unit\Avito;
 
-use PHPUnit\Framework\TestCase;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
+use Tests\TestCase;
 
 use function AvitoProductionCheck\inspect;
+use function AvitoProductionCheck\listingResponseSummary;
+use function AvitoProductionCheck\providerListings;
+use function AvitoProductionCheck\providerSubscriptions;
 use function AvitoProductionCheck\safeDiagnostics;
 use function AvitoProductionCheck\subscriptionSummary;
 use function AvitoProductionCheck\workerSummary;
@@ -13,6 +22,129 @@ require_once dirname(__DIR__, 3).'/scripts/check-production-avito.php';
 
 class AvitoProductionCheckTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Cache::clear();
+        Http::preventStrayRequests();
+        config([
+            'avito.enabled' => true,
+            'avito.client_id' => 'test-client',
+            'avito.client_secret' => 'test-private-secret',
+            'avito.token_url' => 'https://api.avito.ru/token',
+            'avito.timeout_seconds' => 30,
+            'avito.connect_timeout_seconds' => 10,
+        ]);
+    }
+
+    public function test_listing_health_reads_only_the_personal_account_and_one_listing_without_exposing_data(): void
+    {
+        $options = [];
+        Http::fake(function (Request $request, array $requestOptions) use (&$options) {
+            $options[$request->url()] = $requestOptions;
+
+            return match (parse_url($request->url(), PHP_URL_PATH)) {
+                '/token' => Http::response(['access_token' => 'private-bearer-token', 'expires_in' => 86400]),
+                '/core/v1/accounts/self' => Http::response(['id' => 99988, 'name' => 'Private account', 'email' => 'private@example.test']),
+                '/core/v1/items' => Http::response(['resources' => [['id' => 7654321, 'title' => 'Private listing', 'price' => 1234, 'url' => 'https://avito.ru/private-listing']]]),
+                default => throw new \RuntimeException('Unexpected HTTP request'),
+            };
+        });
+
+        $result = providerListings();
+
+        $this->assertSame([
+            'source' => 'client_credentials',
+            'credentials_configured' => true,
+            'account' => ['inspection' => 'complete', 'http_status' => 200, 'response_valid' => true],
+            'listings' => ['inspection' => 'complete', 'http_status' => 200, 'response_valid' => true],
+            'inspection' => 'complete',
+        ], $result);
+        foreach (['private', 'Private', '99988', '7654321', '1234', 'avito.ru'] as $forbidden) {
+            $this->assertStringNotContainsString($forbidden, json_encode($result));
+        }
+        Http::assertSentCount(3);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/core/v1/items?per_page=1&page=1'
+            && $request->method() === 'GET'
+            && $request->hasHeader('Authorization', 'Bearer private-bearer-token')
+            && ! $request->hasHeader('X-AgencyClientId'));
+        foreach ($options as $url => $requestOptions) {
+            $this->assertSame(10, $requestOptions['timeout']);
+            $this->assertSame(4, $requestOptions['connect_timeout']);
+            if (! str_ends_with($url, '/token')) {
+                $this->assertFalse($requestOptions['allow_redirects']);
+            }
+        }
+        $this->assertSame(30, config('avito.timeout_seconds'));
+        $this->assertSame(10, config('avito.connect_timeout_seconds'));
+    }
+
+    public function test_listing_health_never_falls_back_to_oauth_or_calls_provider_when_disabled_or_out_of_time(): void
+    {
+        Http::fake();
+        config(['avito.client_id' => null, 'avito.client_secret' => null]);
+        $this->assertSame('credentials_unavailable', providerListings()['inspection']);
+        config(['avito.enabled' => false]);
+        $this->assertSame('integration_disabled', providerListings()['inspection']);
+        config(['avito.enabled' => true, 'avito.client_id' => 'test-client', 'avito.client_secret' => 'test-private-secret']);
+        $this->assertSame('time_budget_exceeded', providerListings(microtime(true) + 1)['inspection']);
+        Http::assertNothingSent();
+    }
+
+    public function test_listing_health_does_not_count_invalid_or_failed_provider_responses_as_healthy(): void
+    {
+        $this->assertSame('invalid_response', listingResponseSummary('account', 200, ['id' => 0])['inspection']);
+        $this->assertSame('invalid_response', listingResponseSummary('listings', 200, ['resources' => ['private-id' => []]])['inspection']);
+        $this->assertSame('invalid_response', listingResponseSummary('listings', 200, ['message' => 'private-error'])['inspection']);
+        $this->assertSame('complete', listingResponseSummary('listings', 200, ['resources' => []])['inspection']);
+        $this->assertSame([
+            'inspection' => 'provider_error', 'http_status' => 403, 'response_valid' => false,
+        ], listingResponseSummary('listings', 403, ['resources' => [], 'message' => 'private-error']));
+    }
+
+    public function test_listing_health_hides_authorization_errors_and_restores_token_timeouts(): void
+    {
+        Http::fake(['https://api.avito.ru/token' => Http::response(['error_description' => 'Private secret account details'], 403)]);
+
+        $result = providerListings();
+
+        $this->assertSame('unavailable', $result['inspection']);
+        $this->assertSame('authorization', $result['error_category']);
+        $this->assertStringNotContainsString('Private', json_encode($result));
+        $this->assertSame(30, config('avito.timeout_seconds'));
+        $this->assertSame(10, config('avito.connect_timeout_seconds'));
+        Http::assertSentCount(1);
+    }
+
+    public function test_subscription_read_preserves_counts_and_respects_the_shared_provider_deadline(): void
+    {
+        Schema::create('avito_connections', function (Blueprint $table) {
+            $table->id();
+            $table->boolean('is_active');
+        });
+        config(['avito.webhook_secret' => 'private-callback-secret']);
+        URL::forceRootUrl('https://shop.example');
+        URL::forceScheme('https');
+        Http::fake([
+            'https://api.avito.ru/token' => Http::response(['access_token' => 'private-token', 'expires_in' => 86400]),
+            'https://api.avito.ru/messenger/v1/subscriptions' => Http::response([
+                'subscriptions' => [['url' => route('api.avito.webhook').'?secret=private-callback-secret']],
+            ]),
+        ]);
+
+        $result = providerSubscriptions(microtime(true) + 90);
+
+        $this->assertSame(1, $result['configured_source_count']);
+        $this->assertSame(0, $result['sources_omitted_by_limit']);
+        $this->assertSame(1, $result['sources'][0]['matching_current_secret_count']);
+        $this->assertStringNotContainsString('private-', json_encode($result));
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://api.avito.ru/messenger/v1/subscriptions' && $request->method() === 'POST');
+        $this->assertSame('time_budget_exceeded', providerSubscriptions(microtime(true) + 1)['sources'][0]['inspection']);
+        Http::assertSentCount(2);
+    }
+
     public function test_provider_report_only_counts_the_current_protected_callback(): void
     {
         $secret = 'private-value-never-print';

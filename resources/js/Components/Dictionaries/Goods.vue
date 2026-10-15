@@ -6,6 +6,7 @@ import { logo } from '@/Pages/Helpers/consts.js'
 import { useGoods } from '@/Composables/useGoods'
 import CatalogToolbar from '@/Components/Dictionaries/CatalogToolbar.vue'
 import GoodTableAvatar from '@/Components/Goods/GoodTableAvatar.vue'
+import GoodAvitoBadge from '@/Components/Goods/GoodAvitoBadge.vue'
 import GoodTradeCodeFields from '@/Components/Goods/GoodTradeCodeFields.vue'
 import GoodVatCheck from '@/Components/Goods/GoodVatCheck.vue'
 import { goodTradeCodeValues } from '@/utils/goodTradeCodes'
@@ -450,6 +451,7 @@ onBeforeUnmount(() => {
                         >
                             {{ item.name }}
                         </Link>
+                        <GoodAvitoBadge :count="item.avito_listing_links_count" />
                     </template>
 
                     <template #item.country="{ item }">

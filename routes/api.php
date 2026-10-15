@@ -150,6 +150,7 @@ use App\Http\Controllers\AvitoMessengerUpdatesController;
 use App\Http\Controllers\AvitoPublicationController;
 use App\Http\Controllers\AvitoWaitingListController;
 use App\Http\Controllers\AvitoWorkspaceSettingsController;
+use App\Http\Controllers\GoodAvitoController;
 use App\Http\Middleware\EnsureWarehouseMutationAllowed;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -1125,6 +1126,15 @@ Route::post('/avito/messenger/auto-replies/emergency-stop', [AvitoAutoReplyContr
     ->name('api.avito.messenger.auto-replies.emergency-stop');
 
 Route::prefix('avito')->name('api.avito.')->middleware('throttle:avito')->group(function () {
+    Route::prefix('goods/{good}')->whereNumber('good')->name('goods.')->group(function () {
+        Route::get('/', [GoodAvitoController::class, 'show'])->name('show');
+        Route::put('/links', [GoodAvitoController::class, 'store'])->name('links.store');
+        Route::delete('/links/{link}', [GoodAvitoController::class, 'destroy'])->whereNumber('link')->name('links.destroy');
+        Route::get('/links/{link}/listing', [GoodAvitoController::class, 'listing'])->whereNumber('link')->name('links.listing');
+        Route::post('/links/{link}/preview', [GoodAvitoController::class, 'preview'])->whereNumber('link')->name('links.preview');
+        Route::post('/links/{link}/apply', [GoodAvitoController::class, 'apply'])->whereNumber('link')
+            ->middleware('throttle:20,1,avito-good-price-apply:')->name('links.apply');
+    });
     Route::get('/status', [AvitoController::class, 'status'])->name('status');
     Route::get('/capabilities', [AvitoController::class, 'capabilities'])->name('capabilities.index');
     Route::patch('/capabilities', [AvitoController::class, 'bulkUpdateCapabilities'])->name('capabilities.bulk-update');

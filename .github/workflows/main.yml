@@ -309,6 +309,8 @@ jobs:
             app/Domain/Avito \
             app/Http/Controllers/AvitoAutoloadFeedController.php \
             app/Http/Controllers/AvitoController.php \
+            app/Http/Controllers/GoodAvitoController.php \
+            app/Http/Controllers/AvitoListingGoodController.php \
             app/Http/Controllers/AvitoCrmController.php \
             app/Http/Controllers/AvitoMessageTemplateController.php \
             app/Http/Controllers/AvitoMessengerController.php \

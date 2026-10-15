@@ -332,6 +332,8 @@ class AvitoListingsTest extends TestCase
         config(['avito.mutations_enabled' => true]);
         $this->fakeToken([
             'https://api.avito.ru/core/v1/items/7001/update_price' => Http::response(['ok' => true]),
+            'https://api.avito.ru/core/v1/accounts/self' => Http::response(['id' => 321]),
+            'https://api.avito.ru/core/v1/accounts/321/items/7001/' => Http::response(['status' => 'active']),
         ]);
         $payload = [
             'account_id' => 321,

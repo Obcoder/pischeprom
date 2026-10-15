@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalog;
 
+use App\Models\AvitoListingGoodLink;
 use App\Models\CatalogLevel;
 use App\Models\CatalogNode;
 use App\Models\CatalogSiteDomain;
@@ -29,8 +30,11 @@ class CatalogService
         $nodes = $this->nodes();
         // snapshot() is the staff API; nodes() also serves the public catalog.
         $pricing = app(CatalogGoodPricing::class)->forGoods($nodes->where('entity_type', 'good')->pluck('entity_id')->all());
+        $avitoCounts = AvitoListingGoodLink::query()
+            ->whereIn('good_id', $nodes->where('entity_type', 'good')->pluck('entity_id'))
+            ->selectRaw('good_id, COUNT(*) as linked_count')->groupBy('good_id')->pluck('linked_count', 'good_id');
         $nodes = $nodes->map(fn (array $node): array => $node['entity_type'] === 'good'
-            ? [...$node, 'pricing' => $pricing->get($node['entity_id'])]
+            ? [...$node, 'pricing' => $pricing->get($node['entity_id']), 'avito_listing_links_count' => (int) $avitoCounts->get($node['entity_id'], 0)]
             : $node);
 
         return [

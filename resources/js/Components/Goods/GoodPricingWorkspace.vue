@@ -2,9 +2,12 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import axios from 'axios'
 import PriceConstructionChain from './PriceConstructionChain.vue'
+import GoodAvitoPriceDialog from './GoodAvitoPriceDialog.vue'
+import { avitoPriceBlockReason } from '@/Services/goodAvito'
 
 const props = defineProps({ goodId: { type: [Number, String], required: true }, active: { type: Boolean, default: true } })
-const emit = defineEmits(['changed', 'state', 'request-market'])
+const emit = defineEmits(['changed', 'state', 'request-market', 'request-avito'])
+const avitoPrice = ref(null), avitoOpen = ref(false), avitoBusy = ref(false)
 const data = ref(null), rows = ref([]), tab = ref('prices'), loading = ref(false), error = ref('')
 const history = ref(null), historyScope = ref(''), historyLoading = ref(false), historyError = ref('')
 const entitySearch = ref(''), entities = ref(null), entityError = ref(''), entityLoading = ref(false), choosingEntity = ref(false)
@@ -19,7 +22,7 @@ const libraryMeasurementChanged = computed(() => {
 })
 let generation = 0, sequence = 0, historyVersion = 0, entityVersion = 0, accessVersion = 0, sourcesVersion = 0
 const dirty = computed(() => rows.value.some(row => row.dirty) || Boolean(libraryDraft.value?.dirty))
-const busy = computed(() => rows.value.some(row => row.busy) || accessBusy.value || libraryBusy.value)
+const busy = computed(() => rows.value.some(row => row.busy) || accessBusy.value || libraryBusy.value || avitoBusy.value)
 const base = () => `/api/goods/${props.goodId}/pricing`
 const money = value => value === null || value === undefined ? '—' : Number(value).toLocaleString('ru-RU', { maximumFractionDigits: 4 })
 const date = value => value ? new Date(value).toLocaleString('ru-RU') : '—'
@@ -240,6 +243,10 @@ async function removeElement(element) {
     finally { libraryBusy.value = false }
 }
 const currencyCode = row => data.value?.currencies.find(item => item.id === Number(row.currency_id))?.code || ''
+function openAvito(row) {
+    if (avitoPriceBlockReason(row, data.value)) return
+    avitoPrice.value = row.id; avitoOpen.value = true
+}
 
 function snapshotPrice(snapshot) { return snapshot ? `${money(snapshot.price_gross ?? snapshot.price_net)} ${snapshot.currency_code || ''} / ${snapshot.measurement?.unit_label || '?'}` : '—' }
 function audience(row) {
@@ -248,7 +255,7 @@ function audience(row) {
     return type?.is_public ? 'Общедоступная' : 'Для зарегистрированных'
 }
 watch([dirty, busy], ([dirty, busy]) => emit('state', { dirty, busy }), { immediate: true })
-watch(() => props.goodId, () => { generation++; data.value = null; rows.value = []; history.value = null; access.value = null; libraryOpen.value = false; libraryDraft.value = null; notice.value = ''; archiveDetail.value = null; choosingEntity.value = false; tab.value = 'prices'; if (props.active) load() }, { immediate: true })
+watch(() => props.goodId, () => { generation++; data.value = null; rows.value = []; history.value = null; access.value = null; libraryOpen.value = false; libraryDraft.value = null; notice.value = ''; archiveDetail.value = null; choosingEntity.value = false; tab.value = 'prices'; avitoOpen.value = false; avitoPrice.value = null; avitoBusy.value = false; if (props.active) load() }, { immediate: true })
 watch(() => props.active, active => { if (active && !data.value && !loading.value) load() })
 watch(tab, value => { if (value === 'history' && !history.value) loadHistory() })
 onScopeDispose(() => { generation++; historyVersion++; entityVersion++; accessVersion++ })
@@ -289,7 +296,7 @@ defineExpose({ reset, refresh: () => dirty.value ? undefined : load(), refreshSo
                         <tr>
                             <td class="target-cell"><div class="row-target"><template v-if="row.scope === 'entity'"><strong>{{ row.target_name }}</strong><button class="price-link" @click="openAccess(row)">Доступ ↗</button></template><select v-else v-model="row.target_id" :disabled="!!row.id || row.busy" aria-label="Вид цены" @change="selectType(row)"><option :value="null">Без назначения · только расчёт</option><option v-for="type in data.types" :key="type.id" :value="type.id" :disabled="!type.is_active || rows.some(other => other !== row && other.scope === 'common' && other.target_id === type.id)">{{ type.name }}{{ !type.is_active ? ' (неактивен)' : '' }}</option></select><select v-model="row.currency_id" :disabled="row.busy" aria-label="Валюта расчёта" class="currency-select" @change="touch(row)"><option v-for="currency in data.currencies" :key="currency.id" :value="currency.id">{{ currency.code }}</option></select></div><small :class="{ confidential: row.scope === 'entity' }">{{ row.target_id ? audience(row) : 'Можно сохранить расчёт без назначения цены' }}</small></td>
                             <td class="numeric"><strong>{{ money(row.result?.price_gross) }} {{ currencyCode(row) }}</strong><small>{{ row.result ? `Без НДС: ${money(row.result.price_net)}` : 'Результат ожидает расчёта' }}</small><small v-if="row.result?.margin_percent != null">Маржа {{ money(row.result.margin_percent) }}%</small></td>
-                            <td><label class="check"><input v-model="row.active" :disabled="row.busy" type="checkbox" @change="touch(row)">{{ row.active ? 'Активна' : 'Отключена' }}</label><small>{{ row.valid_from || 'Без начала' }} → {{ row.valid_to || 'Без окончания' }}</small><button class="price-link" :aria-expanded="row.expanded" @click="row.expanded = !row.expanded">{{ row.expanded ? 'Скрыть параметры' : 'Сроки и комментарий' }}</button></td>
+                            <td><label class="check"><input v-model="row.active" :disabled="row.busy" type="checkbox" @change="touch(row)">{{ row.active ? 'Активна' : 'Отключена' }}</label><small>{{ row.valid_from || 'Без начала' }} → {{ row.valid_to || 'Без окончания' }}</small><button class="price-link" :aria-expanded="row.expanded" @click="row.expanded = !row.expanded">{{ row.expanded ? 'Скрыть параметры' : 'Сроки и комментарий' }}</button><button v-if="row.scope === 'common' && data.types.some(type => Number(type.id) === Number(row.target_id) && type.is_public)" class="avito-button" :disabled="!!avitoPriceBlockReason(row, data)" :title="avitoPriceBlockReason(row, data) || 'Проверить и передать сохранённую цену в объявление'" @click="openAvito(row)">Авито · передать цену</button></td>
                             <td class="actions"><div class="button-group"><button :disabled="row.busy" @click="run(row)">Рассчитать</button><button :disabled="row.busy" @click="saveCalculation(row)">Сохранить расчёт</button><button class="primary" :disabled="row.busy || !row.dirty || !row.target_id" @click="run(row, true)">{{ row.busy ? '…' : 'Сохранить цену' }}</button></div><div class="button-group"><input v-model="row.calculation_name" :disabled="row.busy" maxlength="150" aria-label="Название расчёта" placeholder="Название расчёта (необязательно)" @input="row.dirty = true; row.version++; row.success = ''"><button v-if="row.dirty && row.id" :disabled="row.busy" @click="Object.assign(row, draft(row.saved))">Отменить</button><button v-if="!row.deleting" :disabled="row.busy" @click="row.id ? row.deleting = true : remove(row)">{{ row.id ? 'Удалить цену' : 'Убрать черновик' }}</button><template v-else><button class="danger" :disabled="row.busy" @click="remove(row)">Удалить цену?</button><button :disabled="row.busy" @click="row.deleting = false">Нет</button></template></div></td>
                         </tr>
                         <tr><td colspan="4" class="construction-cell"><PriceConstructionChain :row="row" :sources="data.sources" :elements="data.elements" :calculations="availableCalculations(row)" :measurement="row.measurement" :currency="currencyCode(row)" @touch="touch(row)" @source="selectSource(row)" @library="libraryOpen = true" @market="emit('request-market')" /></td></tr>
@@ -310,11 +317,13 @@ defineExpose({ reset, refresh: () => dirty.value ? undefined : load(), refreshSo
                 <div class="table-scroll"><table class="price-table archive-table"><thead><tr><th>Расчёт / назначение</th><th>Дата</th><th>Способ / источник</th><th>Единица</th><th class="numeric">Без НДС</th><th class="numeric">С НДС</th><th>Валюта</th><th></th></tr></thead><tbody v-for="calculation in archive" :key="`${calculation.archive_source}:${calculation.id}`"><tr><td>{{ calculation.name || `Расчёт №${calculation.id}` }}<small :class="{ confidential: calculation.scope === 'entity' }">{{ calculation.scope === 'entity' ? `Только Entity · ${calculation.target_name}` : calculation.target_name || 'Без назначения' }}</small><small>{{ calculation.comment }}</small></td><td>{{ date(calculation.created_at) }}</td><td>{{ methods[calculation.input?.method] || calculation.source_type || 'Ранее сохранённый' }}<small>{{ calculation.result?.source?.supplier || calculation.result?.source?.name }}</small></td><td>1 {{ calculation.measurement?.unit_label || 'ед.' }}</td><td class="numeric">{{ money(calculation.price_net) }}</td><td class="numeric">{{ money(calculation.price_gross) }}</td><td>{{ calculation.currency_code }}</td><td><div class="button-group"><button @click="useCalculation(calculation)">Назначить результат</button><button v-if="calculation.archive_source === 'workspace'" @click="useCalculation(calculation, true)">Повторить расчёт</button><button :aria-expanded="archiveDetail === `${calculation.archive_source}:${calculation.id}`" @click="archiveDetail = archiveDetail === `${calculation.archive_source}:${calculation.id}` ? null : `${calculation.archive_source}:${calculation.id}`">Состав</button></div></td></tr><tr v-if="archiveDetail === `${calculation.archive_source}:${calculation.id}`"><td colspan="8"><div class="snapshot archive-snapshot"><p>Сохранённый снимок · {{ calculation.scope === 'entity' ? 'доступен для назначения только этому Entity' : 'общий расчёт' }}</p><p>НДС: {{ money(calculation.result?.vat_rate ?? calculation.vat_rate ?? calculation.input?.vat_rate) }}% · Округление: {{ money(calculation.input?.rounding_step) }} · Затраты: {{ money(calculation.result?.cost_net) }}</p><p v-if="calculation.input?.method === 'manual'">Вручную: {{ money(calculation.input.amount) }} {{ calculation.input.amount_includes_vat ? 'с НДС' : 'без НДС' }}</p><p v-if="calculation.input?.source_key">Источник: {{ calculation.result?.source?.supplier || calculation.input.source_key }} · НДС источника: {{ money(calculation.input.source_vat_rate) }}%</p><p v-for="(element, index) in calculation.input?.elements || []" :key="index">{{ index + 1 }}. {{ element.name }} · {{ money(element.value) }} {{ element.kind === 'percent' ? '%' : calculation.currency_code }} · {{ element.enabled === false ? 'исключён' : 'участвует' }}</p></div><table v-if="calculation.result?.breakdown?.length" class="price-table"><thead><tr><th>Элемент</th><th>Формула</th><th class="numeric">Изменение</th><th class="numeric">Результат</th></tr></thead><tbody><tr v-for="(part, index) in calculation.result.breakdown" :key="part.key || index"><td>{{ part.label }}</td><td>{{ part.formula || '—' }}</td><td class="numeric">{{ money(part.amount) }}</td><td class="numeric">{{ money(part.subtotal) }}</td></tr></tbody></table></td></tr></tbody><tbody v-if="!archive.length"><tr><td colspan="8" class="empty">Сохранённых расчётов пока нет. Создайте расчёт и нажмите «Сохранить расчёт» или «Сохранить цену».</td></tr></tbody></table></div>
             </template>
         </template>
+        <GoodAvitoPriceDialog v-model="avitoOpen" :good-id="goodId" :price-value-id="avitoPrice" @state="avitoBusy = $event.busy" @applied="notice = 'Сохранённая цена передана в Авито.'; emit('changed')" @request-avito="emit('request-avito')" />
     </section>
 </template>
 
 <style scoped>
 .pricing { min-width: 0; color: #35333a; font: 12px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+.pricing button.avito-button { display: block; margin-top: 6px; padding: 4px 7px; border-color: #cdc2df; color: #725392; background: #fbf9fe; font-size: 10px; }
 .pricing-head { display: flex; justify-content: space-between; align-items: start; gap: 20px; padding: 10px 0; }
 h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; } p { margin: 0; } .pricing-head p, .muted, .archive-note { color: #77727c; font-size: 11px; }
 .partners { max-width: 330px; max-height: 90px; overflow: auto; flex-shrink: 0; } .partners .price-table { font-size: 10px; } .partners td { padding: 2px 6px; } .partners td:first-child { color: #817a87; } caption { text-align: right; font-size: 9px; color: #817a87; padding-bottom: 3px; }

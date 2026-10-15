@@ -55,7 +55,7 @@ class GoodController extends Controller
             $sortBy = 'name';
         }
 
-        $query = Good::query()->with($tableView ? [
+        $query = Good::query()->withCount('avitoListingLinks')->with($tableView ? [
             'products' => fn ($query) => $query->without('manufacturers')
                 ->select('products.id', 'products.rus', 'products.category_id'),
             'products.category:id,name',

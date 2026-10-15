@@ -70,6 +70,7 @@ class AvitoPublicationService
         $feed = $this->feed($accountId);
         $query = AvitoPublication::query()
             ->where('avito_account_id', $accountId)
+            ->when(! empty($filters['good_id']), fn (Builder $query) => $query->where('good_id', $filters['good_id']))
             ->when(filled($filters['status'] ?? null), fn (Builder $query) => $query
                 ->where('status', $filters['status']))
             ->when(filled($filters['search'] ?? null), function (Builder $query) use ($filters): void {
@@ -95,6 +96,7 @@ class AvitoPublicationService
             'feed' => $feed ? $this->feedPayload($feed) : null,
             'status_counts' => AvitoPublication::query()
                 ->where('avito_account_id', $accountId)
+                ->when(! empty($filters['good_id']), fn (Builder $query) => $query->where('good_id', $filters['good_id']))
                 ->selectRaw('status, COUNT(*) as aggregate')
                 ->groupBy('status')
                 ->pluck('aggregate', 'status')
@@ -116,6 +118,13 @@ class AvitoPublicationService
         Good $good,
         ?AvitoConnection $connection = null,
     ): AvitoPublication {
+        if ($good->avitoListingLinks()->where('avito_account_id', $accountId)->exists()) {
+            throw new AvitoException(
+                'Товар уже связан с объявлением Avito. Откройте существующую публикацию; создание нового feed ID приведёт к дубликату объявления.',
+                'autoload_existing_listing',
+                409,
+            );
+        }
         $feed = $this->feedFor($accountId, $connection);
         $good = $this->goods->prepareGood($good);
         $draft = $this->defaultDraft($good, $feed);
@@ -565,7 +574,7 @@ class AvitoPublicationService
 
     private function defaultDraft(Good $good, AvitoAutoloadFeed $feed): array
     {
-        $payload = $this->goods->goodPayload($good);
+        $payload = $this->links->goodPayload($good);
         $price = collect($payload['prices'] ?? [])->firstWhere('is_public', true)
             ?: collect($payload['prices'] ?? [])->first();
         $defaults = (array) $feed->defaults;
@@ -609,7 +618,7 @@ class AvitoPublicationService
         }
 
         $good = $this->goods->prepareGood($publication->good->fresh());
-        $source = $this->goods->goodPayload($good);
+        $source = $this->links->goodPayload($good);
         $draft = (array) $publication->draft_payload;
         $selected = collect((array) ($draft['selected_fields'] ?? []))
             ->filter(fn ($field): bool => in_array($field, self::SELECTABLE_FIELDS, true))
@@ -774,7 +783,8 @@ class AvitoPublicationService
             return null;
         }
         $price = collect($source['prices'] ?? [])->firstWhere('id', (int) ($draft['price_value_id'] ?? 0));
-        if (! $price || strtoupper((string) ($price['currency_code'] ?? '')) !== 'RUB') {
+        if (! $price || strtoupper((string) ($price['currency_code'] ?? '')) !== 'RUB'
+            || empty($source['measurement']['measure_id'])) {
             return null;
         }
         if (($price['valid_from'] ?? null)
@@ -969,7 +979,7 @@ class AvitoPublicationService
     private function publicationPayload(AvitoPublication $publication): array
     {
         $publication->loadMissing(['good', 'currentRevision.media', 'revisions.media']);
-        $goodPayload = $publication->good ? $this->goods->goodPayload($publication->good) : null;
+        $goodPayload = $publication->good ? $this->links->goodPayload($publication->good) : null;
 
         return $this->publicationSummary($publication) + [
             'avito_account_id' => $publication->avito_account_id,

@@ -34,7 +34,7 @@ function harness(t) {
     const requests = []
     const environment = {
         ...Vue, buildCatalogView, onMounted() {},
-        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {}, CatalogAvatar: {}, CatalogNodeAvatar: 'CatalogNodeAvatar', CatalogGalleryDialog: {}, CatalogGoodPricing: {},
+        CatalogToolbar: {}, CatalogSchemaDialog: {}, CatalogNodeDialog: {}, CatalogAvatar: {}, CatalogNodeAvatar: 'CatalogNodeAvatar', CatalogGalleryDialog: {}, CatalogGoodPricing: {}, GoodAvitoBadge: {},
         axios: { async get(url) { requests.push(url); return { data: structuredClone(payload) } } },
     }
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')

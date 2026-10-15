@@ -60,7 +60,7 @@ class AvitoListingGoodController extends Controller
         AvitoListingGoodService $transfers,
     ): JsonResponse {
         $validated = $request->validate($this->accountRules());
-        $transfers->requireLink((int) $validated['account_id'], $item)->delete();
+        $transfers->unlink($transfers->requireLink((int) $validated['account_id'], $item));
 
         return response()->json([
             'link' => null,
@@ -148,6 +148,7 @@ class AvitoListingGoodController extends Controller
                 'distinct',
             ],
             'price_value_id' => ['nullable', 'integer', 'exists:good_price_type_values,id'],
+            'expected_fingerprint' => ['sometimes', 'string', 'size:64'],
             'media_ids' => ['sometimes', 'array', 'max:10'],
             'media_ids.*' => ['required', 'integer', 'exists:good_media,id', 'distinct'],
             'include_facts' => ['sometimes', 'boolean'],

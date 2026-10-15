@@ -6,9 +6,12 @@ const props = defineProps({
     enabled: { type: Boolean, default: true },
     mutationsEnabled: { type: Boolean, default: false },
     workspace: { type: Object, default: () => ({ ready: false }) },
+    goodId: { type: [Number, String], default: null },
+    goodName: { type: String, default: '' },
+    linkedListings: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['notice', 'error', 'open-settings'])
+const emit = defineEmits(['notice', 'error', 'open-settings', 'changed', 'state'])
 
 const STATUS_OPTIONS = [
     { title: 'Черновик', value: 'draft', color: 'grey' },
@@ -50,6 +53,7 @@ const publication = ref(null)
 const preview = ref(null)
 const previewXml = ref('')
 const revisions = ref([])
+const savedEditorSignature = ref('')
 
 const categories = ref([])
 const categoriesLoading = ref(false)
@@ -63,6 +67,9 @@ const createGoodId = ref(null)
 const createLoading = ref(false)
 let goodsTimer = null
 let initialized = false
+let listVersion = 0
+let detailVersion = 0
+let disposed = false
 
 const profileDialog = ref(false)
 const profileLoading = ref(false)
@@ -108,7 +115,7 @@ const editor = reactive({
 const good = computed(() => publication.value?.good || null)
 const currentRevision = computed(() => publication.value?.current_revision || null)
 const priceOptions = computed(() => (good.value?.prices || []).map((item) => ({
-    title: `${item.name} · ${formatMoney(item.amount)} ${item.currency_code}${item.is_public ? ' · публичная' : ''}`,
+    title: `${item.name} · ${formatMoney(item.amount)} ${item.currency_code}${good.value?.measurement?.unit_label ? ` / ${good.value.measurement.unit_label}` : ''}${item.is_public ? ' · публичная' : ''}`,
     value: item.id,
 })))
 const categoryOptions = computed(() => {
@@ -130,13 +137,29 @@ const canEdit = computed(() => publication.value && publication.value.status !==
 const canUseRemoteMutations = computed(() => props.enabled && props.mutationsEnabled)
 const workspaceReady = computed(() => Boolean(props.workspace?.ready && positiveInteger(props.workspace?.account_id)))
 const profileAttached = computed(() => feed.value?.profile_status === 'attached')
+const scopedGoodId = computed(() => positiveInteger(props.goodId))
+const hasLinkedListing = computed(() => Boolean(scopedGoodId.value && props.linkedListings.some((item) =>
+    Number(item.avito_account_id) === Number(accountId.value)
+    && (!item.good_id || Number(item.good_id) === scopedGoodId.value))))
+const canCreate = computed(() => workspaceReady.value && !loading.value && !hasLinkedListing.value)
+const dirty = computed(() => Boolean(canEdit.value && savedEditorSignature.value && JSON.stringify(editorPayload()) !== savedEditorSignature.value))
+const busy = computed(() => Boolean(loading.value || detailLoading.value || saving.value || actionLoading.value || createLoading.value || profileLoading.value || categoriesLoading.value || categoryFieldsLoading.value))
 
-watch(() => [props.workspace?.account_id, props.workspace?.connection_id], async ([nextAccountId, nextConnectionId]) => {
+watch([dirty, busy], ([dirty, busy]) => emit('state', { dirty, busy }), { immediate: true })
+
+watch(() => [props.workspace?.account_id, props.workspace?.connection_id, scopedGoodId.value], async ([nextAccountId, nextConnectionId, nextGoodId], [, , previousGoodId]) => {
     const accountChanged = positiveInteger(nextAccountId) !== positiveInteger(accountId.value)
     const connectionChanged = (nextConnectionId ?? null) !== (connectionId.value ?? null)
     applyWorkspace()
-    if (initialized && (accountChanged || connectionChanged)) {
+    if (initialized && (accountChanged || connectionChanged || nextGoodId !== previousGoodId)) {
+        listVersion++
+        detailVersion++
         selectedId.value = null
+        items.value = []
+        loading.value = false
+        detailLoading.value = false
+        clearEditor()
+        createDialog.value = false
         if (workspaceReady.value) await loadList(true)
         else {
             items.value = []
@@ -147,12 +170,18 @@ watch(() => [props.workspace?.account_id, props.workspace?.connection_id], async
 })
 
 watch(createSearch, () => {
+    if (scopedGoodId.value) return
     clearTimeout(goodsTimer)
     goodsTimer = setTimeout(loadGoods, 280)
 })
 
 onMounted(initialize)
-onBeforeUnmount(() => clearTimeout(goodsTimer))
+onBeforeUnmount(() => {
+    disposed = true
+    listVersion++
+    detailVersion++
+    clearTimeout(goodsTimer)
+})
 
 async function initialize() {
     initialized = true
@@ -169,16 +198,19 @@ async function loadList(reset = false) {
     const id = positiveInteger(accountId.value)
     if (!id) return
     if (reset) page.value = 1
+    const version = ++listVersion
     loading.value = true
     inlineError.value = ''
     try {
         const { data } = await axios.get('/api/avito/publications', { params: {
             account_id: id,
+            good_id: scopedGoodId.value || undefined,
             page: page.value,
             per_page: perPage.value,
-            search: search.value.trim() || undefined,
+            search: String(search.value || '').trim() || undefined,
             status: statusFilter.value || undefined,
         } })
+        if (disposed || version !== listVersion) return
         items.value = data.items || []
         feed.value = data.feed || null
         meta.value = data.meta || { page: 1, last_page: 1, total: items.value.length }
@@ -189,26 +221,35 @@ async function loadList(reset = false) {
         if (selectedId.value) await loadPublication(selectedId.value)
         else clearEditor()
     } catch (exception) {
+        if (disposed || version !== listVersion) return
         showError(exception, 'Не удалось загрузить черновики публикаций.')
     } finally {
-        loading.value = false
+        if (version === listVersion) loading.value = false
     }
 }
 
 async function loadPublication(id) {
     if (!id || !positiveInteger(accountId.value)) return
     selectedId.value = id
+    const version = ++detailVersion
+    const requestedGood = scopedGoodId.value
     detailLoading.value = true
     inlineError.value = ''
     try {
         const { data } = await axios.get(`/api/avito/publications/${id}`, {
             params: { account_id: positiveInteger(accountId.value) },
         })
+        if (disposed || version !== detailVersion) return
+        if (requestedGood && Number(data.publication?.good_id) !== requestedGood) {
+            clearEditor()
+            return showError(null, 'Публикация относится к другому товару. Обновите список.')
+        }
         hydrate(data)
     } catch (exception) {
+        if (disposed || version !== detailVersion) return
         showError(exception, 'Не удалось открыть черновик.')
     } finally {
-        detailLoading.value = false
+        if (version === detailVersion) detailLoading.value = false
     }
 }
 
@@ -240,6 +281,7 @@ function hydrate(data) {
     })
     previewXml.value = ''
     validateSelectedCategory()
+    savedEditorSignature.value = JSON.stringify(editorPayload())
 }
 
 function clearEditor() {
@@ -247,7 +289,21 @@ function clearEditor() {
     preview.value = null
     previewXml.value = ''
     revisions.value = []
+    savedEditorSignature.value = ''
 }
+
+function reset() {
+    if (publication.value) hydrate({ publication: publication.value, preview: preview.value, feed: feed.value })
+    else clearEditor()
+    createDialog.value = false
+    approveDialog.value = false
+    profileDialog.value = false
+    uploadDialog.value = false
+    uploadStatusDialog.value = false
+    inlineError.value = ''
+}
+
+defineExpose({ reset })
 
 async function saveDraft(showMessage = true) {
     if (!publication.value || !canEdit.value) return false
@@ -261,6 +317,7 @@ async function saveDraft(showMessage = true) {
         })
         hydrate(data)
         replaceSummary(data.publication)
+        emit('changed')
         if (showMessage) emit('notice', 'Черновик сохранён. Feed пока не изменён.')
         return true
     } catch (exception) {
@@ -328,6 +385,7 @@ async function approve() {
         hydrate(data)
         replaceSummary(data.publication)
         approveDialog.value = false
+        emit('changed')
         emit('notice', data.message || 'Версия зафиксирована и включена в feed.')
         await loadList(false)
     } catch (exception) {
@@ -419,17 +477,18 @@ function isNonLeafCategoryError(exception) {
 }
 
 async function openCreate() {
+    if (!canCreate.value) return
     createDialog.value = true
-    createGoodId.value = null
+    createGoodId.value = scopedGoodId.value
     createSearch.value = ''
-    await loadGoods()
+    if (!scopedGoodId.value) await loadGoods()
 }
 
 async function loadGoods() {
     createLoading.value = true
     try {
         const { data } = await axios.get('/api/avito/listings/goods', {
-            params: { search: createSearch.value.trim() || undefined },
+            params: { search: String(createSearch.value || '').trim() || undefined },
         })
         createGoods.value = data.items || []
     } catch (exception) {
@@ -440,7 +499,8 @@ async function loadGoods() {
 }
 
 async function createPublication() {
-    const goodId = positiveInteger(createGoodId.value)
+    if (!canCreate.value || createLoading.value) return
+    const goodId = scopedGoodId.value || positiveInteger(createGoodId.value)
     const publicationAccountId = positiveInteger(accountId.value)
     if (!goodId || !publicationAccountId) return
 
@@ -480,6 +540,7 @@ async function createPublication() {
 
     try {
         hydrate(data)
+        emit('changed')
         emit('notice', 'Черновик создан из Good. В Avito ничего не отправлено.')
         await loadList(true)
         selectedId.value = publicationId
@@ -624,6 +685,7 @@ async function syncPublication() {
         publication.value = data.publication
         revisions.value = data.publication?.revisions || []
         replaceSummary(data.publication)
+        emit('changed')
         emit('notice', data.avito_item_id
             ? `Объявление Avito #${data.avito_item_id} найдено и привязано к Good.`
             : 'Отчёт Avito прочитан; объявление ещё обрабатывается.')
@@ -642,6 +704,7 @@ async function archivePublication() {
             ...baseParams(), confirmed: true,
         })
         hydrate(data)
+        emit('changed')
         emit('notice', data.message)
         await loadList(false)
     } catch (exception) {
@@ -772,13 +835,19 @@ function showError(exception, fallback) {
 </script>
 
 <template>
-    <section class="publisher">
+    <section class="publisher" :class="{ 'publisher--embedded': scopedGoodId }">
         <header class="publisher-toolbar">
-            <v-text-field v-model="search" label="Good, категория или Ameise ID" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" hide-details clearable @keyup.enter="loadList(true)" />
+            <strong v-if="scopedGoodId" class="scoped-title">Публикации этого товара</strong>
+            <v-text-field v-else v-model="search" label="Good, категория или Ameise ID" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" hide-details clearable @keyup.enter="loadList(true)" />
             <v-select v-model="statusFilter" :items="STATUS_OPTIONS" label="Статус" density="compact" variant="outlined" hide-details clearable />
             <v-btn size="small" variant="outlined" prepend-icon="mdi-refresh" :loading="loading" :disabled="!workspaceReady" @click="loadList(true)">Обновить</v-btn>
-            <v-btn size="small" color="deep-purple-accent-1" prepend-icon="mdi-plus" :disabled="!workspaceReady" @click="openCreate">Из Good</v-btn>
+            <v-btn size="small" color="deep-purple-accent-1" prepend-icon="mdi-plus" :disabled="!canCreate" :title="hasLinkedListing ? 'У товара уже есть связанное объявление. Редактируйте существующую публикацию.' : ''" @click="openCreate">{{ scopedGoodId ? 'Новая публикация' : 'Из Good' }}</v-btn>
         </header>
+
+        <p v-if="scopedGoodId" class="publication-flow">Черновик → предпросмотр → подтверждённая версия → Автозагрузка → отчёт Avito. Сохранение черновика само по себе не меняет объявление.</p>
+        <v-alert v-if="hasLinkedListing && !items.length && !loading" type="info" variant="tonal" density="compact" class="publisher-alert">
+            У товара уже есть объявление Avito. Новая публикация создаст дубликат. Для объявления, созданного вручную, цену меняйте во вкладке «Цены», остальные данные — в кабинете Avito. Публикации Автозагрузки доступны здесь после сброса фильтра статуса, если они были созданы в приложении.
+        </v-alert>
 
         <v-alert v-if="!workspaceReady" type="warning" variant="tonal" density="compact" class="publisher-alert">
             Рабочий кабинет Avito не настроен. Регистрационные данные находятся отдельно во вкладке «Подключения».
@@ -802,7 +871,8 @@ function showError(exception, fallback) {
                 <strong>{{ feed?.name || 'ещё не создан' }}</strong>
                 <small>{{ feed ? `${feed.approved_publications_count} версий · профиль: ${profileStatusLabel(feed.profile_status)}` : 'создастся вместе с первым черновиком' }}</small>
             </div>
-            <code v-if="feed" :title="feed.url">{{ feed.url }}</code>
+            <code v-if="feed && !scopedGoodId" :title="feed.url">{{ feed.url }}</code>
+            <small v-if="scopedGoodId" class="feed-scope">Запуск обрабатывает весь профиль Автозагрузки кабинета</small>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-cog-outline" :disabled="!workspaceReady" @click="openProfile">Профиль</v-btn>
             <v-btn size="x-small" variant="text" prepend-icon="mdi-cloud-search-outline" :disabled="!profileAttached" :loading="actionLoading === 'status'" @click="refreshRemoteStatus">Загрузка</v-btn>
             <v-btn size="x-small" color="deep-purple" prepend-icon="mdi-cloud-upload-outline" :title="profileAttached ? 'Запустить Автозагрузку' : 'Сначала подключите feed в профиле'" :disabled="!feed?.approved_publications_count || !canUseRemoteMutations || !profileAttached" @click="uploadDialog = true">Запустить</v-btn>
@@ -959,23 +1029,24 @@ function showError(exception, fallback) {
         </div>
 
         <v-dialog v-model="createDialog" max-width="720">
-            <v-card class="dialog-card"><v-card-title>Новый черновик из Good</v-card-title><v-card-text>
-                <v-text-field v-model="createSearch" label="Найти Good" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" autofocus clearable />
-                <div class="good-results" role="radiogroup" aria-label="Выбор Good для объявления">
+            <v-card class="dialog-card" :class="{ 'dialog-card--embedded': scopedGoodId }"><v-card-title>Новый черновик объявления</v-card-title><v-card-text>
+                <p v-if="scopedGoodId"><strong>{{ goodName || `Товар #${scopedGoodId}` }}</strong><br>Название, описание, фото и цену можно проверить перед публикацией. Черновик сохраняется только в приложении.</p>
+                <v-text-field v-else v-model="createSearch" label="Найти Good" prepend-inner-icon="mdi-magnify" density="compact" variant="outlined" autofocus clearable />
+                <div v-if="!scopedGoodId" class="good-results" role="radiogroup" aria-label="Выбор Good для объявления">
                     <button v-for="item in createGoods" :key="item.id" type="button" role="radio" class="good-result" :class="{ active: Number(createGoodId) === Number(item.id) }" :aria-checked="Number(createGoodId) === Number(item.id)" @click="createGoodId = Number(item.id)"><v-icon :icon="Number(createGoodId) === Number(item.id) ? 'mdi-radiobox-marked' : 'mdi-radiobox-blank'" size="22" /><div><strong>{{ item.name }}</strong><small>#{{ item.id }} · {{ item.is_published ? 'опубликован' : 'не опубликован' }} · {{ item.prices?.length || 0 }} цен · {{ item.media?.length || 0 }} фото</small></div></button>
                 </div>
             </v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="createDialog = false">Отмена</v-btn><v-btn color="deep-purple" :disabled="!positiveInteger(createGoodId)" :loading="createLoading" @click="createPublication">Создать черновик</v-btn></v-card-actions></v-card>
         </v-dialog>
 
         <v-dialog v-model="approveDialog" max-width="640">
-            <v-card class="dialog-card"><v-card-title>Зафиксировать версию?</v-card-title><v-card-text>
+            <v-card class="dialog-card" :class="{ 'dialog-card--embedded': scopedGoodId }"><v-card-title>Зафиксировать версию?</v-card-title><v-card-text>
                 <v-alert :type="preview?.valid ? 'info' : 'error'" variant="tonal">{{ preview?.valid ? 'Будут сохранены точные значения текста, цены и копии выбранных фото. Версия попадёт в feed, но запуск Avito останется отдельным действием.' : 'Preview содержит ошибки. Подтверждение будет отклонено сервером.' }}</v-alert>
                 <p>Good останется источником истины. Последующие изменения Good не изменят эту версию — потребуется новое осознанное подтверждение.</p>
             </v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="approveDialog = false">Отмена</v-btn><v-btn color="deep-purple" :disabled="!preview?.valid" :loading="actionLoading === 'approve'" @click="approve">Зафиксировать</v-btn></v-card-actions></v-card>
         </v-dialog>
 
         <v-dialog v-model="profileDialog" max-width="860">
-            <v-card class="dialog-card"><v-card-title>Feed и профиль Автозагрузки</v-card-title><v-card-text>
+            <v-card class="dialog-card" :class="{ 'dialog-card--embedded': scopedGoodId }"><v-card-title>Feed и профиль Автозагрузки</v-card-title><v-card-text>
                 <v-alert type="info" variant="tonal" density="compact">Подключение сохраняет все чужие feed профиля и добавляет только <b>{{ feed?.name }}</b>. Автозагрузка не включается сама.</v-alert>
                 <v-alert v-if="profileAvailable === false" type="warning" variant="tonal" density="compact" class="mt-2">
                     {{ profileUnavailableReason || 'Avito не открыл API профиля Автозагрузки для этого кабинета.' }}
@@ -989,35 +1060,50 @@ function showError(exception, fallback) {
         </v-dialog>
 
         <v-dialog v-model="uploadDialog" max-width="620">
-            <v-card class="dialog-card"><v-card-title>Запустить Автозагрузку Avito?</v-card-title><v-card-text><v-alert type="warning" variant="tonal">Avito обработает весь подключённый профиль, включая <b>{{ feed?.approved_publications_count || 0 }}</b> текущих версий Ameise и другие feed кабинета. Повторный ручной запуск возможен не чаще раза в час.</v-alert><p>Черновики и архивные публикации не отправляются. После запуска используйте «Прочитать отчёт Avito».</p></v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="uploadDialog = false">Отмена</v-btn><v-btn color="warning" :loading="actionLoading === 'upload'" @click="requestUpload">Подтверждаю запуск</v-btn></v-card-actions></v-card>
+            <v-card class="dialog-card" :class="{ 'dialog-card--embedded': scopedGoodId }"><v-card-title>Запустить Автозагрузку Avito?</v-card-title><v-card-text><v-alert type="warning" variant="tonal">Avito обработает весь подключённый профиль, включая <b>{{ feed?.approved_publications_count || 0 }}</b> текущих версий Ameise и другие feed кабинета. Повторный ручной запуск возможен не чаще раза в час.</v-alert><p>Черновики и архивные публикации не отправляются. После запуска используйте «Прочитать отчёт Avito».</p></v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="uploadDialog = false">Отмена</v-btn><v-btn color="warning" :loading="actionLoading === 'upload'" @click="requestUpload">Подтверждаю запуск</v-btn></v-card-actions></v-card>
         </v-dialog>
 
         <v-dialog v-model="uploadStatusDialog" max-width="760">
-            <v-card class="dialog-card"><v-card-title>Текущая загрузка Avito</v-card-title><v-card-text><pre class="status-json">{{ prettyJson(uploadStatus) }}</pre></v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="uploadStatusDialog = false">Закрыть</v-btn></v-card-actions></v-card>
+            <v-card class="dialog-card" :class="{ 'dialog-card--embedded': scopedGoodId }"><v-card-title>Текущая загрузка Avito</v-card-title><v-card-text><pre class="status-json">{{ prettyJson(uploadStatus) }}</pre></v-card-text><v-card-actions><v-spacer /><v-btn variant="text" @click="uploadStatusDialog = false">Закрыть</v-btn></v-card-actions></v-card>
         </v-dialog>
     </section>
 </template>
 
 <style scoped>
-.publisher { min-height: calc(100vh - 245px); color: #e8ebff; }
-.publisher-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) 180px auto auto; gap: 5px; padding: 5px; border-bottom: 1px solid #30344e; background: #181b30; }
+.publisher, .dialog-card { --pub-text: #e8ebff; --pub-surface: #181b30; --pub-border: #30344e; --pub-panel: #111427; --pub-muted: #8e94b3; --pub-accent: #9f91f2; --pub-mutedAlt: #8d93af; --pub-canvas: #15182b; --pub-buttonText: #9da3c0; --pub-buttonBorder: #30344d; --pub-strong: #c7baff; --pub-rowText: #dfe2f6; --pub-rowBorder: #282c43; --pub-hover: #1b1f37; --pub-selected: #20233d; --pub-rowMuted: #8e94ae; --pub-pagerBorder: #343850; --pub-pager: #171a2e; --pub-empty: #888faa; --pub-link: #a99bff; --pub-fieldText: #979db9; --pub-fieldSelected: #e8e3ff; --pub-help: #8289a6; --pub-media: #1b1f35; --pub-previewHelp: #8d94b1; --pub-error: #e2a4a9; --pub-warning: #e6bd70; --pub-previewMuted: #8e95b2; --pub-pre: #cfd3e8; --pub-code: #b7e6cc; --pub-historyMuted: #8c93ad; --pub-reportError: #ffb2b8; --pub-reportWarning: #ffd48a; --pub-reportInfo: #aeb6d6; --pub-dialogText: #edf0ff; --pub-dialog: #191c31; --pub-dialogMuted: #a7adc7; --pub-statusCode: #b8e3cb; --pub-status: #101326; }
+.publisher--embedded, .dialog-card--embedded { --pub-text: #353341; --pub-surface: #ffffff; --pub-border: #ddd9e5; --pub-panel: #faf9fc; --pub-muted: #746b82; --pub-accent: #71558f; --pub-mutedAlt: #746b82; --pub-canvas: #f6f4f9; --pub-buttonText: #71677d; --pub-buttonBorder: #ddd9e5; --pub-strong: #60467d; --pub-rowText: #353341; --pub-rowBorder: #e7e3ec; --pub-hover: #f1edf7; --pub-selected: #eee7f6; --pub-rowMuted: #807688; --pub-pagerBorder: #ddd9e5; --pub-pager: #f5f2f8; --pub-empty: #807688; --pub-link: #694a94; --pub-fieldText: #736780; --pub-fieldSelected: #563e73; --pub-help: #81768c; --pub-media: #f0ecf5; --pub-previewHelp: #81768c; --pub-error: #a13b47; --pub-warning: #91602b; --pub-previewMuted: #81768c; --pub-pre: #46404e; --pub-code: #36754f; --pub-historyMuted: #81768c; --pub-reportError: #a13b47; --pub-reportWarning: #91602b; --pub-reportInfo: #766d85; --pub-dialogText: #353341; --pub-dialog: #ffffff; --pub-dialogMuted: #81768c; --pub-statusCode: #36754f; --pub-status: #f7f5fa; }
+.publisher { min-height: calc(100vh - 245px); color: var(--pub-text); }
+.publisher-toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) 180px auto auto; gap: 5px; padding: 5px; border-bottom: 1px solid var(--pub-border); background: var(--pub-surface); }
 .publisher-alert { margin: 5px; font-size: 11px; }
-.feed-strip { display: grid; grid-template-columns: minmax(220px, auto) minmax(180px, 1fr) auto auto auto; align-items: center; gap: 7px; min-height: 48px; padding: 5px 9px; border-bottom: 1px solid #30344e; background: #111427; }
-.feed-strip > div { display: grid; line-height: 1.15; }.feed-label, .eyebrow { color: #9f91f2; font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.feed-strip strong { font-size: 12px; }.feed-strip small { color: #8e94b3; font-size: 9px; }.feed-strip code { overflow: hidden; color: #8d93af; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.status-strip { display: flex; overflow-x: auto; gap: 4px; padding: 4px 5px; border-bottom: 1px solid #30344e; background: #15182b; }.status-strip button { display: flex; align-items: center; gap: 6px; min-width: max-content; padding: 3px 7px; color: #9da3c0; font-size: 9px; border: 1px solid #30344d; border-radius: 6px; }.status-strip button.active { color: #fff; border-color: #8d75ff; background: rgba(115, 82, 232, .2); }.status-strip strong { color: #c7baff; }
+.feed-strip { display: grid; grid-template-columns: minmax(220px, auto) minmax(180px, 1fr) auto auto auto; align-items: center; gap: 7px; min-height: 48px; padding: 5px 9px; border-bottom: 1px solid var(--pub-border); background: var(--pub-panel); }
+.feed-strip > div { display: grid; line-height: 1.15; }.feed-label, .eyebrow { color: var(--pub-accent); font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }.feed-strip strong { font-size: 12px; }.feed-strip small { color: var(--pub-muted); font-size: 9px; }.feed-strip code { overflow: hidden; color: var(--pub-mutedAlt); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.status-strip { display: flex; overflow-x: auto; gap: 4px; padding: 4px 5px; border-bottom: 1px solid var(--pub-border); background: var(--pub-canvas); }.status-strip button { display: flex; align-items: center; gap: 6px; min-width: max-content; padding: 3px 7px; color: var(--pub-buttonText); font-size: 9px; border: 1px solid var(--pub-buttonBorder); border-radius: 6px; }.status-strip button.active { color: #fff; border-color: #8d75ff; background: rgba(115, 82, 232, .2); }.status-strip strong { color: var(--pub-strong); }
 .publisher-grid { display: grid; grid-template-columns: minmax(245px, 21%) minmax(0, 1fr); height: calc(100vh - 378px); min-height: 520px; }
-.draft-list { position: relative; overflow: auto; border-right: 1px solid #30344e; background: #111427; }.draft-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 6px; width: 100%; padding: 7px 8px; color: #dfe2f6; text-align: left; border-bottom: 1px solid #282c43; background: transparent; }.draft-row:hover { background: #1b1f37; }.draft-row.active { box-shadow: inset 3px 0 #957dff; background: #20233d; }.draft-row__main { display: grid; min-width: 0; }.draft-row__main strong, .draft-row__main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.draft-row__main strong { font-size: 11px; }.draft-row__main small, .draft-row__id { color: #8e94ae; font-size: 8px; }.draft-row__meta { display: flex; align-items: center; gap: 4px; }.draft-row__id { grid-column: 1 / 3; font-family: monospace; }.list-pager { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 4px 7px; font-size: 9px; border-top: 1px solid #343850; background: #171a2e; }.list-pager span { margin-right: auto; }
-.empty-list, .editor-empty, .center { display: flex; min-height: 220px; align-items: center; justify-content: center; flex-direction: column; gap: 6px; color: #888faa; text-align: center; }.empty-list small, .editor-empty span { max-width: 440px; font-size: 10px; }
-.editor-shell { position: relative; display: flex; overflow: hidden; min-width: 0; flex-direction: column; background: #15182b; }.editor-head { display: flex; min-height: 49px; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; border-bottom: 1px solid #30344e; }.editor-head h3 { overflow: hidden; max-width: 720px; margin: 1px 0 0; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.editor-head__meta { display: flex; align-items: center; gap: 5px; }.editor-head__meta a { color: #a99bff; font-size: 10px; }.editor-tabs { min-height: 34px; border-bottom: 1px solid #30344e; }.editor-tabs :deep(.v-tab) { min-height: 34px; padding: 0 10px; font-size: 9px; }.editor-window { overflow: auto; flex: 1; padding: 7px; }.editor-window :deep(.v-window__container), .editor-window :deep(.v-window-item) { min-height: 100%; }
-.field-picker { display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }.field-picker label { display: flex; align-items: center; gap: 2px; padding: 1px 6px 1px 1px; color: #979db9; font-size: 9px; border: 1px solid #343850; border-radius: 6px; }.field-picker label.active { color: #e8e3ff; border-color: #7963df; background: rgba(105, 76, 210, .17); }.field-picker > small { margin-left: auto; max-width: 430px; color: #8289a6; font-size: 8px; text-align: right; }
+.draft-list { position: relative; overflow: auto; border-right: 1px solid var(--pub-border); background: var(--pub-panel); }.draft-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 2px 6px; width: 100%; padding: 7px 8px; color: var(--pub-rowText); text-align: left; border-bottom: 1px solid var(--pub-rowBorder); background: transparent; }.draft-row:hover { background: var(--pub-hover); }.draft-row.active { box-shadow: inset 3px 0 #957dff; background: var(--pub-selected); }.draft-row__main { display: grid; min-width: 0; }.draft-row__main strong, .draft-row__main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.draft-row__main strong { font-size: 11px; }.draft-row__main small, .draft-row__id { color: var(--pub-rowMuted); font-size: 8px; }.draft-row__meta { display: flex; align-items: center; gap: 4px; }.draft-row__id { grid-column: 1 / 3; font-family: monospace; }.list-pager { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 4px 7px; font-size: 9px; border-top: 1px solid var(--pub-pagerBorder); background: var(--pub-pager); }.list-pager span { margin-right: auto; }
+.empty-list, .editor-empty, .center { display: flex; min-height: 220px; align-items: center; justify-content: center; flex-direction: column; gap: 6px; color: var(--pub-empty); text-align: center; }.empty-list small, .editor-empty span { max-width: 440px; font-size: 10px; }
+.editor-shell { position: relative; display: flex; overflow: hidden; min-width: 0; flex-direction: column; background: var(--pub-canvas); }.editor-head { display: flex; min-height: 49px; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--pub-border); }.editor-head h3 { overflow: hidden; max-width: 720px; margin: 1px 0 0; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }.editor-head__meta { display: flex; align-items: center; gap: 5px; }.editor-head__meta a { color: var(--pub-link); font-size: 10px; }.editor-tabs { min-height: 34px; border-bottom: 1px solid var(--pub-border); }.editor-tabs :deep(.v-tab) { min-height: 34px; padding: 0 10px; font-size: 9px; }.editor-window { overflow: auto; flex: 1; padding: 7px; }.editor-window :deep(.v-window__container), .editor-window :deep(.v-window-item) { min-height: 100%; }
+.field-picker { display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }.field-picker label { display: flex; align-items: center; gap: 2px; padding: 1px 6px 1px 1px; color: var(--pub-fieldText); font-size: 9px; border: 1px solid var(--pub-pagerBorder); border-radius: 6px; }.field-picker label.active { color: var(--pub-fieldSelected); border-color: #7963df; background: rgba(105, 76, 210, .17); }.field-picker > small { margin-left: auto; max-width: 430px; color: var(--pub-help); font-size: 8px; text-align: right; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }.span-2 { grid-column: 1 / -1; }.form-grid :deep(.v-input), .category-line :deep(.v-input) { font-size: 10px; }.core-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); }.category-line { display: grid; grid-template-columns: minmax(280px, 1.5fr) minmax(180px, 1fr) auto; gap: 5px; }
-.media-picker, .dynamic-fields, .extra-fields { margin-top: 7px; padding: 7px; border: 1px solid #30344e; border-radius: 7px; background: #111427; }.media-picker > header, .dynamic-fields > header, .extra-fields > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 10px; }.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 5px; }.media-grid label { position: relative; overflow: hidden; min-height: 112px; border: 2px solid transparent; border-radius: 6px; background: #1b1f35; }.media-grid label.active { border-color: #927aff; }.media-grid img { width: 100%; height: 82px; object-fit: cover; }.media-grid :deep(.v-checkbox-btn) { position: absolute; top: 1px; right: 1px; border-radius: 50%; background: rgba(10, 11, 22, .72); }.media-grid span { display: block; overflow: hidden; padding: 2px 4px; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }.extra-row { display: grid; grid-template-columns: .7fr 1.3fr auto; gap: 4px; margin-top: 4px; }
-.preview-toolbar, .history-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: #8d94b1; font-size: 9px; }.preview-grid { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(340px, 1.3fr); gap: 7px; }.validation-box, .ad-preview, .snapshot-preview, .xml-preview { padding: 8px; border: 1px solid #30344e; border-radius: 7px; background: #111427; }.validation-box.valid { border-color: rgba(54, 189, 120, .5); }.validation-box.invalid { border-color: rgba(238, 85, 99, .5); }.validation-box header, .snapshot-preview header { display: flex; align-items: center; justify-content: space-between; gap: 5px; }.validation-box ul, .validation-box p { margin: 5px 0; padding-left: 15px; color: #e2a4a9; font-size: 9px; }.validation-box p { color: #e6bd70; }.ad-preview { display: grid; gap: 4px; }.ad-preview h4 { margin: 0; font-size: 16px; }.ad-preview > span, .ad-preview > small, .snapshot-preview > small { color: #8e95b2; font-size: 9px; }.ad-preview pre, .snapshot-preview pre, .revision-list pre { overflow: auto; max-height: 260px; margin: 4px 0 0; color: #cfd3e8; font: 10px/1.45 inherit; white-space: pre-wrap; }.snapshot-preview, .xml-preview { grid-column: 1 / -1; }.xml-preview summary { cursor: pointer; font-size: 10px; }.xml-preview pre { overflow: auto; max-height: 330px; color: #b7e6cc; font: 9px/1.45 monospace; white-space: pre-wrap; }
-.revision-list { display: grid; gap: 5px; }.revision-list details { border: 1px solid #30344e; border-radius: 6px; background: #111427; }.revision-list summary { display: flex; align-items: center; gap: 8px; padding: 7px; cursor: pointer; font-size: 9px; }.revision-list summary span { margin-left: auto; color: #8c93ad; }.revision-list details > div { display: grid; gap: 3px; padding: 7px; border-top: 1px solid #30344e; font-size: 10px; }
-.revision-list p { margin: 1px 0; padding: 3px 5px; border-radius: 4px; }.report-error { color: #ffb2b8; background: rgba(220, 56, 74, .14); }.report-warning { color: #ffd48a; background: rgba(224, 160, 48, .12); }.report-info { color: #aeb6d6; background: rgba(120, 130, 170, .1); }
-.editor-actions { display: flex; align-items: center; gap: 5px; min-height: 45px; padding: 5px 8px; border-top: 1px solid #30344e; background: #111427; }.action-spacer { flex: 1; }
-.dialog-card { color: #edf0ff !important; background: #191c31 !important; }.dialog-card p { color: #a7adc7; font-size: 11px; }.good-results { overflow: auto; max-height: 420px; }.good-result { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 5px; color: #e8ebff; text-align: left; border-bottom: 1px solid #30344e; background: transparent; }.good-result:hover, .good-result.active { background: rgba(109, 78, 218, .18); }.good-result.active { box-shadow: inset 3px 0 #9b82ff; }.good-result div { display: grid; }.good-result strong { font-size: 11px; }.good-result small { color: #8e94ae; font-size: 9px; }
-.status-json { overflow: auto; max-height: 60vh; padding: 8px; color: #b8e3cb; font: 10px/1.5 monospace; border: 1px solid #30344e; border-radius: 6px; background: #101326; white-space: pre-wrap; }
+.media-picker, .dynamic-fields, .extra-fields { margin-top: 7px; padding: 7px; border: 1px solid var(--pub-border); border-radius: 7px; background: var(--pub-panel); }.media-picker > header, .dynamic-fields > header, .extra-fields > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 10px; }.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 5px; }.media-grid label { position: relative; overflow: hidden; min-height: 112px; border: 2px solid transparent; border-radius: 6px; background: var(--pub-media); }.media-grid label.active { border-color: #927aff; }.media-grid img { width: 100%; height: 82px; object-fit: cover; }.media-grid :deep(.v-checkbox-btn) { position: absolute; top: 1px; right: 1px; border-radius: 50%; background: rgba(10, 11, 22, .72); }.media-grid span { display: block; overflow: hidden; padding: 2px 4px; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }.extra-row { display: grid; grid-template-columns: .7fr 1.3fr auto; gap: 4px; margin-top: 4px; }
+.preview-toolbar, .history-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: var(--pub-previewHelp); font-size: 9px; }.preview-grid { display: grid; grid-template-columns: minmax(240px, .7fr) minmax(340px, 1.3fr); gap: 7px; }.validation-box, .ad-preview, .snapshot-preview, .xml-preview { padding: 8px; border: 1px solid var(--pub-border); border-radius: 7px; background: var(--pub-panel); }.validation-box.valid { border-color: rgba(54, 189, 120, .5); }.validation-box.invalid { border-color: rgba(238, 85, 99, .5); }.validation-box header, .snapshot-preview header { display: flex; align-items: center; justify-content: space-between; gap: 5px; }.validation-box ul, .validation-box p { margin: 5px 0; padding-left: 15px; color: var(--pub-error); font-size: 9px; }.validation-box p { color: var(--pub-warning); }.ad-preview { display: grid; gap: 4px; }.ad-preview h4 { margin: 0; font-size: 16px; }.ad-preview > span, .ad-preview > small, .snapshot-preview > small { color: var(--pub-previewMuted); font-size: 9px; }.ad-preview pre, .snapshot-preview pre, .revision-list pre { overflow: auto; max-height: 260px; margin: 4px 0 0; color: var(--pub-pre); font: 10px/1.45 inherit; white-space: pre-wrap; }.snapshot-preview, .xml-preview { grid-column: 1 / -1; }.xml-preview summary { cursor: pointer; font-size: 10px; }.xml-preview pre { overflow: auto; max-height: 330px; color: var(--pub-code); font: 9px/1.45 monospace; white-space: pre-wrap; }
+.revision-list { display: grid; gap: 5px; }.revision-list details { border: 1px solid var(--pub-border); border-radius: 6px; background: var(--pub-panel); }.revision-list summary { display: flex; align-items: center; gap: 8px; padding: 7px; cursor: pointer; font-size: 9px; }.revision-list summary span { margin-left: auto; color: var(--pub-historyMuted); }.revision-list details > div { display: grid; gap: 3px; padding: 7px; border-top: 1px solid var(--pub-border); font-size: 10px; }
+.revision-list p { margin: 1px 0; padding: 3px 5px; border-radius: 4px; }.report-error { color: var(--pub-reportError); background: rgba(220, 56, 74, .14); }.report-warning { color: var(--pub-reportWarning); background: rgba(224, 160, 48, .12); }.report-info { color: var(--pub-reportInfo); background: rgba(120, 130, 170, .1); }
+.editor-actions { display: flex; align-items: center; gap: 5px; min-height: 45px; padding: 5px 8px; border-top: 1px solid var(--pub-border); background: var(--pub-panel); }.action-spacer { flex: 1; }
+.dialog-card { color: var(--pub-dialogText) !important; background: var(--pub-dialog) !important; }.dialog-card p { color: var(--pub-dialogMuted); font-size: 11px; }.good-results { overflow: auto; max-height: 420px; }.good-result { display: flex; width: 100%; align-items: center; gap: 8px; padding: 7px 5px; color: var(--pub-text); text-align: left; border-bottom: 1px solid var(--pub-border); background: transparent; }.good-result:hover, .good-result.active { background: rgba(109, 78, 218, .18); }.good-result.active { box-shadow: inset 3px 0 #9b82ff; }.good-result div { display: grid; }.good-result strong { font-size: 11px; }.good-result small { color: var(--pub-rowMuted); font-size: 9px; }
+.status-json { overflow: auto; max-height: 60vh; padding: 8px; color: var(--pub-statusCode); font: 10px/1.5 monospace; border: 1px solid var(--pub-border); border-radius: 6px; background: var(--pub-status); white-space: pre-wrap; }
 @media (max-width: 1050px) { .publisher-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.publisher-grid { grid-template-columns: 220px minmax(0, 1fr); height: auto; min-height: 650px; }.feed-strip { grid-template-columns: 1fr auto auto auto; }.feed-strip code { display: none; }.core-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .publisher-grid { display: block; }.draft-list { max-height: 240px; border-right: 0; border-bottom: 1px solid #30344e; }.editor-shell { min-height: 650px; }.form-grid, .core-fields, .category-line, .preview-grid { grid-template-columns: 1fr; }.span-2, .snapshot-preview, .xml-preview { grid-column: 1; }.field-picker { flex-wrap: wrap; }.field-picker > small { margin-left: 0; text-align: left; } }
+@media (max-width: 720px) { .publisher-grid { display: block; }.draft-list { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--pub-border); }.editor-shell { min-height: 650px; }.form-grid, .core-fields, .category-line, .preview-grid { grid-template-columns: 1fr; }.span-2, .snapshot-preview, .xml-preview { grid-column: 1; }.field-picker { flex-wrap: wrap; }.field-picker > small { margin-left: 0; text-align: left; } }
+.publisher--embedded { min-height: 0; border: 1px solid var(--pub-border); border-radius: 8px; overflow: hidden; }
+.publisher--embedded .publisher-toolbar { align-items: center; grid-template-columns: minmax(150px, 1fr) 160px auto auto; padding: 6px 8px; }
+.scoped-title { font-size: 12px; }
+.publication-flow { margin: 0; padding: 7px 9px; color: var(--pub-muted); background: var(--pub-panel); font-size: 11px; border-bottom: 1px solid var(--pub-border); }
+.feed-scope { color: var(--pub-muted); font-size: 10px; }
+.publisher--embedded .publisher-grid { height: min(680px, 75vh); min-height: 460px; grid-template-columns: minmax(170px, 21%) minmax(0, 1fr); }
+.publisher--embedded .status-strip button.active { color: #60467d; }
+.publisher--embedded .editor-head h3 { max-width: min(50vw, 580px); }
+.publisher--embedded .editor-actions { flex-wrap: wrap; }
+.publisher--embedded :deep(.v-field__input) { min-height: 35px; padding-top: 7px; padding-bottom: 7px; font-size: 12px; }
+.publisher--embedded :deep(.v-btn) { font-size: 10px; letter-spacing: .02em; }
+@media (max-width: 1050px) { .publisher--embedded .feed-strip { grid-template-columns: 1fr auto auto auto; }.publisher--embedded .feed-scope { grid-column: 1 / -1; grid-row: 2; } }
+@media (max-width: 720px) { .publisher--embedded .publisher-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.publisher--embedded .publisher-grid { display: block; height: auto; min-height: 0; }.publisher--embedded .editor-shell { min-height: 480px; }.publisher--embedded .feed-strip { grid-template-columns: repeat(3, auto); }.publisher--embedded .feed-strip > div { grid-column: 1 / -1; }.publisher--embedded .feed-scope { grid-row: auto; } }
 </style>

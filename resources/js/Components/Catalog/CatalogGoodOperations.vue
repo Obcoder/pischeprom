@@ -7,6 +7,7 @@ import GoodPricingWorkspace from '@/Components/Goods/GoodPricingWorkspace.vue'
 import QuotationWorkspace from '@/Components/Quotations/QuotationWorkspace.vue'
 import GoodPriceTypesTab from '@/Components/Goods/GoodPriceTypesTab.vue'
 import GoodMediaTab from '@/Components/Goods/GoodMediaTab.vue'
+import GoodAvitoTab from '@/Components/Goods/GoodAvitoTab.vue'
 import FindBuyersLauncher from '@/Components/AiSales/FindBuyersLauncher.vue'
 
 const props = defineProps({
@@ -14,8 +15,8 @@ const props = defineProps({
     activeTab: { type: String, default: 'market' },
     active: { type: Boolean, default: true },
 })
-const emit = defineEmits(['request-basics', 'request-market', 'changed', 'loaded', 'state'])
-const operationTabs = ['market', 'prices', 'price-types', 'collections', 'media', 'sales']
+const emit = defineEmits(['request-basics', 'request-market', 'request-avito', 'changed', 'loaded', 'state'])
+const operationTabs = ['market', 'prices', 'avito', 'price-types', 'collections', 'media', 'sales']
 const date = useDate()
 // --------------------------------------------------
 // STATE
@@ -35,6 +36,8 @@ const quotationState = ref({ dirty: false, busy: false })
 const recommendationIndustryIds = ref([]);
 const pricingWorkspace = ref(null)
 const pricingState = ref({ dirty: false, busy: false })
+const avitoWorkspace = ref(null)
+const avitoState = ref({ dirty: false, busy: false })
 
 // --------------------------------------------------
 // COMPUTED
@@ -238,15 +241,17 @@ async function quotationChanged() {
 const normalizedIds = values => [...values].map(String).sort().join(',')
 const recommendationDirty = computed(() => normalizedIds(recommendationIndustryIds.value) !== normalizedIds(currentRecommendationIndustries.value.map(item => item.id)))
 const quotationDirty = computed(() => quotationState.value.dirty)
-const dirty = computed(() => recommendationDirty.value || quotationDirty.value || pricingState.value.dirty)
-const busy = computed(() => savingRecommendationClassifications.value || quotationState.value.busy || pricingState.value.busy)
-const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : pricingState.value.dirty ? 'prices' : null)
+const dirty = computed(() => recommendationDirty.value || quotationDirty.value || pricingState.value.dirty || avitoState.value.dirty)
+const busy = computed(() => savingRecommendationClassifications.value || quotationState.value.busy || pricingState.value.busy || avitoState.value.busy)
+const dirtyTab = computed(() => quotationDirty.value ? 'market' : recommendationDirty.value ? 'sales' : pricingState.value.dirty ? 'prices' : avitoState.value.dirty ? 'avito' : null)
 const visitedTabs = ref(new Set())
 watch(() => props.activeTab, tab => { if (operationTabs.includes(tab)) visitedTabs.value = new Set([...visitedTabs.value, tab]) }, { immediate: true })
 watch([dirty, busy, dirtyTab], ([dirty, busy, dirtyTab]) => emit('state', { dirty, busy, dirtyTab }), { immediate: true })
 function reset() {
     pricingWorkspace.value?.reset()
     pricingState.value = { dirty: false, busy: false }
+    avitoWorkspace.value?.reset()
+    avitoState.value = { dirty: false, busy: false }
     syncRecommendationClassificationForm()
     quotationWorkspace.value?.reset()
     quotationState.value = { dirty: false, busy: false }
@@ -296,7 +301,12 @@ defineExpose({ refresh, reset })
                         @changed="changed"
                         @state="pricingState = $event"
                         @request-market="emit('request-market')"
+                        @request-avito="emit('request-avito')"
                     />
+                </v-window-item>
+
+                <v-window-item value="avito" :eager="visitedTabs.has('avito')">
+                    <GoodAvitoTab ref="avitoWorkspace" :good-id="goodData.id" :active="active && activeTab === 'avito'" @changed="changed" @state="avitoState = $event" />
                 </v-window-item>
 
                 <!-- PRICE TYPES -->

@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
 import * as Vue from 'vue'
 import { findVNode, templateRenderer } from './support/renderTemplate.mjs'
+import { avitoPriceBlockReason } from '../../resources/js/Services/goodAvito.js'
 const flush = () => new Promise(resolve => setImmediate(resolve))
 function harness(t, name, initial) {
     const filename = `resources/js/Components/Goods/${name}.vue`
@@ -12,7 +13,7 @@ function harness(t, name, initial) {
     const template = compileTemplate({ source: descriptor.template.content, filename, id: name, compilerOptions: { bindingMetadata: script.bindings } }); assert.deepEqual(template.errors, [])
     const requests = [], emitted = [], reloads = []
     const props = Vue.reactive(initial)
-    const env = { ...Vue, PriceConstructionChain: { name: 'PriceConstructionChain' }, router: { reload: options => reloads.push(options) }, axios: Object.fromEntries(['get', 'put', 'post', 'patch', 'delete'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])) }
+    const env = { ...Vue, avitoPriceBlockReason, GoodAvitoPriceDialog: { name: 'GoodAvitoPriceDialog' }, PriceConstructionChain: { name: 'PriceConstructionChain' }, router: { reload: options => reloads.push(options) }, axios: Object.fromEntries(['get', 'put', 'post', 'patch', 'delete'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])) }
     const code = script.content.replace(/^import .+? from ['"].*['"];?$/gm, '').replace('export default', 'return')
     const component = new Function('env', `with(env){${code}}`)(env), scope = Vue.effectScope()
     const api = scope.run(() => component.setup(props, { expose() {}, emit: (...event) => emitted.push(event) }))

@@ -16,7 +16,7 @@ function harness(t, overrides = {}) {
     const props = Vue.reactive({ goodId: 42, activeTab: 'market', active: false, ...overrides })
     const environment = {
         ...Vue, useDate: () => ({ format: value => value }), route: (name, id) => `${name}/${id ?? ''}`,
-        ...Object.fromEntries(['GoodPricingWorkspace', 'QuotationWorkspace', 'GoodPriceTypesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
+        ...Object.fromEntries(['GoodPricingWorkspace', 'GoodAvitoTab', 'QuotationWorkspace', 'GoodPriceTypesTab', 'GoodMediaTab', 'FindBuyersLauncher'].map(name => [name, name])),
         axios: Object.fromEntries(['get', 'patch', 'post'].map(method => [method, (url, body) => new Promise((resolve, reject) => requests.push({ method, url, body, resolve: data => resolve({ data }), reject }))])),
         useForm(initial) {
             const data = Vue.reactive({ ...initial, errors: {}, processing: false })
@@ -50,7 +50,7 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     await h.load()
     assert.equal(h.api.goodData.value.id, 42)
     assert.equal(h.api.currencies.value.length, 1)
-    for (const key of ['market', 'prices', 'price-types', 'collections', 'media', 'sales']) {
+    for (const key of ['market', 'prices', 'avito', 'price-types', 'collections', 'media', 'sales']) {
         assert.ok(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === key), key)
     }
     for (const key of ['quotations', 'recommendations', 'purchases', 'warehouse']) {
@@ -68,6 +68,31 @@ test('operational tools load lazily, retain visited panels, and expose every exi
     const edit = findVNode(h.render(), node => node.type === 'v-btn' && node.props['prepend-icon'] === 'mdi-pencil')
     edit.props.onClick()
     assert.ok(h.emitted.some(event => event[0] === 'request-basics'))
+})
+
+test('Avito editor preserves its draft and blocks parent close while sending a price', async t => {
+    const h = harness(t); await h.load()
+    h.props.activeTab = 'avito'; await Vue.nextTick()
+    let child = findVNode(h.render(), node => node.type === 'GoodAvitoTab')
+    assert.equal(child.props['good-id'], 42)
+    assert.equal(child.props.active, true)
+    child.props.onState({ dirty: true, busy: false }); await Vue.nextTick()
+    assert.equal(h.api.dirty.value, true)
+    assert.equal(h.api.dirtyTab.value, 'avito')
+    h.props.activeTab = 'prices'; await Vue.nextTick()
+    assert.equal(findVNode(h.render(), node => node.type === 'v-window-item' && node.props.value === 'avito').props.eager, true)
+    child = findVNode(h.render(), node => node.type === 'GoodAvitoTab')
+    assert.equal(child.props.active, false)
+    child.props.onState({ dirty: true, busy: true }); await Vue.nextTick()
+    assert.equal(h.api.busy.value, true)
+    let resets = 0
+    h.api.avitoWorkspace.value = { reset() { resets++ } }
+    h.api.reset(); await Vue.nextTick()
+    assert.equal(resets, 1)
+    assert.equal(h.api.dirty.value, false)
+    assert.equal(h.api.busy.value, false)
+    findVNode(h.render(), node => node.type === 'GoodPricingWorkspace').props.onRequestAvito()
+    assert.ok(h.emitted.some(([name]) => name === 'request-avito'))
 })
 
 test('market owns supplier proposals while sales combines history, recommendations and buyer search', async t => {
